@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SiteBlocker</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="header">
+    <h2>🚫 Website Blocker</h2>
+  </div>
+  
+  <div class="status" id="statusDisplay">
+    <span id="siteCount">0</span> sites blocked
+  </div>
+  
+  <div class="current-site">
+    <h4>Current Page:</h4>
+    <div class="site-info">
+      <div class="site-url" id="currentUrl">Loading...</div>
+      <div class="block-target" id="blockTarget"></div>
+    </div>
+  </div>
+  
+  <div class="main-action">
+    <button class="block-btn" id="blockCurrentButton">
+      <span class="btn-icon">🚫</span>
+      <span class="btn-text">Block This Page</span>
+    </button>
+  </div>
+  
+  <div class="controls">
+    <button class="manage-btn" id="manageButton">📋 Manage Blocked Sites</button>
+    <button class="options-btn" id="optionsButton">⚙️ Options</button>
+  </div>
+  
+  <script src="popup.js"></script>
+</body>
+</html>

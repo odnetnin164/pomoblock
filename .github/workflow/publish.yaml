@@ -1,0 +1,36 @@
+name: Publish to Chrome Web Store
+
+on:
+  workflow_dispatch:
+    inputs:
+      prerelease_tag:
+        description: 'Tag name of the prerelease to promote (e.g., v1.0.1)'
+        required: true
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download prerelease ZIP
+        run: |
+          gh release download "${{ github.event.inputs.prerelease_tag }}" -p "*.zip"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Mark prerelease as full release
+        run: |
+          gh release edit "${{ github.event.inputs.prerelease_tag }}" --prerelease=false
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload to Chrome Web Store
+        uses: PlasmoHQ/chrome-upload-action@v2
+        with:
+          extension-id: ${{ secrets.CHROME_EXTENSION_ID }}
+          client-id: ${{ secrets.CHROME_CLIENT_ID }}
+          client-secret: ${{ secrets.CHROME_CLIENT_SECRET }}
+          refresh-token: ${{ secrets.CHROME_REFRESH_TOKEN }}
+          zip-path: "./siteblocker-${{ github.event.inputs.prerelease_tag }}.zip"

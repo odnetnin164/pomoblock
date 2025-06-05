@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SiteBlocker Options</title>
+  <link rel="stylesheet" href="options.css">
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>🚫 SiteBlocker Options</h1>
+      <p>Configure your website blocking preferences</p>
+    </div>
+    
+    <div class="settings-section">
+      <div class="setting-group">
+        <h3>Manage Blocked Sites</h3>
+        <p class="setting-description">Add, remove, or view your blocked websites</p>
+        
+        <div class="manage-sites">
+          <div class="add-site-form">
+            <div class="input-group">
+              <input type="text" id="newSiteInput" placeholder="example.com or reddit.com/r/gaming">
+              <button id="addSiteButton" class="add-site-btn">Add Site</button>
+            </div>
+          </div>
+          
+          <div class="sites-list-container">
+            <div class="sites-header">
+              <span class="sites-count" id="sitesCount">0 sites blocked</span>
+              <button id="clearAllSites" class="clear-all-btn">Clear All</button>
+            </div>
+            <div id="blockedSitesList" class="sites-list">
+              <div class="empty-state">
+                <p>No sites blocked yet</p>
+                <small>Add a website above to get started</small>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="settings-section">
+      <div class="setting-group">
+        <h3>Block Behavior</h3>
+        <p class="setting-description">Choose what happens when a blocked site is accessed</p>
+        
+        <div class="radio-group">
+          <label class="radio-option">
+            <input type="radio" name="blockMode" value="block" id="blockMode">
+            <span class="radio-custom"></span>
+            <div class="option-content">
+              <strong>Show Block Page</strong>
+              <small>Display a custom blocked page with site information</small>
+            </div>
+          </label>
+          
+          <label class="radio-option">
+            <input type="radio" name="blockMode" value="redirect" id="redirectMode">
+            <span class="radio-custom"></span>
+            <div class="option-content">
+              <strong>Redirect to Website</strong>
+              <small>Automatically redirect to a specified website</small>
+            </div>
+          </label>
+        </div>
+      </div>
+      
+      <div class="setting-group" id="redirectSettings">
+        <h3>Redirect Settings</h3>
+        <p class="setting-description">Configure redirect behavior when a blocked site is accessed</p>
+        
+        <div class="redirect-subsetting">
+          <h4>Redirect URL</h4>
+          <div class="input-group">
+            <input type="url" id="redirectUrl" placeholder="https://example.com">
+            <button id="testRedirect" class="test-btn">Test</button>
+          </div>
+          
+          <div class="url-suggestions">
+            <p>Popular redirect options:</p>
+            <div class="suggestion-buttons">
+              <button class="suggestion-btn" data-url="https://www.google.com">Google</button>
+              <button class="suggestion-btn" data-url="https://www.github.com">GitHub</button>
+              <button class="suggestion-btn" data-url="https://www.wikipedia.org">Wikipedia</button>
+              <button class="suggestion-btn" data-url="https://www.duolingo.com">Duolingo</button>
+              <button class="suggestion-btn" data-url="https://www.khanacademy.org">Khan Academy</button>
+            </div>
+          </div>
+        </div>
+        
+        <div class="redirect-subsetting">
+          <h4>Redirect Delay</h4>
+          <p class="subsetting-description">Show blocked page for a few seconds before redirecting</p>
+          <div class="delay-controls">
+            <div class="delay-input-group">
+              <input type="number" id="redirectDelay" min="0" max="30" step="1" value="3">
+              <span class="delay-unit">seconds</span>
+            </div>
+            <div class="delay-presets">
+              <button class="preset-btn" data-delay="0">Instant</button>
+              <button class="preset-btn" data-delay="1">1s</button>
+              <button class="preset-btn" data-delay="3">3s</button>
+              <button class="preset-btn" data-delay="5">5s</button>
+              <button class="preset-btn" data-delay="10">10s</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <div class="setting-group">
+        <h3>Extension Status</h3>
+        <p class="setting-description">Enable or disable website blocking entirely</p>
+        
+        <div class="toggle-group">
+          <label class="toggle-switch">
+            <input type="checkbox" id="extensionEnabled">
+            <span class="toggle-slider"></span>
+          </label>
+          <span class="toggle-label" id="toggleLabel">Extension Enabled</span>
+        </div>
+      </div>
+      
+      <div class="setting-group">
+        <h3>Debug Mode</h3>
+        <p class="setting-description">Show debug information on blocked pages (for troubleshooting)</p>
+        
+        <div class="toggle-group">
+          <label class="toggle-switch">
+            <input type="checkbox" id="debugEnabled">
+            <span class="toggle-slider"></span>
+          </label>
+          <span class="toggle-label" id="debugToggleLabel">Debug Disabled</span>
+        </div>
+      </div>
+    </div>
+    
+    <div class="actions">
+      <button id="saveSettings" class="save-btn">💾 Save Settings</button>
+      <button id="resetSettings" class="reset-btn">🔄 Reset to Defaults</button>
+    </div>
+    
+    <div class="status-message" id="statusMessage"></div>
+    
+    <div class="footer">
+      <p>SiteBlocker Extension v1.0.0</p>
+      <p>Made to help you stay focused and productive</p>
+    </div>
+  </div>
+  
+  <script src="options.js"></script>
+</body>
+</html>
