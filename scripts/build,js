@@ -1,0 +1,194 @@
+#!/usr/bin/env node
+
+/**
+ * Build script for PomoBlock Chrome Extension
+ * This script provides utilities for building and packaging the extension
+ */
+
+const { execSync } = require('child_process');
+const fs = require('fs');
+const path = require('path');
+
+const DIST_DIR = path.join(__dirname, '..', 'dist');
+const PACKAGE_JSON = path.join(__dirname, '..', 'package.json');
+
+function log(message) {
+  console.log(`\x1b[36m[Build]\x1b[0m ${message}`);
+}
+
+function error(message) {
+  console.error(`\x1b[31m[Error]\x1b[0m ${message}`);
+}
+
+function success(message) {
+  console.log(`\x1b[32m[Success]\x1b[0m ${message}`);
+}
+
+function checkNodeModules() {
+  const nodeModulesPath = path.join(__dirname, '..', 'node_modules');
+  if (!fs.existsSync(nodeModulesPath)) {
+    log('Installing dependencies...');
+    execSync('npm install', { cwd: path.join(__dirname, '..'), stdio: 'inherit' });
+  }
+}
+
+function clean() {
+  log('Cleaning build directory...');
+  if (fs.existsSync(DIST_DIR)) {
+    execSync(`rimraf ${DIST_DIR}`, { cwd: path.join(__dirname, '..') });
+  }
+  success('Build directory cleaned');
+}
+
+function build(mode = 'production') {
+  log(`Building extension in ${mode} mode...`);
+  
+  try {
+    const command = mode === 'development' ? 'npm run dev' : 'npm run build';
+    execSync(command, { cwd: path.join(__dirname, '..'), stdio: 'inherit' });
+    success(`Extension built successfully in ${mode} mode`);
+  } catch (err) {
+    error('Build failed');
+    process.exit(1);
+  }
+}
+
+function createZip() {
+  const pkg = JSON.parse(fs.readFileSync(PACKAGE_JSON, 'utf8'));
+  const zipName = `pomoblock-v${pkg.version}.zip`;
+  const zipPath = path.join(__dirname, '..', zipName);
+  
+  log('Creating distribution zip...');
+  
+  try {
+    // Remove existing zip
+    if (fs.existsSync(zipPath)) {
+      fs.unlinkSync(zipPath);
+    }
+    
+    // Create zip (requires zip command or you can use a Node.js zip library)
+    execSync(`cd ${DIST_DIR} && zip -r ../${zipName} .`, { stdio: 'inherit' });
+    success(`Distribution zip created: ${zipName}`);
+  } catch (err) {
+    error('Failed to create zip file');
+    error('Make sure you have zip command available or install a zip utility');
+  }
+}
+
+function watch() {
+  log('Starting development server with file watching...');
+  execSync('npm run dev', { cwd: path.join(__dirname, '..'), stdio: 'inherit' });
+}
+
+function validateBuild() {
+  log('Validating build...');
+  
+  const requiredFiles = [
+    'manifest.json',
+    'popup.html',
+    'options.html',
+    'js/content.bundle.js',
+    'js/popup.bundle.js',
+    'js/options.bundle.js',
+    'css/popup.css',
+    'css/options.css'
+  ];
+  
+  let valid = true;
+  
+  for (const file of requiredFiles) {
+    const filePath = path.join(DIST_DIR, file);
+    if (!fs.existsSync(filePath)) {
+      error(`Missing required file: ${file}`);
+      valid = false;
+    }
+  }
+  
+  if (valid) {
+    success('Build validation passed');
+  } else {
+    error('Build validation failed');
+    process.exit(1);
+  }
+}
+
+function showHelp() {
+  console.log(`
+PomoBlock Extension Build Script
+
+Usage:
+  node scripts/build.js [command]
+
+Commands:
+  build         Build extension for production (default)
+  dev           Build extension for development
+  watch         Start development server with file watching
+  clean         Clean build directory
+  zip           Create distribution zip file
+  validate      Validate build output
+  help          Show this help message
+
+Examples:
+  node scripts/build.js build
+  node scripts/build.js dev
+  node scripts/build.js watch
+  node scripts/build.js clean && node scripts/build.js build && node scripts/build.js zip
+  `);
+}
+
+// Main execution
+const command = process.argv[2] || 'build';
+
+try {
+  checkNodeModules();
+  
+  switch (command) {
+    case 'build':
+      clean();
+      build('production');
+      validateBuild();
+      break;
+      
+    case 'dev':
+      clean();
+      build('development');
+      validateBuild();
+      break;
+      
+    case 'watch':
+      clean();
+      watch();
+      break;
+      
+    case 'clean':
+      clean();
+      break;
+      
+    case 'zip':
+      if (!fs.existsSync(DIST_DIR)) {
+        log('No build found, building first...');
+        build('production');
+        validateBuild();
+      }
+      createZip();
+      break;
+      
+    case 'validate':
+      validateBuild();
+      break;
+      
+    case 'help':
+    case '--help':
+    case '-h':
+      showHelp();
+      break;
+      
+    default:
+      error(`Unknown command: ${command}`);
+      showHelp();
+      process.exit(1);
+  }
+} catch (err) {
+  error(err.message);
+  process.exit(1);
+}
