@@ -3,13 +3,13 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>SiteBlocker Options</title>
+  <title>PomoBlock Options</title>
   <link rel="stylesheet" href="options.css">
 </head>
 <body>
   <div class="container">
     <div class="header">
-      <h1>🚫 SiteBlocker Options</h1>
+      <h1>🚫 PomoBlock Options</h1>
       <p>Configure your website blocking preferences</p>
     </div>
     
@@ -21,7 +21,7 @@
         <div class="manage-sites">
           <div class="add-site-form">
             <div class="input-group">
-              <input type="text" id="newSiteInput" placeholder="example.com or reddit.com/r/gaming">
+              <input type="text" id="newSiteInput" class="siteInput" placeholder="example.com or reddit.com/r/gaming">
               <button id="addSiteButton" class="add-site-btn">Add Site</button>
             </div>
           </div>
@@ -35,6 +35,43 @@
               <div class="empty-state">
                 <p>No sites blocked yet</p>
                 <small>Add a website above to get started</small>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="settings-section">
+      <div class="setting-group">
+        <h3>Manage Whitelisted Paths</h3>
+        <p class="setting-description">Allow specific paths within blocked domains (e.g., allow reddit.com/r/programming while blocking reddit.com)</p>
+        
+        <div class="manage-sites">
+          <div class="add-site-form">
+            <div class="input-group">
+              <input type="text" id="newWhitelistInput" class="siteInput" placeholder="reddit.com/r/programming or youtube.com/channel/specific">
+              <button id="addWhitelistButton" class="add-site-btn">Add Whitelist</button>
+            </div>
+            <div class="whitelist-info">
+              <p><strong>Examples:</strong></p>
+              <ul>
+                <li><code>reddit.com/r/programming</code> - Allow only this subreddit</li>
+                <li><code>youtube.com/channel/UC...</code> - Allow specific YouTube channel</li>
+                <li><code>twitter.com/username</code> - Allow specific Twitter profile</li>
+              </ul>
+            </div>
+          </div>
+          
+          <div class="sites-list-container">
+            <div class="sites-header">
+              <span class="sites-count" id="whitelistCount">0 paths whitelisted</span>
+              <button id="clearAllWhitelist" class="clear-all-btn">Clear All</button>
+            </div>
+            <div id="whitelistedPathsList" class="sites-list">
+              <div class="empty-state">
+                <p>No paths whitelisted yet</p>
+                <small>Add a whitelisted path above to get started</small>
               </div>
             </div>
           </div>
@@ -145,7 +182,7 @@
     <div class="status-message" id="statusMessage"></div>
     
     <div class="footer">
-      <p>SiteBlocker Extension v1.0.0</p>
+      <p>PomoBlock Extension v1.0.0</p>
       <p>Made to help you stay focused and productive</p>
     </div>
   </div>

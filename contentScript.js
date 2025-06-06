@@ -1,15 +1,18 @@
 const restricted_sites = new Set();
+const whitelisted_paths = new Set();
 let extensionSettings = {
   blockMode: 'block',
   redirectUrl: 'https://www.google.com',
   redirectDelay: 3,
   extensionEnabled: true,
   debugEnabled: false
-};
+}
+
+debugLog('ContentScript fully loaded');;
 
 // Visual debug function that shows messages on the page
 function debugLog(message, data = null) {
-  console.log(`[SiteBlocker Debug] ${message}`, data || '');
+  console.log(`[PomoBlock Debug] ${message}`, data || '');
   
   // Only show visual debug if enabled
   if (!extensionSettings.debugEnabled) {
@@ -52,7 +55,7 @@ function createDebugDiv() {
   `;
   
   const title = document.createElement('div');
-  title.textContent = 'SiteBlocker Debug';
+  title.textContent = 'PomoBlock Debug';
   title.style.cssText = 'font-weight: bold; margin-bottom: 5px; text-align: center; border-bottom: 1px solid rgba(255,255,255,0.3); padding-bottom: 3px;';
   debugDiv.appendChild(title);
   
@@ -90,8 +93,8 @@ debugLog('ContentScript started');
 debugLog('Current URL', window.location.href);
 debugLog('Document ready state', document.readyState);
 
-// Retrieve settings and blocked websites from Chrome storage
-chrome.storage.sync.get(['blockedWebsitesArray', 'blockMode', 'redirectUrl', 'redirectDelay', 'extensionEnabled', 'debugEnabled'], function (data) {
+// Retrieve settings, blocked websites, and whitelisted paths from Chrome storage
+chrome.storage.sync.get(['blockedWebsitesArray', 'whitelistedPathsArray', 'blockMode', 'redirectUrl', 'redirectDelay', 'extensionEnabled', 'debugEnabled'], function (data) {
   debugLog('Storage get callback fired');
   debugLog('Raw storage data', data);
   
@@ -113,7 +116,10 @@ chrome.storage.sync.get(['blockedWebsitesArray', 'blockMode', 'redirectUrl', 're
   }
   
   const blockedWebsitesArray = data.blockedWebsitesArray || [];
+  const whitelistedPathsArray = data.whitelistedPathsArray || [];
+  
   debugLog('Blocked websites array', blockedWebsitesArray);
+  debugLog('Whitelisted paths array', whitelistedPathsArray);
   
   if (blockedWebsitesArray && blockedWebsitesArray.length > 0) {
     // Add the items from blockedWebsitesArray to the set restricted_sites
@@ -122,7 +128,18 @@ chrome.storage.sync.get(['blockedWebsitesArray', 'blockMode', 'redirectUrl', 're
     });
 
     debugLog('Restricted sites built', Array.from(restricted_sites));
-    
+  }
+  
+  if (whitelistedPathsArray && whitelistedPathsArray.length > 0) {
+    // Add the items from whitelistedPathsArray to the set whitelisted_paths
+    whitelistedPathsArray.forEach((item) => {
+      whitelisted_paths.add(item.toLowerCase());
+    });
+
+    debugLog('Whitelisted paths built', Array.from(whitelisted_paths));
+  }
+  
+  if (restricted_sites.size > 0) {
     // Call the function to check if the website should be blocked
     debugLog('About to check if restricted');
     check_if_restricted();
@@ -136,16 +153,73 @@ function normalizeURL(url) {
   return url.replace(/^www\./i, "");
 }
 
+// Check if current URL matches any whitelisted path
+function isWhitelistedPath() {
+  const currentUrl = window.location.href;
+  const currentHostname = normalizeURL(window.location.hostname.toLowerCase());
+  const currentPathname = window.location.pathname.toLowerCase();
+  
+  debugLog('Checking whitelisted paths for', { currentHostname, currentPathname });
+  
+  for (const whitelistedPath of whitelisted_paths) {
+    debugLog('Checking against whitelisted path', whitelistedPath);
+    
+    if (whitelistedPath.includes('/')) {
+      // This is a path-specific whitelist entry
+      const [pathDomain, ...pathParts] = whitelistedPath.split('/');
+      const pathPath = ('/' + pathParts.join('/')).toLowerCase();
+      const normalizedPathDomain = normalizeURL(pathDomain.toLowerCase());
+      
+      debugLog('Path-based whitelist check', { 
+        pathDomain: normalizedPathDomain, 
+        pathPath, 
+        currentHostname, 
+        currentPathname 
+      });
+      
+      // Check if domain matches and current path starts with whitelisted path
+      if (currentHostname === normalizedPathDomain && currentPathname.startsWith(pathPath)) {
+        debugLog('WHITELIST PATH MATCH FOUND', { whitelistedPath, currentHostname, currentPathname });
+        return true;
+      }
+    } else {
+      // This is a domain-only whitelist entry
+      const normalizedDomain = normalizeURL(whitelistedPath.toLowerCase());
+      
+      // Exact domain match
+      if (currentHostname === normalizedDomain) {
+        debugLog('WHITELIST DOMAIN MATCH FOUND', { currentHostname, whitelistedPath: normalizedDomain });
+        return true;
+      }
+      
+      // Subdomain match
+      if (currentHostname.endsWith('.' + normalizedDomain)) {
+        debugLog('WHITELIST SUBDOMAIN MATCH FOUND', { currentHostname, whitelistedPath: normalizedDomain });
+        return true;
+      }
+    }
+  }
+  
+  debugLog('No whitelist match found');
+  return false;
+}
+
 // Enhanced function to check if the current website should be blocked
 function shouldBlockWebsite() {
   const currentUrl = window.location.href;
   const currentHostname = normalizeURL(window.location.hostname.toLowerCase());
-  const currentPathname = window.location.pathname.toLowerCase(); // Make pathname lowercase too
+  const currentPathname = window.location.pathname.toLowerCase();
   
   debugLog('Checking URL', currentUrl);
   debugLog('Hostname', currentHostname);
   debugLog('Pathname', currentPathname);
   debugLog('Against restricted sites', Array.from(restricted_sites));
+  
+  // First check if this path is whitelisted
+  if (isWhitelistedPath()) {
+    debugLog('Site is whitelisted, not blocking');
+    return false;
+  }
   
   // Check each blocked site
   for (const site of restricted_sites) {
@@ -154,19 +228,19 @@ function shouldBlockWebsite() {
     // Handle path-based blocking (like Reddit subreddits, YouTube channels)
     if (site.includes('/')) {
       const [siteDomain, ...pathParts] = site.split('/');
-      const sitePath = ('/' + pathParts.join('/')).toLowerCase(); // Ensure path is lowercase
-      const normalizedSiteDomain = normalizeURL(siteDomain.toLowerCase()); // Ensure domain is lowercase
+      const sitePath = ('/' + pathParts.join('/')).toLowerCase();
+      const normalizedSiteDomain = normalizeURL(siteDomain.toLowerCase());
       
       debugLog('Path-based check', { siteDomain: normalizedSiteDomain, sitePath, currentHostname, currentPathname });
       
-      // Check if domain matches and path starts with the blocked path (case insensitive)
+      // Check if domain matches and path starts with the blocked path
       if (currentHostname === normalizedSiteDomain && currentPathname.startsWith(sitePath)) {
         debugLog('PATH MATCH FOUND', { site, currentHostname, currentPathname });
         return true;
       }
     } else {
       // Handle domain-based blocking
-      const normalizedSite = normalizeURL(site.toLowerCase()); // Ensure site is lowercase
+      const normalizedSite = normalizeURL(site.toLowerCase());
       
       // Exact domain match
       if (currentHostname === normalizedSite) {
@@ -582,6 +656,78 @@ function generateSTYLING() {
       margin-top: 20px !important;
     }
     
+    .whitelist-actions {
+      background: rgba(76, 175, 80, 0.1) !important;
+      border: 2px solid rgba(76, 175, 80, 0.3) !important;
+      border-radius: 15px !important;
+      padding: 25px !important;
+      margin: 25px 0 !important;
+      text-align: center !important;
+    }
+    
+    .whitelist-actions h3 {
+      font-size: 1.2em !important;
+      margin-bottom: 10px !important;
+      color: #4CAF50 !important;
+    }
+    
+    .whitelist-actions p {
+      margin-bottom: 20px !important;
+      color: rgba(255, 255, 255, 0.9) !important;
+      font-size: 0.95em !important;
+    }
+    
+    .whitelist-btn {
+      background: #4CAF50 !important;
+      color: white !important;
+      border: none !important;
+      border-radius: 10px !important;
+      padding: 15px 25px !important;
+      font-size: 1em !important;
+      font-weight: 600 !important;
+      cursor: pointer !important;
+      transition: all 0.3s ease !important;
+      text-transform: uppercase !important;
+      letter-spacing: 0.5px !important;
+      width: 100% !important;
+      max-width: 300px !important;
+      margin: 0 auto !important;
+      display: block !important;
+      box-shadow: 0 4px 15px rgba(76, 175, 80, 0.3) !important;
+    }
+    
+    .whitelist-btn:hover:not(:disabled) {
+      background: #45a049 !important;
+      transform: translateY(-2px) !important;
+      box-shadow: 0 6px 20px rgba(76, 175, 80, 0.4) !important;
+    }
+    
+    .whitelist-btn:disabled {
+      background: rgba(255, 255, 255, 0.3) !important;
+      color: rgba(255, 255, 255, 0.7) !important;
+      cursor: not-allowed !important;
+      transform: none !important;
+      box-shadow: none !important;
+    }
+    
+    .whitelist-target-info {
+      margin-top: 15px !important;
+    }
+    
+    .whitelist-target-info small {
+      color: rgba(255, 255, 255, 0.8) !important;
+      font-size: 0.85em !important;
+      background: rgba(255, 255, 255, 0.1) !important;
+      padding: 8px 12px !important;
+      border-radius: 8px !important;
+      display: inline-block !important;
+    }
+    
+    .whitelist-target-info strong {
+      color: #FFD93D !important;
+      font-family: 'Courier New', monospace !important;
+    }
+    
     @keyframes pulse {
       0% { transform: scale(1); }
       50% { transform: scale(1.1); }
@@ -615,6 +761,10 @@ function generateHTML(isRedirectMode = false, redirectUrl = '', redirectDelay = 
   const currentTime = new Date().toLocaleString();
   const blockedURL = window.location.hostname + window.location.pathname;
   
+  // Determine what should be whitelisted (priority: path > subdomain > domain)
+  const whitelistTarget = determineWhitelistTarget();
+  const whitelistLabel = getWhitelistLabel(whitelistTarget);
+  
   const redirectContent = isRedirectMode ? `
     <div class="redirect-info">
       <h3>🔄 Redirecting in <span id="countdown-seconds">${redirectDelay}</span> seconds</h3>
@@ -632,14 +782,16 @@ function generateHTML(isRedirectMode = false, redirectUrl = '', redirectDelay = 
     <head>
       <meta charset="UTF-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>Site Blocked - SiteBlocker</title>
+      <title>Site Blocked - PomoBlock</title>
+      <script>
+      </script>
     </head>
     <body>
       <div class="blocked-container">
         <div class="blocked-icon">🚫</div>
         <h1>Access Blocked</h1>
         <div class="blocked-message">
-          This website has been blocked by SiteBlocker extension.
+          This website has been blocked by PomoBlock extension.
         </div>
         <div class="blocked-url">
           ${blockedURL}
@@ -659,8 +811,8 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
   if (areaName === 'sync') {
     debugLog('Storage changed', changes);
     
-    if (changes.blockedWebsitesArray) {
-      debugLog('Blocked websites changed, reloading');
+    if (changes.blockedWebsitesArray || changes.whitelistedPathsArray) {
+      debugLog('Blocked websites or whitelisted paths changed, reloading');
       location.reload();
     }
     
@@ -694,4 +846,81 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
   }
 });
 
-debugLog('ContentScript fully loaded');
+// Determine the best whitelist target (priority: specific path > subdomain > domain)
+function determineWhitelistTarget() {
+  const currentHostname = normalizeURL(window.location.hostname.toLowerCase());
+  const currentPathname = window.location.pathname.toLowerCase();
+  
+  // Priority 1: If we're on a specific path, suggest whitelisting the path
+  if (currentPathname !== '/' && currentPathname.length > 1) {
+    // Special handling for known sites with meaningful paths
+    if (currentHostname === 'reddit.com' && currentPathname.startsWith('/r/')) {
+      const subredditMatch = currentPathname.match(/^\/r\/([^\/]+)/);
+      if (subredditMatch) {
+        return `reddit.com/r/${subredditMatch[1]}`;
+      }
+    }
+    
+    if (currentHostname === 'youtube.com') {
+      const channelMatch = currentPathname.match(/^\/(c|channel|user)\/([^\/]+)/);
+      if (channelMatch) {
+        return `youtube.com/${channelMatch[1]}/${channelMatch[2]}`;
+      }
+    }
+    
+    if ((currentHostname === 'twitter.com' || currentHostname === 'x.com')) {
+      const userMatch = currentPathname.match(/^\/([^\/]+)$/);
+      if (userMatch && !['home', 'explore', 'notifications', 'messages', 'bookmarks', 'lists', 'profile', 'settings'].includes(userMatch[1])) {
+        return `${currentHostname}/${userMatch[1]}`;
+      }
+    }
+    
+    // For other sites with meaningful paths, suggest the first path segment
+    const pathSegments = currentPathname.split('/').filter(segment => segment.length > 0);
+    if (pathSegments.length > 0) {
+      return `${currentHostname}/${pathSegments[0]}`;
+    }
+  }
+  
+  // Priority 2: If subdomain, suggest whitelisting the subdomain
+  const parts = currentHostname.split('.');
+  if (parts.length > 2) {
+    return currentHostname;
+  }
+  
+  // Priority 3: Fallback to domain
+  return currentHostname;
+}
+
+// Get user-friendly label for whitelist target
+function getWhitelistLabel(target) {
+  if (target.includes('reddit.com/r/')) {
+    const subreddit = target.split('/r/')[1];
+    return `r/${subreddit} subreddit`;
+  }
+  
+  if (target.includes('youtube.com/channel/') || target.includes('youtube.com/c/')) {
+    return 'this YouTube channel';
+  }
+  
+  if (target.includes('youtube.com/user/')) {
+    return 'this YouTube user';
+  }
+  
+  if ((target.includes('twitter.com/') || target.includes('x.com/')) && target.split('/').length === 2) {
+    const username = target.split('/')[1];
+    return `@${username} profile`;
+  }
+  
+  if (target.includes('/')) {
+    const pathPart = target.split('/').slice(1).join('/');
+    return `${target.split('/')[0]}/${pathPart} section`;
+  }
+  
+  const parts = target.split('.');
+  if (parts.length > 2) {
+    return `${parts[0]} subdomain`;
+  }
+  
+  return `${target} domain`;
+}

@@ -29,6 +29,14 @@ body {
   border: 2px solid #4CAF50;
 }
 
+.status small {
+  display: block;
+  font-size: 0.8em;
+  font-weight: normal;
+  opacity: 0.9;
+  margin-top: 4px;
+}
+
 .current-site {
   margin: 20px 0;
 }
@@ -65,6 +73,56 @@ body {
 
 .block-target:empty {
   display: none;
+}
+
+.whitelist-notice {
+  background: rgba(76, 175, 80, 0.2);
+  border: 1px solid rgba(76, 175, 80, 0.4);
+  border-radius: 6px;
+  padding: 8px;
+  margin-top: 10px;
+  font-size: 0.85em;
+  color: #4CAF50;
+  font-weight: 600;
+}
+
+.remove-whitelist-btn {
+  background: #f44336;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 10px 16px;
+  font-size: 0.85em;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  box-shadow: 0 3px 10px rgba(244, 67, 54, 0.3);
+  margin-top: 10px;
+}
+
+.remove-whitelist-btn:hover:not(:disabled) {
+  background: #da190b;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(244, 67, 54, 0.4);
+}
+
+.remove-whitelist-btn:disabled {
+  background: rgba(255, 255, 255, 0.3);
+  color: rgba(255, 255, 255, 0.7);
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.remove-whitelist-btn.success {
+  animation: success 0.6s ease;
 }
 
 .main-action {
@@ -114,6 +172,55 @@ body {
 .block-btn.already-blocked:hover {
   background: #FF9800;
   transform: none;
+}
+
+/* Whitelist-specific button styling */
+.whitelist-option {
+  margin-top: 15px;
+  text-align: center;
+}
+
+.whitelist-btn {
+  background: #4CAF50;
+  color: white;
+  border: none;
+  border-radius: 10px;
+  padding: 12px 20px;
+  font-size: 0.95em;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  box-shadow: 0 4px 15px rgba(76, 175, 80, 0.3);
+}
+
+.whitelist-btn:hover:not(:disabled) {
+  background: #45a049;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(76, 175, 80, 0.4);
+}
+
+.whitelist-btn:disabled {
+  background: rgba(255, 255, 255, 0.3);
+  color: rgba(255, 255, 255, 0.7);
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.whitelist-btn.success {
+  animation: success 0.6s ease;
+}
+
+.whitelist-option small {
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 0.8em;
 }
 
 .btn-icon {
@@ -179,4 +286,16 @@ body {
   background: rgba(255, 152, 0, 0.3);
   border-color: rgba(255, 152, 0, 0.5);
   color: #FFF;
+}
+
+/* Whitelisted site styling */
+.site-info.whitelisted {
+  background: rgba(76, 175, 80, 0.1);
+  border-color: rgba(76, 175, 80, 0.3);
+}
+
+.site-info.whitelisted .block-target {
+  background: rgba(76, 175, 80, 0.2);
+  border-color: rgba(76, 175, 80, 0.4);
+  color: #4CAF50;
 }

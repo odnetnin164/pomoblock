@@ -26,7 +26,7 @@ document.addEventListener('DOMContentLoaded', function() {
   // Get DOM elements for whitelist management
   const newWhitelistInput = document.getElementById('newWhitelistInput');
   const addWhitelistButton = document.getElementById('addWhitelistButton');
-  const whitelistSitesList = document.getElementById('whitelistSitesList');
+  const whitelistedPathsList = document.getElementById('whitelistedPathsList');
   const whitelistCount = document.getElementById('whitelistCount');
   const clearAllWhitelist = document.getElementById('clearAllWhitelist');
 
@@ -42,7 +42,7 @@ document.addEventListener('DOMContentLoaded', function() {
   // Load settings and sites when page opens
   loadSettings();
   loadBlockedSites();
-  loadWhitelistSites();
+  loadWhitelistedPaths();
 
   // Add event listeners for settings
   blockModeRadio.addEventListener('change', updateRedirectVisibility);
@@ -64,13 +64,13 @@ document.addEventListener('DOMContentLoaded', function() {
   clearAllSites.addEventListener('click', clearAllBlockedSites);
 
   // Add event listeners for whitelist management
-  addWhitelistButton.addEventListener('click', addNewWhitelistSite);
+  addWhitelistButton.addEventListener('click', addNewWhitelistPath);
   newWhitelistInput.addEventListener('keypress', function(e) {
     if (e.key === 'Enter') {
-      addNewWhitelistSite();
+      addNewWhitelistPath();
     }
   });
-  clearAllWhitelist.addEventListener('click', clearAllWhitelistSites);
+  clearAllWhitelist.addEventListener('click', clearAllWhitelistedPaths);
 
   // Add suggestion button listeners
   suggestionButtons.forEach(button => {
@@ -136,12 +136,12 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
 
-  // Load and display whitelist sites
-  function loadWhitelistSites() {
-    chrome.storage.sync.get('whitelistPathsArray', function(data) {
-      const whitelistPaths = data.whitelistPathsArray || [];
-      displayWhitelistSites(whitelistPaths);
-      updateWhitelistCount(whitelistPaths.length);
+  // Load and display whitelisted paths
+  function loadWhitelistedPaths() {
+    chrome.storage.sync.get('whitelistedPathsArray', function(data) {
+      const whitelistedPaths = data.whitelistedPathsArray || [];
+      displayWhitelistedPaths(whitelistedPaths);
+      updateWhitelistCount(whitelistedPaths.length);
     });
   }
 
@@ -184,13 +184,13 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
 
-  // Display the list of whitelist sites
-  function displayWhitelistSites(sites) {
-    if (sites.length === 0) {
-      whitelistSitesList.innerHTML = `
+  // Display the list of whitelisted paths
+  function displayWhitelistedPaths(paths) {
+    if (paths.length === 0) {
+      whitelistedPathsList.innerHTML = `
         <div class="empty-state">
-          <p>No whitelist paths yet</p>
-          <small>Add a path above to allow access even when parent domain is blocked</small>
+          <p>No paths whitelisted yet</p>
+          <small>Add a whitelisted path above to get started</small>
         </div>
       `;
       clearAllWhitelist.disabled = true;
@@ -199,26 +199,26 @@ document.addEventListener('DOMContentLoaded', function() {
 
     clearAllWhitelist.disabled = false;
 
-    const sitesHTML = sites.map((site, index) => {
-      const siteType = getSiteType(site);
+    const pathsHTML = paths.map((path, index) => {
+      const pathType = getPathType(path);
       return `
         <div class="site-item" data-index="${index}">
           <div style="display: flex; align-items: center; flex: 1;">
-            <span class="site-url">${site}</span>
-            ${siteType ? `<span class="site-type whitelist-type">${siteType}</span>` : ''}
+            <span class="site-url">${path}</span>
+            ${pathType ? `<span class="site-type whitelist-type">${pathType}</span>` : ''}
           </div>
-          <button class="remove-whitelist-btn" data-site="${site}">Remove</button>
+          <button class="remove-site-btn" data-path="${path}">Remove</button>
         </div>
       `;
     }).join('');
 
-    whitelistSitesList.innerHTML = sitesHTML;
+    whitelistedPathsList.innerHTML = pathsHTML;
 
     // Add remove button listeners
-    document.querySelectorAll('.remove-whitelist-btn').forEach(button => {
+    whitelistedPathsList.querySelectorAll('.remove-site-btn').forEach(button => {
       button.addEventListener('click', function() {
-        const siteToDelete = this.getAttribute('data-site');
-        removeWhitelistSite(siteToDelete);
+        const pathToDelete = this.getAttribute('data-path');
+        removeWhitelistPath(pathToDelete);
       });
     });
   }
@@ -237,10 +237,24 @@ document.addEventListener('DOMContentLoaded', function() {
     if (site.split('.').length > 2) {
       return 'Subdomain';
     }
-    if (site.includes('/')) {
+    return null;
+  }
+
+  // Get path type for display (for whitelist)
+  function getPathType(path) {
+    if (path.includes('reddit.com/r/')) {
+      return 'Subreddit';
+    }
+    if (path.includes('youtube.com/') && (path.includes('/c/') || path.includes('/channel/') || path.includes('/user/'))) {
+      return 'Channel';
+    }
+    if ((path.includes('twitter.com/') || path.includes('x.com/')) && path.split('/').length === 2) {
+      return 'Profile';
+    }
+    if (path.includes('/')) {
       return 'Path';
     }
-    return null;
+    return 'Domain';
   }
 
   // Add a new site to the blocked list
@@ -282,47 +296,40 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
 
-  // Add a new site to the whitelist
-  function addNewWhitelistSite() {
-    const website = newWhitelistInput.value.trim().toLowerCase();
+  // Add a new path to the whitelist
+  function addNewWhitelistPath() {
+    const path = newWhitelistInput.value.trim().toLowerCase();
     
-    if (!website) {
-      showStatusMessage('Please enter a website path', 'error');
+    if (!path) {
+      showStatusMessage('Please enter a path to whitelist', 'error');
       newWhitelistInput.focus();
       return;
     }
 
-    // Basic URL validation and cleaning
-    const cleanedWebsite = cleanURL(website);
+    // Basic path validation and cleaning
+    const cleanedPath = cleanURL(path);
     
-    // Whitelist paths must contain a path (have a /)
-    if (!cleanedWebsite.includes('/')) {
-      showStatusMessage('Whitelist entries must include a path (e.g., reddit.com/r/programming)', 'error');
-      newWhitelistInput.focus();
-      return;
-    }
-    
-    if (!isValidDomain(cleanedWebsite)) {
-      showStatusMessage('Please enter a valid domain with path', 'error');
+    if (!isValidPath(cleanedPath)) {
+      showStatusMessage('Please enter a valid domain/path combination', 'error');
       newWhitelistInput.focus();
       return;
     }
 
-    chrome.storage.sync.get('whitelistPathsArray', function(data) {
-      const whitelistPaths = data.whitelistPathsArray || [];
+    chrome.storage.sync.get('whitelistedPathsArray', function(data) {
+      const whitelistedPaths = data.whitelistedPathsArray || [];
       
-      if (whitelistPaths.includes(cleanedWebsite)) {
+      if (whitelistedPaths.includes(cleanedPath)) {
         showStatusMessage('Path is already whitelisted', 'error');
         return;
       }
 
-      whitelistPaths.push(cleanedWebsite);
+      whitelistedPaths.push(cleanedPath);
       
       chrome.storage.sync.set({
-        whitelistPathsArray: whitelistPaths
+        whitelistedPathsArray: whitelistedPaths
       }, function() {
         newWhitelistInput.value = '';
-        loadWhitelistSites();
+        loadWhitelistedPaths();
         showStatusMessage('Path whitelisted successfully!', 'success');
       });
     });
@@ -343,17 +350,17 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
 
-  // Remove a site from the whitelist
-  function removeWhitelistSite(siteToDelete) {
-    chrome.storage.sync.get('whitelistPathsArray', function(data) {
-      const whitelistPaths = data.whitelistPathsArray || [];
-      const updatedSites = whitelistPaths.filter(site => site !== siteToDelete);
+  // Remove a path from the whitelist
+  function removeWhitelistPath(pathToDelete) {
+    chrome.storage.sync.get('whitelistedPathsArray', function(data) {
+      const whitelistedPaths = data.whitelistedPathsArray || [];
+      const updatedPaths = whitelistedPaths.filter(path => path !== pathToDelete);
       
       chrome.storage.sync.set({
-        whitelistPathsArray: updatedSites
+        whitelistedPathsArray: updatedPaths
       }, function() {
-        loadWhitelistSites();
-        showStatusMessage('Whitelist path removed successfully!', 'success');
+        loadWhitelistedPaths();
+        showStatusMessage('Whitelisted path removed successfully!', 'success');
       });
     });
   }
@@ -370,14 +377,14 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   }
 
-  // Clear all whitelist sites
-  function clearAllWhitelistSites() {
-    if (confirm('Are you sure you want to remove all whitelist paths? This cannot be undone.')) {
+  // Clear all whitelisted paths
+  function clearAllWhitelistedPaths() {
+    if (confirm('Are you sure you want to remove all whitelisted paths? This cannot be undone.')) {
       chrome.storage.sync.set({
-        whitelistPathsArray: []
+        whitelistedPathsArray: []
       }, function() {
-        loadWhitelistSites();
-        showStatusMessage('All whitelist paths cleared!', 'success');
+        loadWhitelistedPaths();
+        showStatusMessage('All whitelisted paths cleared!', 'success');
       });
     }
   }
@@ -423,21 +430,10 @@ document.addEventListener('DOMContentLoaded', function() {
       }
     }
     
-    // For paths, preserve the path
-    if (url.includes('/')) {
-      let cleanUrl = url;
-      cleanUrl = cleanUrl.replace(/^https?:\/\//, '');
-      cleanUrl = cleanUrl.replace(/^www\./, '');
-      cleanUrl = cleanUrl.split('?')[0];
-      cleanUrl = cleanUrl.split('#')[0];
-      return cleanUrl;
-    }
-    
     // For regular domains, remove protocol, www, path, etc.
     let cleanUrl = url;
     cleanUrl = cleanUrl.replace(/^https?:\/\//, '');
     cleanUrl = cleanUrl.replace(/^www\./, '');
-    cleanUrl = cleanUrl.split('/')[0];
     cleanUrl = cleanUrl.split(':')[0];
     cleanUrl = cleanUrl.split('?')[0];
     cleanUrl = cleanUrl.split('#')[0];
@@ -470,6 +466,12 @@ document.addEventListener('DOMContentLoaded', function() {
     // Regular domain validation
     const domainRegex = /^[a-zA-Z0-9][a-zA-Z0-9-]{0,61}[a-zA-Z0-9]?(?:\.[a-zA-Z0-9][a-zA-Z0-9-]{0,61}[a-zA-Z0-9]?)*$/;
     return domainRegex.test(input) && input.includes('.');
+  }
+
+  // Validate path for whitelist (should include domain and path)
+  function isValidPath(input) {
+    // For whitelist, we allow both domain-only and domain/path combinations
+    return isValidDomain(input);
   }
 
   // Update preset buttons to show active state
@@ -570,7 +572,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
   // Reset settings to defaults
   function resetToDefaults() {
-    if (confirm('Are you sure you want to reset all settings to defaults? This will not affect your blocked sites list.')) {
+    if (confirm('Are you sure you want to reset all settings to defaults? This will not affect your blocked sites list or whitelisted paths.')) {
       chrome.storage.sync.set(defaultSettings, function() {
         if (chrome.runtime.lastError) {
           showStatusMessage('Error resetting settings: ' + chrome.runtime.lastError.message, 'error');
@@ -661,9 +663,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
   // Handle URL input validation for new whitelist input
   newWhitelistInput.addEventListener('input', function() {
-    const site = this.value.trim();
-    const cleaned = cleanURL(site);
-    if (site && (!isValidDomain(cleaned) || !cleaned.includes('/'))) {
+    const path = this.value.trim();
+    if (path && !isValidPath(cleanURL(path))) {
       this.style.borderColor = '#f44336';
     } else {
       this.style.borderColor = 'rgba(255, 255, 255, 0.3)';
