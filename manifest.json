@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "PomoBlock",
   "description": "Block access to distracting websites and stay focused on what matters most.",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "permissions": [
     "storage",
     "tabs",
@@ -31,12 +31,19 @@
       "matches": ["<all_urls>"],
       "js": ["contentScript.js"],
       "run_at": "document_start",
-      "all_frames": false
+      "all_frames": false,
+      "type": "module"
     }
   ],
   "web_accessible_resources": [
     {
-      "resources": ["icons/*"],
+      "resources": [
+        "icons/*",
+        "utils/*.js",
+        "content/*.js",
+        "popup/*.js",
+        "options/*.js"
+      ],
       "matches": ["<all_urls>"]
     }
   ],
