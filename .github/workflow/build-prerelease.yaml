@@ -40,14 +40,33 @@ jobs:
       - name: Create ZIP package
         run: |
           mkdir -p dist
-          zip -r "dist/siteblocker-${{ steps.bump.outputs.new_version }}.zip" . -x '*.git*' 'dist/*'
+          zip -r "dist/pomoblock-${{ steps.bump.outputs.new_version }}.zip" . -x '*.git*' 'dist/*'
 
       - name: Create GitHub prerelease
+        id: create_release
+        uses: comnoco/create-release@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # This token is provided by Actions, you do not need to create your own token
+        with:
+          name: ${{ steps.bump.outputs.new_version }}
+          tag_name: v${{ steps.bump.outputs.new_version }}
+          draft: false
+          prerelease: true
         uses: softprops/action-gh-release@v2
         with:
           name: ${{ steps.bump.outputs.new_version }}
           tag_name: v${{ steps.bump.outputs.new_version }}
           prerelease: true
-          files: dist/siteblocker-${{ steps.bump.outputs.new_version }}.zip
+          files: dist/pomoblock-${{ steps.bump.outputs.new_version }}.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Upload Release Asset
+        id: upload-release-asset 
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }} # This pulls from the CREATE RELEASE step above, referencing it's ID to get its outputs object, which include a `upload_url`. See this blog post for more info: https://jasonet.co/posts/new-features-of-github-actions/#passing-data-to-future-steps 
+          asset_path: ./dist/pomoblock-${{ steps.bump.outputs.new_version }}.zip
+          asset_name: pomoblock-${{ steps.bump.outputs.new_version }}.zip
+          asset_content_type: application/zip
