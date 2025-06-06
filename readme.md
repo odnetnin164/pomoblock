@@ -1,200 +1,269 @@
-# 🚫 Website Blocker & Pomodoro Timer
+# 🚫 PomoBlock - Modular Chrome Extension
 
-A powerful Chrome extension that combines website blocking with an integrated pomodoro timer to boost productivity and maintain focus during work sessions.
+A powerful Chrome extension that helps you stay focused by blocking distracting websites. Built with a modern, modular architecture using webpack for efficient bundling and organization.
 
 ## ✨ Features
 
 ### 🔒 Advanced Website Blocking
-- **Blacklist Mode**: Block specific websites you choose
-- **Whitelist Mode**: Allow only specific websites (block everything else)
-- **Pattern Matching**: Support for subdomains, specific paths, and exact matches
-- **Smart Redirects**: Automatically redirect blocked sites to a custom page
-
-### 🍅 Integrated Pomodoro Timer
-- **Focused Work Sessions**: 25-minute work periods with automatic site blocking
-- **Productive Breaks**: 5-minute breaks with unrestricted browsing
-- **Persistent Timer**: Always-visible countdown on extension icon
-- **Color-Coded Status**: Red badge for work time, green for breaks
-- **Desktop Notifications**: Alerts when switching between work and break periods
+- **Flexible Blocking**: Block specific websites, subdomains, or even specific paths
+- **Smart Redirects**: Automatically redirect blocked sites to productive pages
+- **Whitelist Support**: Create exceptions for specific paths within blocked domains
+- **Pattern Matching**: Support for complex URL patterns and site-specific rules
 
 ### ⚙️ User-Friendly Interface
-- **Quick Controls**: Popup interface for instant timer management
-- **Advanced Settings**: Comprehensive configuration page
-- **Real-Time Updates**: Live timer display and status indicators
-- **Customizable Durations**: Adjust work/break times to your preference
+- **Popup Interface**: Quick controls for blocking current page
+- **Advanced Options**: Comprehensive configuration page
+- **Real-Time Updates**: Instant feedback and status indicators
+- **Visual Debug Mode**: Optional debug overlay for troubleshooting
 
-## 🚀 Installation
+## 🏗️ Architecture
 
-### Method 1: Load Unpacked Extension (Recommended)
+This extension is built with a modern, modular architecture:
 
-1. **Download the extension files**
-   - Clone this repository or download the source code
-   - Ensure all files are in a single folder
+### 📁 Project Structure
 
-2. **Create extension icons** (optional but recommended)
-   - Create simple 16x16, 48x48, and 128x128 pixel icons
-   - Name them `icon16.png`, `icon48.png`, and `icon128.png`
-   - Place them in the extension folder
+```
+src/
+├── content/                    # Content script modules
+│   ├── content-main.js        # Main content script entry point
+│   ├── blocker.js             # Core blocking logic
+│   ├── whitelist-checker.js   # Whitelist validation
+│   └── ui/                    # UI components
+│       ├── blocked-page.js    # Blocked page generation
+│       └── debug-overlay.js   # Debug UI components
+├── popup/                     # Popup interface modules
+│   ├── popup-main.js          # Main popup entry point
+│   ├── site-analyzer.js       # Site analysis utilities
+│   ├── actions.js             # User actions (block/whitelist)
+│   ├── popup.html             # Popup HTML
+│   └── popup.css              # Popup styles
+├── options/                   # Options page modules
+│   ├── options-main.js        # Main options entry point
+│   ├── settings-manager.js    # Settings management
+│   ├── site-manager.js        # Blocked sites management
+│   ├── whitelist-manager.js   # Whitelist management
+│   ├── ui-manager.js          # UI interactions
+│   ├── options.html           # Options page HTML
+│   └── options.css            # Options page styles
+├── shared/                    # Shared utilities and components
+│   ├── utils/                 # Utility functions
+│   │   ├── url-utils.js       # URL processing utilities
+│   │   ├── site-detection.js  # Site type detection
+│   │   ├── storage.js         # Chrome storage wrapper
+│   │   └── debug.js           # Debug utilities
+│   ├── constants/             # Constants and enums
+│   │   └── sites.js           # Site-specific patterns
+│   └── config/                # Configuration
+│       └── defaults.js        # Default settings
+└── manifest.json              # Extension manifest
+```
+
+### 🔧 Build System
+
+- **Webpack**: Module bundling and optimization
+- **Babel**: ES6+ transpilation for browser compatibility
+- **CSS Loader**: Style processing and optimization
+- **Copy Plugin**: Asset management
+
+## 🚀 Development Setup
+
+### Prerequisites
+
+- Node.js 16+ and npm
+- Chrome browser for testing
+
+### Installation
+
+1. **Clone and install dependencies**
+   ```bash
+   git clone <repository-url>
+   cd pomoblock-extension
+   npm install
+   ```
+
+2. **Build the extension**
+   ```bash
+   # Development build with watching
+   npm run dev
+   
+   # Production build
+   npm run build
+   ```
 
 3. **Load in Chrome**
-   - Open Chrome and navigate to `chrome://extensions/`
-   - Enable "Developer mode" toggle in the top right
-   - Click "Load unpacked" button
-   - Select your extension folder
-   - The extension will appear in your toolbar!
+   - Open Chrome and go to `chrome://extensions/`
+   - Enable "Developer mode"
+   - Click "Load unpacked" and select the `dist` folder
+   - The extension will appear in your toolbar
 
-### Method 2: Chrome Web Store
-*Coming soon - submit to Chrome Web Store for easier installation*
+### Development Commands
+
+```bash
+# Install dependencies
+npm install
+
+# Development build with file watching
+npm run dev
+
+# Production build (minified and optimized)
+npm run build
+
+# Clean build directory
+npm run clean
+```
 
 ## 📖 Usage Guide
 
-### Starting Your First Pomodoro Session
+### Quick Start
 
 1. **Click the extension icon** in your browser toolbar
-2. **Add websites to block** using the quick-add input
-3. **Choose your blocking mode**:
-   - **Blacklist**: Block only the sites you specify
-   - **Whitelist**: Block everything except the sites you specify
-4. **Click "Start"** to begin your 25-minute work session
-5. **Watch the timer** on the extension icon - red badge means sites are blocked
+2. **View current page info** and blocking status
+3. **Click "Block This Page"** to add the current site to your block list
+4. **Access advanced options** via the "⚙️ Options" button
 
-### Managing Your Block Lists
+### Advanced Configuration
 
-1. **Click the "⚙️ Advanced Settings" button** in the popup
-2. **Toggle between modes** using the blacklist/whitelist switch
-3. **Add websites** using flexible patterns:
-   - `facebook.com` - blocks facebook.com and www.facebook.com
-   - `*.reddit.com` - blocks all Reddit subdomains
-   - `youtube.com/watch` - blocks only YouTube watch pages
-4. **Set custom redirect URL** for blocked sites
-5. **Adjust timer durations** to fit your workflow
+1. **Open Options Page**
+   - Click the extension icon → "⚙️ Options"
+   - Or right-click extension icon → "Options"
 
-### Understanding the Timer Display
+2. **Manage Blocked Sites**
+   - Add domains: `facebook.com`, `twitter.com`
+   - Add specific paths: `reddit.com/r/funny`
+   - Add subdomains: `mail.google.com`
 
-| Badge Color | Status | Description |
-|-------------|---------|-------------|
-| 🔴 Red | Work Time | Sites are blocked, focus on work |
-| 🟢 Green | Break Time | Sites are unblocked, take a break |
-| No Badge | Inactive | Timer stopped, normal browsing |
+3. **Configure Whitelist**
+   - Allow specific paths within blocked domains
+   - Example: Block `reddit.com` but allow `reddit.com/r/programming`
 
-## 📁 File Structure
-
-```
-website-blocker-extension/
-├── manifest.json          # Extension configuration
-├── background.js          # Service worker (timer logic, blocking rules)
-├── popup.html             # Extension popup interface
-├── popup.js               # Popup functionality
-├── options.html           # Settings page
-├── options.js             # Settings page functionality
-├── rules.json             # Dynamic blocking rules (initially empty)
-├── icon16.png             # 16x16 icon (create yourself)
-├── icon48.png             # 48x48 icon (create yourself)
-└── icon128.png            # 128x128 icon (create yourself)
-```
-
-## ⚙️ Configuration Options
-
-### Pomodoro Timer Settings
-- **Work Duration**: Default 25 minutes (customizable 1-120 minutes)
-- **Short Break**: Default 5 minutes (customizable 1-60 minutes)
-- **Long Break**: Default 15 minutes (customizable 1-120 minutes)
-- **Sessions Until Long Break**: Default 4 sessions (customizable 1-10)
-
-### Blocking Modes
-
-#### Blacklist Mode (Default)
-- Add specific websites to block during work sessions
-- All other websites remain accessible
-- Perfect for blocking known distractions
-
-#### Whitelist Mode
-- Add specific websites that are allowed
-- All other websites are blocked during work sessions
-- Perfect for extreme focus sessions
-
-### Website Pattern Examples
-
-| Pattern | What It Blocks |
-|---------|----------------|
-| `facebook.com` | facebook.com, www.facebook.com |
-| `*.reddit.com` | reddit.com, www.reddit.com, old.reddit.com, etc. |
-| `youtube.com/watch` | Only YouTube video pages |
-| `twitter.com` | twitter.com, www.twitter.com |
-| `*.social-media.com` | All subdomains of social-media.com |
+4. **Set Block Behavior**
+   - **Block Mode**: Show custom blocked page
+   - **Redirect Mode**: Automatically redirect to specified URL
 
 ## 🔧 Technical Details
 
-### Chrome Extension Manifest V3
-- Built using modern Manifest V3 architecture
-- Uses declarativeNetRequest API for efficient blocking
-- Service worker for background timer management
-- Secure storage for user preferences
+### Module System
 
-### Permissions Required
-- `declarativeNetRequest`: Website blocking functionality
-- `storage`: Save user settings and preferences
-- `activeTab`: Access current tab information
-- `tabs`: Manage tab redirections
-- `alarms`: Timer functionality
-- `<all_urls>`: Apply blocking rules to all websites
+The extension uses ES6 modules with webpack bundling:
 
-### Browser Compatibility
-- Chrome 88+ (Manifest V3 support required)
-- Chromium-based browsers (Edge, Brave, etc.)
-- Does not work on Firefox (different extension API)
+- **Shared utilities** are imported across different parts of the extension
+- **No code duplication** - common functions are centralized
+- **Tree shaking** eliminates unused code in production builds
+- **Hot reloading** during development for faster iteration
 
-## 🐛 Troubleshooting
+### Storage Management
 
-### Timer Not Showing on Icon
-- Ensure the extension is properly loaded
-- Check that you've started the timer from the popup
-- Refresh the extension page if needed
+Centralized storage utilities with error handling:
 
-### Websites Not Being Blocked
-- Verify websites are added to the correct list (blacklist/whitelist)
-- Check that the timer is active and in work mode (red badge)
-- Make sure website patterns are correct (no http:// prefix)
-- Try reloading the target website
+```javascript
+import { getBlockedWebsites, addBlockedWebsite } from '../shared/utils/storage.js';
 
-### Settings Not Saving
-- Check that you clicked "Save Settings" button
-- Ensure Chrome has sufficient storage permissions
-- Try disabling and re-enabling the extension
+// Add a site to block list
+await addBlockedWebsite('example.com');
 
-### Extension Not Loading
-- Verify all files are in the extension folder
-- Check Chrome developer console for error messages
-- Ensure manifest.json is valid JSON
-- Try loading extension in incognito mode
+// Get all blocked sites
+const sites = await getBlockedWebsites();
+```
 
-## 🎯 Best Practices
+### URL Processing
 
-### Effective Website Blocking
-1. **Start with common distractions**: Social media, news sites, entertainment
-2. **Use specific paths**: Block `youtube.com/watch` instead of all of YouTube
-3. **Test your patterns**: Verify blocking works as expected
-4. **Regular reviews**: Update your block lists based on new distractions
+Smart URL analysis and pattern matching:
 
-### Pomodoro Technique Tips
-1. **Plan your work**: Decide what to accomplish before starting
-2. **Eliminate distractions**: Use the blocker to maintain focus
-3. **Take real breaks**: Step away from the computer during breaks
-4. **Track progress**: Note what you accomplished each session
+```javascript
+import { determineBlockTarget, cleanURL } from '../shared/utils/url-utils.js';
+
+// Determine what should be blocked for current URL
+const target = determineBlockTarget(hostname, pathname);
+// Returns: 'reddit.com/r/funny' or 'youtube.com' etc.
+```
+
+### Debug System
+
+Optional debug overlay for troubleshooting:
+
+```javascript
+import { debugLog, initDebug } from '../shared/utils/debug.js';
+
+// Enable debug mode
+initDebug(true);
+
+// Log debug information
+debugLog('Site blocked', { url, reason });
+```
+
+## 🎯 Advanced Features
+
+### Site-Specific Handling
+
+The extension intelligently handles popular sites:
+
+- **Reddit**: Can block specific subreddits (`reddit.com/r/gaming`)
+- **YouTube**: Can block specific channels (`youtube.com/channel/UC...`)
+- **Twitter**: Can block specific users (`twitter.com/username`)
+
+### Whitelist Priority System
+
+Whitelist rules take priority over block rules:
+
+1. **Path-specific whitelist**: `reddit.com/r/programming`
+2. **Subdomain whitelist**: `docs.google.com`
+3. **Domain whitelist**: `google.com`
+
+### Flexible Redirect System
+
+- **Instant redirects** (0 second delay)
+- **Countdown redirects** (1-30 second delay with cancellation option)
+- **Fallback handling** for failed redirects
+- **URL validation** and security checks
+
+## 🐛 Debugging
+
+### Debug Mode
+
+Enable debug mode in options to see:
+- Real-time blocking decisions
+- URL pattern matching
+- Storage operations
+- Error messages
+
+### Console Logging
+
+All modules use consistent logging:
+```
+[PomoBlock Debug] Site blocked: reddit.com/r/funny
+[PomoBlock Error] Failed to save settings: Storage quota exceeded
+```
+
+### Common Issues
+
+1. **Sites not blocking**: Check debug mode to see matching logic
+2. **Settings not saving**: Verify Chrome storage permissions
+3. **Whitelist not working**: Ensure path format is correct
 
 ## 🤝 Contributing
 
-### Development Setup
-1. Fork the repository
-2. Make your changes
-3. Test thoroughly with different websites and patterns
-4. Submit a pull request with detailed description
+### Code Organization
 
-### Reporting Issues
-- Check existing issues before creating new ones
-- Include Chrome version and extension version
-- Provide steps to reproduce the problem
-- Include console error messages if applicable
+- Keep modules focused on single responsibilities
+- Use shared utilities to avoid duplication
+- Add JSDoc comments for public functions
+- Follow existing naming conventions
+
+### Adding New Features
+
+1. Create new modules in appropriate directories
+2. Import shared utilities instead of duplicating code
+3. Update webpack entry points if needed
+4. Test across different browsers and scenarios
+
+### Build Process
+
+The build process:
+1. Transpiles ES6+ code with Babel
+2. Bundles modules with webpack
+3. Copies static assets (HTML, CSS, icons)
+4. Generates source maps for debugging
+5. Optimizes for production (minification, tree shaking)
 
 ## 📄 License
 
@@ -202,16 +271,10 @@ MIT License - see LICENSE file for details
 
 ## 🙏 Acknowledgments
 
-- Inspired by the Pomodoro Technique by Francesco Cirillo
-- Built with Chrome Extension Manifest V3
-- Uses modern web technologies for optimal performance
-
-## 📞 Support
-
-- **Issues**: Report bugs on GitHub Issues
-- **Feature Requests**: Submit via GitHub Issues with "enhancement" label
-- **Documentation**: Check this README and inline code comments
+- Built with modern ES6+ modules and webpack
+- Uses Chrome Extension Manifest V3
+- Designed for optimal performance and maintainability
 
 ---
 
-**Happy focusing! 🎯** Made with ❤️ to help you stay productive and achieve your goals.
+**Stay focused! 🎯** This modular architecture makes the extension easier to maintain, extend, and debug while providing powerful website blocking capabilities.
