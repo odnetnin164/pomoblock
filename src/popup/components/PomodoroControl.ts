@@ -13,6 +13,7 @@ export class PomodoroControl {
   private statusText!: HTMLElement;
   private sessionCounter!: HTMLElement;
   private progressBar!: HTMLElement;
+  private statusUpdateInterval: number | null = null;
   
   private currentStatus: TimerStatus = {
     state: 'STOPPED',
@@ -27,6 +28,27 @@ export class PomodoroControl {
     this.createPomodoroUI();
     this.setupEventListeners();
     this.loadCurrentStatus();
+    this.startStatusPolling();
+  }
+
+  /**
+   * Start polling for status updates
+   */
+  private startStatusPolling(): void {
+    // Poll every 2 seconds when popup is open
+    this.statusUpdateInterval = window.setInterval(() => {
+      this.loadCurrentStatus();
+    }, 1000);
+  }
+
+  /**
+   * Stop status polling
+   */
+  private stopStatusPolling(): void {
+    if (this.statusUpdateInterval) {
+      clearInterval(this.statusUpdateInterval);
+      this.statusUpdateInterval = null;
+    }
   }
 
   /**
@@ -111,10 +133,18 @@ export class PomodoroControl {
       }
     });
 
-    // Listen for timer updates from background
-    chrome.runtime.onMessage.addListener((message: PomodoroMessage) => {
-      if (message.type === 'TIMER_UPDATE' && message.data.timerStatus) {
-        this.updateStatus(message.data.timerStatus);
+    // Clean up polling when popup closes/unloads
+    window.addEventListener('beforeunload', () => {
+      this.stopStatusPolling();
+    });
+
+    // Handle visibility changes (when popup gets hidden/shown)
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) {
+        this.stopStatusPolling();
+      } else {
+        this.startStatusPolling();
+        this.loadCurrentStatus(); // Immediate update when becoming visible
       }
     });
   }
@@ -144,6 +174,8 @@ export class PomodoroControl {
         type: 'START_WORK', 
         task: task 
       });
+      // Immediately refresh status after starting
+      setTimeout(() => this.loadCurrentStatus(), 100);
     } catch (error) {
       console.error('Error starting work timer:', error);
     }
@@ -155,6 +187,8 @@ export class PomodoroControl {
   private async startRest(): Promise<void> {
     try {
       await chrome.runtime.sendMessage({ type: 'START_REST' });
+      // Immediately refresh status after starting
+      setTimeout(() => this.loadCurrentStatus(), 100);
     } catch (error) {
       console.error('Error starting rest timer:', error);
     }
@@ -170,6 +204,8 @@ export class PomodoroControl {
       } else {
         await chrome.runtime.sendMessage({ type: 'PAUSE_TIMER' });
       }
+      // Immediately refresh status after action
+      setTimeout(() => this.loadCurrentStatus(), 100);
     } catch (error) {
       console.error('Error pausing/resuming timer:', error);
     }
@@ -185,6 +221,8 @@ export class PomodoroControl {
     
     try {
       await chrome.runtime.sendMessage({ type: 'STOP_TIMER' });
+      // Immediately refresh status after stopping
+      setTimeout(() => this.loadCurrentStatus(), 100);
     } catch (error) {
       console.error('Error stopping timer:', error);
     }
@@ -200,6 +238,8 @@ export class PomodoroControl {
     
     try {
       await chrome.runtime.sendMessage({ type: 'RESET_TIMER' });
+      // Immediately refresh status after reset
+      setTimeout(() => this.loadCurrentStatus(), 100);
     } catch (error) {
       console.error('Error resetting timer:', error);
     }
@@ -349,5 +389,12 @@ export class PomodoroControl {
    */
   getStatus(): TimerStatus {
     return this.currentStatus;
+  }
+
+  /**
+   * Cleanup when component is destroyed
+   */
+  destroy(): void {
+    this.stopStatusPolling();
   }
 }

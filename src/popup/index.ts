@@ -10,6 +10,7 @@ class PopupManager {
   private statusDisplay: StatusDisplay;
   private siteManager: SiteManager;
   private pomodoroControl: PomodoroControl;
+  private blockingStatusInterval: number | null = null;
   
   // DOM Elements
   private currentUrlElement: HTMLElement;
@@ -58,6 +59,29 @@ class PopupManager {
     // Check current site status and timer status
     await this.checkCurrentSiteStatus();
     await this.updateBlockingStatus();
+    
+    // Start periodic blocking status updates
+    this.startBlockingStatusUpdates();
+  }
+
+  /**
+   * Start periodic updates for blocking status
+   */
+  private startBlockingStatusUpdates(): void {
+    // Check blocking status every 2 seconds
+    this.blockingStatusInterval = window.setInterval(() => {
+      this.updateBlockingStatus();
+    }, 2000);
+  }
+
+  /**
+   * Stop blocking status updates
+   */
+  private stopBlockingStatusUpdates(): void {
+    if (this.blockingStatusInterval) {
+      clearInterval(this.blockingStatusInterval);
+      this.blockingStatusInterval = null;
+    }
   }
 
   /**
@@ -93,10 +117,21 @@ class PopupManager {
     this.optionsButton.addEventListener('click', () => this.openOptionsPage());
     this.historyButton.addEventListener('click', () => this.openHistoryPage());
 
-    // Listen for timer updates to refresh blocking status
-    chrome.runtime.onMessage.addListener((message) => {
-      if (message.type === 'TIMER_UPDATE' || message.type === 'TIMER_COMPLETE') {
-        this.updateBlockingStatus();
+    // Clean up intervals when popup closes
+    window.addEventListener('beforeunload', () => {
+      this.stopBlockingStatusUpdates();
+      if (this.pomodoroControl) {
+        this.pomodoroControl.destroy();
+      }
+    });
+
+    // Handle visibility changes
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) {
+        this.stopBlockingStatusUpdates();
+      } else {
+        this.startBlockingStatusUpdates();
+        this.updateBlockingStatus(); // Immediate update when becoming visible
       }
     });
   }

@@ -15,7 +15,7 @@ import { logger } from '@shared/logger';
 export class PomodoroTimer {
   private settings: PomodoroSettings;
   private status: TimerStatus;
-  private tickInterval: number | null = null;
+  private tickInterval: ReturnType<typeof setInterval> | null = null;
   private onStatusUpdate?: (status: TimerStatus) => void;
   private onTimerComplete?: (notification: TimerNotification) => void;
   
@@ -319,6 +319,10 @@ export class PomodoroTimer {
     return this.status.state === 'WORK';
   }
 
+  shouldUnblockSites(): boolean {
+    return this.status.state === 'REST';
+  }
+
   /**
    * Get current timer status
    */
@@ -360,11 +364,11 @@ export class PomodoroTimer {
   }
 
   /**
-   * Start the tick interval
+   * Start the tick interval - FIXED: Use global setInterval instead of window.setInterval
    */
   private startTicking(): void {
     this.stopTicking();
-    this.tickInterval = window.setInterval(() => {
+    this.tickInterval = setInterval(() => {
       this.tick();
     }, 1000);
   }
