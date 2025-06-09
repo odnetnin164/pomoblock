@@ -1,54 +1,64 @@
 {
   "manifest_version": 3,
   "name": "PomoBlock",
-  "description": "Block access to distracting websites and stay focused on what matters most.",
-  "version": "0.0.2",
+  "description": "Modern website blocker with TypeScript. Block distracting sites, set custom redirects, and whitelist specific paths to stay focused and productive.",
+  "version": "1.0.0",
+  "author": "PomoBlock Team",
+  "homepage_url": "https://github.com/your-repo/pomoblock",
+  
   "permissions": [
     "storage",
     "tabs",
-    "activeTab"
+    "activeTab",
+    "alarms"
   ],
+  
   "host_permissions": [
     "<all_urls>"
   ],
+  
   "icons": {
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",
     "128": "icons/icon128.png"
   },
+  
   "action": {
     "default_icon": {
       "16": "icons/icon16.png",
       "48": "icons/icon48.png",
       "128": "icons/icon128.png"
     },
-    "default_title": "PomoBlock",
-    "default_popup": "popup/popup.html"
+    "default_title": "PomoBlock - Website Blocker",
+    "default_popup": "popup.html"
   },
-  "options_page": "options/options.html",
+  
+  "options_page": "options.html",
+  
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  
   "content_scripts": [
     {
-      "matches": [
-        "<all_urls>"
-      ],
-      "js": [
-        "contentScript.js"
-      ],
+      "matches": ["<all_urls>"],
+      "js": ["shared.js", "contentScript.js"],
       "run_at": "document_start",
       "all_frames": false
     }
   ],
+  
   "web_accessible_resources": [
     {
-      "resources": [
-        "icons/*"
-      ],
-      "matches": [
-        "<all_urls>"
-      ]
+      "resources": ["icons/*", "*.css", "*.js"],
+      "matches": ["<all_urls>"]
     }
   ],
+  
   "content_security_policy": {
-    "extension_pages": "script-src 'self'; object-src 'self'"
-  }
+    "extension_pages": "script-src 'self'; object-src 'self'; style-src 'self' 'unsafe-inline';"
+  },
+  
+  "minimum_chrome_version": "88"
 }
