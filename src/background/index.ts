@@ -4,7 +4,7 @@
 import { BackgroundPomodoroManager } from './BackgroundPomodoroManager';
 import { cleanupOldData } from '@shared/pomodoroStorage';
 
-let pomodoroManager: BackgroundPomodoroManager;
+let pomodoroManager: BackgroundPomodoroManager | undefined;
 
 // Initialize extension
 chrome.runtime.onInstalled.addListener(async () => {
@@ -20,9 +20,11 @@ chrome.runtime.onInstalled.addListener(async () => {
     console.error('Error cleaning up old data:', error);
   }
   
-  // Request notification permission
+  // Request notification permission (with callback for Manifest V3 compatibility)
   try {
-    await chrome.notifications.getPermissionLevel();
+    chrome.notifications.getPermissionLevel((level) => {
+      console.log('Notification permission level:', level);
+    });
   } catch (error) {
     console.log('Notification permission not available');
   }
@@ -59,6 +61,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     // Let the pomodoro manager handle its own messages
     return true; // Will respond asynchronously
   }
+  
+  // Return false if no pomodoroManager to handle the message
+  return false;
 });
 
 // Handle notification clicks

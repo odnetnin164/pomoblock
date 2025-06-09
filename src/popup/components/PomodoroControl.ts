@@ -3,16 +3,16 @@ import { formatDuration } from '@shared/pomodoroStorage';
 
 export class PomodoroControl {
   private container: HTMLElement;
-  private timerDisplay: HTMLElement;
-  private taskInput: HTMLInputElement;
-  private startWorkBtn: HTMLButtonElement;
-  private startRestBtn: HTMLButtonElement;
-  private pauseBtn: HTMLButtonElement;
-  private stopBtn: HTMLButtonElement;
-  private resetBtn: HTMLButtonElement;
-  private statusText: HTMLElement;
-  private sessionCounter: HTMLElement;
-  private progressBar: HTMLElement;
+  private timerDisplay!: HTMLElement;
+  private taskInput!: HTMLInputElement;
+  private startWorkBtn!: HTMLButtonElement;
+  private startRestBtn!: HTMLButtonElement;
+  private pauseBtn!: HTMLButtonElement;
+  private stopBtn!: HTMLButtonElement;
+  private resetBtn!: HTMLButtonElement;
+  private statusText!: HTMLElement;
+  private sessionCounter!: HTMLElement;
+  private progressBar!: HTMLElement;
   
   private currentStatus: TimerStatus = {
     state: 'STOPPED',

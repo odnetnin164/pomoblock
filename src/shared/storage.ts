@@ -91,7 +91,8 @@ export async function getSettings(): Promise<ExtensionSettings> {
     redirectDelay: data.redirectDelay ?? DEFAULT_SETTINGS.redirectDelay,
     extensionEnabled: data.extensionEnabled ?? DEFAULT_SETTINGS.extensionEnabled,
     debugEnabled: data.debugEnabled ?? DEFAULT_SETTINGS.debugEnabled,
-    workHours
+    workHours,
+    pomodoro: DEFAULT_SETTINGS.pomodoro // Add the missing pomodoro property
   };
 }
 
@@ -122,6 +123,7 @@ export async function saveSettings(settings: Partial<ExtensionSettings>): Promis
     dataToSave.workHoursEndTime = settings.workHours.endTime;
     dataToSave.workHoursDays = settings.workHours.days;
   }
+  // Note: Pomodoro settings are handled separately in pomodoroStorage.ts
 
   await setStorageData(dataToSave);
 }

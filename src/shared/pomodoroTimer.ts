@@ -1,3 +1,4 @@
+// src/shared/pomodoroTimer.ts
 import { TimerState, PomodoroSettings, TimerStatus, PomodoroSession, TimerNotification } from './pomodoroTypes';
 import { 
   getPomodoroSettings, 

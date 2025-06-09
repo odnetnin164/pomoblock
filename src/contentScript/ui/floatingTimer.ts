@@ -380,26 +380,28 @@ export class FloatingTimer {
 
     const header = this.widget.querySelector('.timer-header') || this.widget;
 
-    const handleMouseDown = (e: MouseEvent) => {
-      e.preventDefault();
+    const handleMouseDown = (e: Event) => {
+      const mouseEvent = e as MouseEvent;
+      mouseEvent.preventDefault();
       this.isDragging = true;
       
       const rect = this.widget!.getBoundingClientRect();
-      this.dragOffset.x = e.clientX - rect.left;
-      this.dragOffset.y = e.clientY - rect.top;
+      this.dragOffset.x = mouseEvent.clientX - rect.left;
+      this.dragOffset.y = mouseEvent.clientY - rect.top;
       
       this.widget!.style.cursor = 'grabbing';
       document.addEventListener('mousemove', handleMouseMove);
       document.addEventListener('mouseup', handleMouseUp);
     };
 
-    const handleMouseMove = (e: MouseEvent) => {
+    const handleMouseMove = (e: Event) => {
+      const mouseEvent = e as MouseEvent;
       if (!this.isDragging || !this.widget) return;
       
-      e.preventDefault();
+      mouseEvent.preventDefault();
       
-      let newX = e.clientX - this.dragOffset.x;
-      let newY = e.clientY - this.dragOffset.y;
+      let newX = mouseEvent.clientX - this.dragOffset.x;
+      let newY = mouseEvent.clientY - this.dragOffset.y;
       
       // Keep widget within viewport bounds
       const maxX = window.innerWidth - this.widget.offsetWidth;

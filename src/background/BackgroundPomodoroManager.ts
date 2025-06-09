@@ -9,8 +9,8 @@ export class BackgroundPomodoroManager {
 
   constructor() {
     this.timer = new PomodoroTimer(
-      (status) => this.handleStatusUpdate(status),
-      (notification) => this.handleTimerComplete(notification)
+      (status: TimerStatus) => this.handleStatusUpdate(status),
+      (notification: TimerNotification) => this.handleTimerComplete(notification)
     );
     
     this.init();
