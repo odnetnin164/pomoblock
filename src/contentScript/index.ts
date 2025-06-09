@@ -190,7 +190,7 @@ class ContentScriptManager {
               changes.workHoursStartTime !== undefined ||
               changes.workHoursEndTime !== undefined ||
               changes.workHoursDays !== undefined) {
-            console.log('Work hours storage change detected:', {
+            logger.log('Work hours storage change detected:', {
               workHoursEnabled: changes.workHoursEnabled,
               workHoursStartTime: changes.workHoursStartTime,
               workHoursEndTime: changes.workHoursEndTime,

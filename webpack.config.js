@@ -75,16 +75,9 @@ module.exports = (env, argv) => {
     ],
     devtool: isProduction ? 'source-map' : 'inline-source-map',
     optimization: {
+      // Disable all code splitting to ensure each entry point is self-contained
       splitChunks: {
-        chunks: 'all',
-        cacheGroups: {
-          shared: {
-            name: 'shared',
-            chunks: 'all',
-            test: /[\\/]src[\\/]shared[\\/]/,
-            enforce: true
-          }
-        }
+        chunks: () => false
       }
     }
   };

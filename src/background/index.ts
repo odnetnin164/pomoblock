@@ -3,15 +3,35 @@
 
 import { BackgroundPomodoroManager } from './BackgroundPomodoroManager';
 import { cleanupOldData } from '@shared/pomodoroStorage';
+import { logger } from '@shared/logger';
 
 let pomodoroManager: BackgroundPomodoroManager | undefined;
 
-// Initialize extension
+// Initialize pomodoro manager immediately
+async function initializePomodoroManager() {
+  try {
+    logger.log('Initializing PomoBlock background script');
+    pomodoroManager = new BackgroundPomodoroManager();
+    logger.log('BackgroundPomodoroManager created successfully');
+  } catch (error) {
+    console.error('Error initializing BackgroundPomodoroManager:', error);
+  }
+}
+
+// Initialize immediately when background script loads
+initializePomodoroManager();
+
+// Re-initialize on startup (for when browser restarts)
+chrome.runtime.onStartup.addListener(async () => {
+  logger.log('PomoBlock extension starting up');
+  if (!pomodoroManager) {
+    await initializePomodoroManager();
+  }
+});
+
+// Initialize extension on install/update
 chrome.runtime.onInstalled.addListener(async () => {
-  console.log('PomoBlock extension installed');
-  
-  // Initialize pomodoro manager
-  pomodoroManager = new BackgroundPomodoroManager();
+  logger.log('PomoBlock extension installed/updated');
   
   // Clean up old data (keep last 90 days)
   try {
@@ -23,25 +43,46 @@ chrome.runtime.onInstalled.addListener(async () => {
   // Request notification permission (with callback for Manifest V3 compatibility)
   try {
     chrome.notifications.getPermissionLevel((level) => {
-      console.log('Notification permission level:', level);
+      logger.log('Notification permission level:', level);
     });
   } catch (error) {
-    console.log('Notification permission not available');
+    logger.log('Notification permission not available');
   }
+  
+  // Create context menus
+  setupContextMenus();
 });
 
-// Handle extension startup
-chrome.runtime.onStartup.addListener(() => {
-  console.log('PomoBlock extension starting up');
-  if (!pomodoroManager) {
-    pomodoroManager = new BackgroundPomodoroManager();
+// Setup context menus
+function setupContextMenus() {
+  try {
+    chrome.contextMenus.removeAll(() => {
+      chrome.contextMenus.create({
+        id: 'startPomodoro',
+        title: 'Start Pomodoro Timer',
+        contexts: ['action']
+      });
+      
+      chrome.contextMenus.create({
+        id: 'stopPomodoro',
+        title: 'Stop Timer',
+        contexts: ['action']
+      });
+      
+      chrome.contextMenus.create({
+        id: 'pomodoroHistory',
+        title: 'View History',
+        contexts: ['action']
+      });
+    });
+  } catch (error) {
+    console.error('Error setting up context menus:', error);
   }
-});
+}
 
 // Handle extension icon click (though popup handles most interaction)
 chrome.action.onClicked.addListener((tab) => {
-  // This only fires if no popup is defined, but we have one
-  console.log('Extension icon clicked', tab);
+  logger.log('Extension icon clicked', tab);
 });
 
 // Listen for tab updates to potentially update badge or icon
@@ -49,26 +90,17 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
   if (changeInfo.status === 'complete' && tab.url) {
     // Check if pomodoro timer should block sites
     if (pomodoroManager && pomodoroManager.isTimerBlocking()) {
-      console.log('Pomodoro timer is blocking, tab updated:', tab.url);
+      logger.log('Pomodoro timer is blocking, tab updated:', tab.url);
     }
   }
 });
 
-// Handle messages from content scripts and popup
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  // Forward pomodoro-related messages to the pomodoro manager
-  if (pomodoroManager) {
-    // Let the pomodoro manager handle its own messages
-    return true; // Will respond asynchronously
-  }
-  
-  // Return false if no pomodoroManager to handle the message
-  return false;
-});
+// REMOVED: The conflicting message listener that was preventing BackgroundPomodoroManager from working
+// The BackgroundPomodoroManager now handles ALL messages
 
 // Handle notification clicks
 chrome.notifications.onClicked.addListener((notificationId) => {
-  console.log('Notification clicked:', notificationId);
+  logger.log('Notification clicked:', notificationId);
   
   // Open popup when notification is clicked
   chrome.action.openPopup().catch(() => {
@@ -83,19 +115,47 @@ chrome.notifications.onClicked.addListener((notificationId) => {
 
 // Handle alarm events for pomodoro notifications
 chrome.alarms.onAlarm.addListener((alarm) => {
-  console.log('Alarm triggered:', alarm.name);
+  logger.log('Alarm triggered:', alarm.name);
   
   if (alarm.name.startsWith('pomodoro')) {
-    // Handle pomodoro-related alarms
-    if (pomodoroManager) {
-      // The pomodoro manager handles its own alarms
+    // The BackgroundPomodoroManager handles its own alarms
+    logger.log('Pomodoro alarm handled by BackgroundPomodoroManager');
+  }
+});
+
+// Handle context menu clicks
+chrome.contextMenus.onClicked.addListener(async (info, tab) => {
+  if (!pomodoroManager) {
+    console.error('PomodoroManager not initialized');
+    return;
+  }
+  
+  try {
+    switch (info.menuItemId) {
+      case 'startPomodoro':
+        const status = pomodoroManager.getCurrentStatus();
+        if (status.state === 'STOPPED') {
+          // Send message to start work timer
+          await chrome.runtime.sendMessage({ type: 'START_WORK', task: 'Quick Start' });
+        }
+        break;
+        
+      case 'stopPomodoro':
+        await chrome.runtime.sendMessage({ type: 'STOP_TIMER' });
+        break;
+        
+      case 'pomodoroHistory':
+        await chrome.tabs.create({ url: chrome.runtime.getURL('history.html') });
+        break;
     }
+  } catch (error) {
+    console.error('Error handling context menu click:', error);
   }
 });
 
 // Handle extension suspend
 chrome.runtime.onSuspend.addListener(() => {
-  console.log('PomoBlock extension suspending');
+  logger.log('PomoBlock extension suspending');
   
   if (pomodoroManager) {
     pomodoroManager.destroy();
@@ -104,53 +164,7 @@ chrome.runtime.onSuspend.addListener(() => {
 
 // Clean up on extension unload
 chrome.runtime.onSuspendCanceled.addListener(() => {
-  console.log('PomoBlock extension suspend cancelled');
-});
-
-// Context menu setup (optional - could add quick timer controls)
-chrome.runtime.onInstalled.addListener(() => {
-  chrome.contextMenus.create({
-    id: 'startPomodoro',
-    title: 'Start Pomodoro Timer',
-    contexts: ['action']
-  });
-  
-  chrome.contextMenus.create({
-    id: 'stopPomodoro',
-    title: 'Stop Timer',
-    contexts: ['action']
-  });
-  
-  chrome.contextMenus.create({
-    id: 'pomodoroHistory',
-    title: 'View History',
-    contexts: ['action']
-  });
-});
-
-// Handle context menu clicks
-chrome.contextMenus.onClicked.addListener(async (info, tab) => {
-  switch (info.menuItemId) {
-    case 'startPomodoro':
-      if (pomodoroManager) {
-        const status = pomodoroManager.getCurrentStatus();
-        if (status.state === 'STOPPED') {
-          // Send message to start work timer
-          chrome.runtime.sendMessage({ type: 'START_WORK', task: 'Quick Start' });
-        }
-      }
-      break;
-      
-    case 'stopPomodoro':
-      if (pomodoroManager) {
-        chrome.runtime.sendMessage({ type: 'STOP_TIMER' });
-      }
-      break;
-      
-    case 'pomodoroHistory':
-      chrome.tabs.create({ url: chrome.runtime.getURL('history.html') });
-      break;
-  }
+  logger.log('PomoBlock extension suspend cancelled');
 });
 
 // Export for testing/debugging

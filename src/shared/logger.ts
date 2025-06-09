@@ -32,7 +32,7 @@ export class Logger {
     };
 
     // Always log to console
-    console.log(`[PomoBlock Debug] ${message}`, data || '');
+    // logger.log(`[PomoBlock Debug] ${message}`, data || '');
 
     // Add to internal log
     this.logs.push(entry);

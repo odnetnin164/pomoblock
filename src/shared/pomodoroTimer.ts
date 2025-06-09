@@ -10,6 +10,7 @@ import {
   generateSessionId,
   getDailyStats
 } from './pomodoroStorage';
+import { logger } from '@shared/logger';
 
 export class PomodoroTimer {
   private settings: PomodoroSettings;
@@ -46,39 +47,131 @@ export class PomodoroTimer {
   }
 
   /**
-   * Initialize timer with stored data
+   * Initialize timer with stored data - with improved error handling
    */
   async initialize(): Promise<void> {
-    this.settings = await getPomodoroSettings();
-    this.status = await getTimerStatus();
+    logger.log('Initializing PomodoroTimer');
     
-    // Update session count with today's completed work sessions
-    const dailyStats = await getDailyStats();
-    this.status.sessionCount = dailyStats.completedWorkSessions;
-    
-    // If timer was running when browser closed, restore it
-    if (this.status.state === 'WORK' || this.status.state === 'REST') {
-      if (this.status.startTime) {
-        const elapsed = Math.floor((Date.now() - this.status.startTime) / 1000);
-        this.status.timeRemaining = Math.max(0, this.status.timeRemaining - elapsed);
-        
-        if (this.status.timeRemaining <= 0) {
-          // Timer should have completed while browser was closed
-          await this.completeCurrentTimer();
-        } else {
-          // Resume timer
-          this.startTicking();
-        }
-      } else {
-        // Invalid state, reset
-        this.status.state = 'STOPPED';
-        this.status.timeRemaining = 0;
-        this.status.totalTime = 0;
+    try {
+      // Load settings with fallback to defaults
+      try {
+        this.settings = await getPomodoroSettings();
+        logger.log('Pomodoro settings loaded successfully');
+      } catch (error) {
+        console.error('Error loading pomodoro settings, using defaults:', error);
+        this.settings = {
+          workDuration: 25,
+          restDuration: 5,
+          longRestDuration: 15,
+          longRestInterval: 4,
+          autoStartRest: false,
+          autoStartWork: false,
+          showNotifications: true,
+          playSound: true
+        };
       }
+      
+      // Load timer status with fallback to defaults
+      try {
+        this.status = await getTimerStatus();
+        logger.log('Timer status loaded successfully');
+      } catch (error) {
+        console.error('Error loading timer status, using defaults:', error);
+        this.status = {
+          state: 'STOPPED',
+          timeRemaining: 0,
+          totalTime: 0,
+          currentTask: '',
+          sessionCount: 0
+        };
+      }
+      
+      // Update session count with today's completed work sessions
+      try {
+        const dailyStats = await getDailyStats();
+        this.status.sessionCount = dailyStats.completedWorkSessions;
+        logger.log('Daily stats loaded, session count:', this.status.sessionCount);
+      } catch (error) {
+        console.error('Error loading daily stats, keeping current session count:', error);
+        // Keep existing session count or default to 0
+        this.status.sessionCount = this.status.sessionCount || 0;
+      }
+      
+      // If timer was running when browser closed, try to restore it
+      if (this.status.state === 'WORK' || this.status.state === 'REST') {
+        try {
+          if (this.status.startTime) {
+            const elapsed = Math.floor((Date.now() - this.status.startTime) / 1000);
+            this.status.timeRemaining = Math.max(0, this.status.timeRemaining - elapsed);
+            
+            if (this.status.timeRemaining <= 0) {
+              logger.log('Timer should have completed while browser was closed');
+              // Timer should have completed while browser was closed
+              await this.completeCurrentTimer();
+            } else {
+              logger.log(`Resuming timer with ${this.status.timeRemaining} seconds remaining`);
+              // Resume timer
+              this.startTicking();
+            }
+          } else {
+            logger.log('Invalid timer state detected, resetting to stopped');
+            // Invalid state, reset
+            this.status.state = 'STOPPED';
+            this.status.timeRemaining = 0;
+            this.status.totalTime = 0;
+          }
+        } catch (error) {
+          console.error('Error restoring timer state, stopping timer:', error);
+          // If restoration fails, stop the timer
+          this.status.state = 'STOPPED';
+          this.status.timeRemaining = 0;
+          this.status.totalTime = 0;
+          this.status.currentTask = '';
+          delete this.status.startTime;
+        }
+      }
+      
+      // Save current status (with error handling)
+      try {
+        await this.saveStatus();
+        logger.log('Timer status saved successfully');
+      } catch (error) {
+        console.error('Error saving timer status during initialization:', error);
+        // Don't fail initialization if save fails
+      }
+      
+      // Notify status update
+      this.notifyStatusUpdate();
+      
+      logger.log('PomodoroTimer initialized successfully with status:', this.status);
+      
+    } catch (error) {
+      console.error('Critical error during PomodoroTimer initialization:', error);
+      
+      // Set safe defaults if everything fails
+      this.settings = {
+        workDuration: 25,
+        restDuration: 5,
+        longRestDuration: 15,
+        longRestInterval: 4,
+        autoStartRest: false,
+        autoStartWork: false,
+        showNotifications: true,
+        playSound: true
+      };
+      
+      this.status = {
+        state: 'STOPPED',
+        timeRemaining: 0,
+        totalTime: 0,
+        currentTask: '',
+        sessionCount: 0
+      };
+      
+      this.notifyStatusUpdate();
+      
+      logger.log('PomodoroTimer initialized with safe defaults due to errors');
     }
-    
-    await this.saveStatus();
-    this.notifyStatusUpdate();
   }
 
   /**

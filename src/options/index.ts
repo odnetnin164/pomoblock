@@ -6,6 +6,7 @@ import { SettingsManager } from './SettingsManager';
 import { SiteListManager } from './SiteListManager';
 import { PomodoroSettingsManager } from './PomodoroSettingsManager';
 import { isWithinWorkHours, getWorkHoursStatus } from '@shared/workHoursUtils';
+import { logger } from '@shared/logger';
 
 class OptionsPageManager {
   private settingsManager: SettingsManager;
@@ -467,9 +468,9 @@ class OptionsPageManager {
 
     // Debug log before saving
     if (this.debugEnabled.checked) {
-      console.log('=== SAVING WORK HOURS DEBUG ===');
-      console.log('Work hours from UI:', workHours);
-      console.log('===============================');
+      logger.log('=== SAVING WORK HOURS DEBUG ===');
+      logger.log('Work hours from UI:', workHours);
+      logger.log('===============================');
     }
 
     const settings: Partial<ExtensionSettings> = {

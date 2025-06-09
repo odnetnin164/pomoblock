@@ -3,6 +3,7 @@ import { getSettings, saveSettings, resetSettings as resetToDefaults } from '@sh
 import { DEFAULT_SETTINGS, SUGGESTED_REDIRECT_URLS, DELAY_PRESETS, WORK_HOURS_CONFIG } from '@shared/constants';
 import { isValidUrl } from '@shared/urlUtils';
 import { isValidTimeString } from '@shared/workHoursUtils';
+import { logger } from '@shared/logger';
 
 export class SettingsManager {
   private onStatusMessage: ((message: StatusMessage) => void) | undefined;
@@ -173,23 +174,23 @@ export class SettingsManager {
   async debugWorkHours(): Promise<void> {
     try {
       const settings = await this.loadSettings();
-      console.log('=== WORK HOURS DEBUG ===');
-      console.log('Current settings:', settings);
-      console.log('Work hours enabled:', settings.workHours.enabled);
-      console.log('Work hours start time:', settings.workHours.startTime);
-      console.log('Work hours end time:', settings.workHours.endTime);
-      console.log('Work hours days:', settings.workHours.days);
-      console.log('========================');
+      logger.log('=== WORK HOURS DEBUG ===');
+      logger.log('Current settings:', settings);
+      logger.log('Work hours enabled:', settings.workHours.enabled);
+      logger.log('Work hours start time:', settings.workHours.startTime);
+      logger.log('Work hours end time:', settings.workHours.endTime);
+      logger.log('Work hours days:', settings.workHours.days);
+      logger.log('========================');
       
       // Also check raw storage
       chrome.storage.sync.get(null, (data) => {
-        console.log('=== RAW STORAGE DEBUG ===');
-        console.log('All storage data:', data);
-        console.log('Work hours enabled:', data.workHoursEnabled);
-        console.log('Work hours start:', data.workHoursStartTime);
-        console.log('Work hours end:', data.workHoursEndTime);
-        console.log('Work hours days:', data.workHoursDays);
-        console.log('=========================');
+        logger.log('=== RAW STORAGE DEBUG ===');
+        logger.log('All storage data:', data);
+        logger.log('Work hours enabled:', data.workHoursEnabled);
+        logger.log('Work hours start:', data.workHoursStartTime);
+        logger.log('Work hours end:', data.workHoursEndTime);
+        logger.log('Work hours days:', data.workHoursDays);
+        logger.log('=========================');
       });
     } catch (error) {
       console.error('Error debugging work hours:', error);

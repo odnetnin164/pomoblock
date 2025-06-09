@@ -30,8 +30,7 @@
   },
   "options_page": "options.html",
   "background": {
-    "service_worker": "background.js",
-    "type": "module"
+    "service_worker": "background.js"
   },
   "content_scripts": [
     {
@@ -39,7 +38,6 @@
         "<all_urls>"
       ],
       "js": [
-        "shared.js",
         "contentScript.js"
       ],
       "run_at": "document_start",

@@ -2,10 +2,12 @@
 import { PomodoroTimer } from '@shared/pomodoroTimer';
 import { TimerStatus, TimerNotification, PomodoroMessage } from '@shared/pomodoroTypes';
 import { getPomodoroSettings, savePomodoroSettings } from '@shared/pomodoroStorage';
+import { logger } from '@shared/logger';
 
 export class BackgroundPomodoroManager {
   private timer: PomodoroTimer;
   private badgeUpdateInterval: number | null = null;
+  private isInitialized: boolean = false;
 
   constructor() {
     this.timer = new PomodoroTimer(
@@ -13,31 +15,60 @@ export class BackgroundPomodoroManager {
       (notification: TimerNotification) => this.handleTimerComplete(notification)
     );
     
-    this.init();
+    // Set up message listeners immediately (before initialization)
+    this.setupMessageListeners();
+    
+    // Initialize asynchronously
+    this.init().catch(error => {
+      console.error('Error initializing BackgroundPomodoroManager:', error);
+    });
   }
 
   /**
    * Initialize the pomodoro manager
    */
   private async init(): Promise<void> {
-    console.log('Initializing BackgroundPomodoroManager');
-    
-    // Initialize timer with stored data
-    await this.timer.initialize();
-    
-    // Set up message listeners
-    this.setupMessageListeners();
-    
-    // Set up alarm listeners for notifications
-    this.setupAlarmListeners();
-    
-    // Start badge updates
-    this.startBadgeUpdates();
-    
-    // Initial badge update
-    this.updateBadge();
-    
-    console.log('BackgroundPomodoroManager initialized');
+    try {
+      logger.log('Initializing BackgroundPomodoroManager');
+      
+      // Initialize timer with stored data
+      await this.timer.initialize();
+      
+      // Set up alarm listeners for notifications
+      this.setupAlarmListeners();
+      
+      // Start badge updates
+      this.startBadgeUpdates();
+      
+      // Initial badge update
+      this.updateBadge();
+      
+      this.isInitialized = true;
+      logger.log('BackgroundPomodoroManager initialized successfully');
+    } catch (error) {
+      console.error('Failed to initialize BackgroundPomodoroManager:', error);
+      
+      // Try to initialize with safe defaults if storage fails
+      try {
+        logger.log('Attempting to initialize with safe defaults');
+        
+        // Set up alarm listeners anyway
+        this.setupAlarmListeners();
+        
+        // Start badge updates with basic state
+        this.startBadgeUpdates();
+        
+        // Set initial safe state
+        this.updateBadge();
+        
+        // Mark as partially initialized so basic operations work
+        this.isInitialized = true;
+        logger.log('BackgroundPomodoroManager initialized with safe defaults');
+      } catch (fallbackError) {
+        console.error('Even fallback initialization failed:', fallbackError);
+        this.isInitialized = false;
+      }
+    }
   }
 
   /**
@@ -45,7 +76,18 @@ export class BackgroundPomodoroManager {
    */
   private setupMessageListeners(): void {
     chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-      this.handleMessage(message).then(sendResponse).catch(console.error);
+      logger.log('BackgroundPomodoroManager received message:', message.type);
+      
+      this.handleMessage(message)
+        .then(response => {
+          logger.log('Message handled successfully:', message.type);
+          sendResponse(response);
+        })
+        .catch(error => {
+          console.error('Error handling message:', message.type, error);
+          sendResponse({ error: error.message || 'Unknown error' });
+        });
+      
       return true; // Will respond asynchronously
     });
   }
@@ -54,6 +96,44 @@ export class BackgroundPomodoroManager {
    * Handle messages from popup/options pages
    */
   private async handleMessage(message: any): Promise<any> {
+    // If not initialized, return appropriate response for status queries
+    if (!this.isInitialized && message.type === 'GET_TIMER_STATUS') {
+      return { 
+        status: {
+          state: 'STOPPED',
+          timeRemaining: 0,
+          totalTime: 0,
+          currentTask: '',
+          sessionCount: 0
+        }
+      };
+    }
+    
+    if (!this.isInitialized && message.type === 'GET_POMODORO_SETTINGS') {
+      try {
+        const settings = await getPomodoroSettings();
+        return { settings };
+      } catch (error) {
+        return { 
+          settings: {
+            workDuration: 25,
+            restDuration: 5,
+            longRestDuration: 15,
+            longRestInterval: 4,
+            autoStartRest: false,
+            autoStartWork: false,
+            showNotifications: true,
+            playSound: true
+          }
+        };
+      }
+    }
+    
+    // For other operations, ensure we're initialized
+    if (!this.isInitialized) {
+      return { error: 'Timer not initialized yet. Please try again in a moment.' };
+    }
+
     switch (message.type) {
       case 'GET_TIMER_STATUS':
         return { status: this.timer.getStatus() };
@@ -90,9 +170,14 @@ export class BackgroundPomodoroManager {
         return { success: true };
         
       case 'UPDATE_POMODORO_SETTINGS':
-        await this.timer.updateSettings(message.settings);
-        await savePomodoroSettings(message.settings);
-        return { success: true };
+        try {
+          await this.timer.updateSettings(message.settings);
+          await savePomodoroSettings(message.settings);
+          return { success: true };
+        } catch (error) {
+          console.error('Error updating pomodoro settings:', error);
+          return { error: 'Failed to update settings' };
+        }
         
       case 'IS_TIMER_BLOCKING':
         return { blocking: this.timer.shouldBlockSites() };
@@ -104,16 +189,21 @@ export class BackgroundPomodoroManager {
           return { success: true };
         } catch (error) {
           // If popup can't be opened, try to focus existing extension pages
-          const tabs = await chrome.tabs.query({ url: chrome.runtime.getURL('*') });
-          if (tabs.length > 0 && tabs[0].id) {
-            await chrome.tabs.update(tabs[0].id, { active: true });
-            return { success: true };
+          try {
+            const tabs = await chrome.tabs.query({ url: chrome.runtime.getURL('*') });
+            if (tabs.length > 0 && tabs[0].id) {
+              await chrome.tabs.update(tabs[0].id, { active: true });
+              return { success: true };
+            }
+          } catch (tabError) {
+            console.error('Error focusing extension tab:', tabError);
           }
           return { success: false, error: 'Could not open popup' };
         }
         
       default:
-        return { error: 'Unknown message type' };
+        console.warn('Unknown message type:', message.type);
+        return { error: 'Unknown message type: ' + message.type };
     }
   }
 
@@ -123,8 +213,8 @@ export class BackgroundPomodoroManager {
   private setupAlarmListeners(): void {
     chrome.alarms.onAlarm.addListener((alarm) => {
       if (alarm.name === 'pomodoroNotification') {
-        // Handle alarm-based notifications if needed
-        console.log('Pomodoro alarm triggered');
+        logger.log('Pomodoro alarm triggered');
+        // The timer handles its own completion logic
       }
     });
   }
@@ -133,6 +223,8 @@ export class BackgroundPomodoroManager {
    * Handle timer status updates
    */
   private handleStatusUpdate(status: TimerStatus): void {
+    logger.log('Timer status updated:', status);
+    
     // Update extension badge
     this.updateBadge();
     
@@ -153,17 +245,21 @@ export class BackgroundPomodoroManager {
    * Handle timer completion
    */
   private async handleTimerComplete(notification: TimerNotification): Promise<void> {
-    console.log('Timer completed:', notification);
+    logger.log('Timer completed:', notification);
     
-    // Show browser notification if enabled
-    const settings = await getPomodoroSettings();
-    if (settings.showNotifications) {
-      this.showNotification(notification);
-    }
-    
-    // Play sound if enabled
-    if (settings.playSound) {
-      this.playNotificationSound();
+    try {
+      // Show browser notification if enabled
+      const settings = await getPomodoroSettings();
+      if (settings.showNotifications) {
+        this.showNotification(notification);
+      }
+      
+      // Play sound if enabled
+      if (settings.playSound) {
+        this.playNotificationSound();
+      }
+    } catch (error) {
+      console.error('Error handling timer completion:', error);
     }
     
     // Broadcast completion message
@@ -177,22 +273,26 @@ export class BackgroundPomodoroManager {
    * Update extension badge
    */
   private updateBadge(): void {
-    const status = this.timer.getStatus();
-    
-    if (status.state === 'STOPPED') {
-      chrome.action.setBadgeText({ text: '' });
-      chrome.action.setBadgeBackgroundColor({ color: '#4CAF50' });
-    } else if (status.state === 'WORK') {
-      const minutes = Math.ceil(status.timeRemaining / 60);
-      chrome.action.setBadgeText({ text: minutes.toString() });
-      chrome.action.setBadgeBackgroundColor({ color: '#f44336' });
-    } else if (status.state === 'REST') {
-      const minutes = Math.ceil(status.timeRemaining / 60);
-      chrome.action.setBadgeText({ text: minutes.toString() });
-      chrome.action.setBadgeBackgroundColor({ color: '#4CAF50' });
-    } else if (status.state === 'PAUSED') {
-      chrome.action.setBadgeText({ text: '⏸' });
-      chrome.action.setBadgeBackgroundColor({ color: '#FF9800' });
+    try {
+      const status = this.timer.getStatus();
+      
+      if (status.state === 'STOPPED') {
+        chrome.action.setBadgeText({ text: '' });
+        chrome.action.setBadgeBackgroundColor({ color: '#4CAF50' });
+      } else if (status.state === 'WORK') {
+        const minutes = Math.ceil(status.timeRemaining / 60);
+        chrome.action.setBadgeText({ text: minutes.toString() });
+        chrome.action.setBadgeBackgroundColor({ color: '#f44336' });
+      } else if (status.state === 'REST') {
+        const minutes = Math.ceil(status.timeRemaining / 60);
+        chrome.action.setBadgeText({ text: minutes.toString() });
+        chrome.action.setBadgeBackgroundColor({ color: '#4CAF50' });
+      } else if (status.state === 'PAUSED') {
+        chrome.action.setBadgeText({ text: '⏸' });
+        chrome.action.setBadgeBackgroundColor({ color: '#FF9800' });
+      }
+    } catch (error) {
+      console.error('Error updating badge:', error);
     }
   }
 
@@ -200,6 +300,10 @@ export class BackgroundPomodoroManager {
    * Start badge update interval
    */
   private startBadgeUpdates(): void {
+    if (this.badgeUpdateInterval) {
+      clearInterval(this.badgeUpdateInterval);
+    }
+    
     this.badgeUpdateInterval = window.setInterval(() => {
       this.updateBadge();
     }, 10000); // Update every 10 seconds
@@ -209,31 +313,36 @@ export class BackgroundPomodoroManager {
    * Schedule notification for timer completion
    */
   private scheduleNotification(secondsUntilComplete: number): void {
-    chrome.alarms.create('pomodoroNotification', {
-      delayInMinutes: secondsUntilComplete / 60
-    });
+    try {
+      chrome.alarms.create('pomodoroNotification', {
+        delayInMinutes: secondsUntilComplete / 60
+      });
+    } catch (error) {
+      console.error('Error scheduling notification:', error);
+    }
   }
 
   /**
    * Show browser notification
    */
   private showNotification(notification: TimerNotification): void {
-    chrome.notifications.create({
-      type: 'basic',
-      iconUrl: chrome.runtime.getURL('icons/icon48.png'),
-      title: notification.title,
-      message: notification.message,
-      priority: 2
-    });
+    try {
+      chrome.notifications.create({
+        type: 'basic',
+        iconUrl: chrome.runtime.getURL('icons/icon48.png'),
+        title: notification.title,
+        message: notification.message,
+        priority: 2
+      });
+    } catch (error) {
+      console.error('Error showing notification:', error);
+    }
   }
 
   /**
    * Play notification sound
    */
   private playNotificationSound(): void {
-    // Create audio context for notification sound
-    // Note: In a real implementation, you might want to use the chrome.tts API
-    // or play a simple beep sound
     try {
       // Simple beep using Web Audio API
       const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
@@ -252,7 +361,7 @@ export class BackgroundPomodoroManager {
       oscillator.start(audioContext.currentTime);
       oscillator.stop(audioContext.currentTime + 0.5);
     } catch (error) {
-      console.log('Could not play notification sound:', error);
+      logger.log('Could not play notification sound:', error);
     }
   }
 
@@ -271,16 +380,21 @@ export class BackgroundPomodoroManager {
       });
     });
     
-    // Send to popup if open
-    chrome.runtime.sendMessage(message).catch(() => {
+    // Send to popup if open (but don't log errors if popup is closed)
+    try {
+      chrome.runtime.sendMessage(message);
+    } catch (error) {
       // Ignore error if popup is not open
-    });
+    }
   }
 
   /**
    * Check if timer should block sites
    */
   isTimerBlocking(): boolean {
+    if (!this.isInitialized) {
+      return false;
+    }
     return this.timer.shouldBlockSites();
   }
 
@@ -288,6 +402,15 @@ export class BackgroundPomodoroManager {
    * Get current timer status
    */
   getCurrentStatus(): TimerStatus {
+    if (!this.isInitialized) {
+      return {
+        state: 'STOPPED',
+        timeRemaining: 0,
+        totalTime: 0,
+        currentTask: '',
+        sessionCount: 0
+      };
+    }
     return this.timer.getStatus();
   }
 
@@ -295,10 +418,17 @@ export class BackgroundPomodoroManager {
    * Cleanup
    */
   destroy(): void {
+    logger.log('Destroying BackgroundPomodoroManager');
+    
     if (this.badgeUpdateInterval) {
       clearInterval(this.badgeUpdateInterval);
+      this.badgeUpdateInterval = null;
     }
     
-    this.timer.destroy();
+    if (this.timer) {
+      this.timer.destroy();
+    }
+    
+    this.isInitialized = false;
   }
 }
