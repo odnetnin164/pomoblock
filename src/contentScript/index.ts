@@ -2,6 +2,7 @@ import { ExtensionSettings } from '@shared/types';
 import { getSettings, getBlockedWebsites, getWhitelistedPaths, onStorageChanged } from '@shared/storage';
 import { logger } from '@shared/logger';
 import { DEFAULT_SETTINGS } from '@shared/constants';
+import { shouldBlockBasedOnWorkHours } from '@shared/workHoursUtils';
 import { BlockingEngine } from './blockingEngine';
 import { BlockedPageUI } from './ui/blockedPage';
 
@@ -107,6 +108,19 @@ class ContentScriptManager {
           return;
         }
 
+        // Handle work hours changes - reload full configuration if any work hours setting changed
+        if (changes.workHoursEnabled !== undefined || 
+            changes.workHoursStartTime !== undefined || 
+            changes.workHoursEndTime !== undefined || 
+            changes.workHoursDays !== undefined) {
+          logger.log('Work hours settings changed, reloading configuration');
+          this.loadConfiguration().then(() => {
+            // Re-check current page after work hours update
+            this.checkAndBlock();
+          });
+          return;
+        }
+
         // Handle settings changes
         let settingsChanged = false;
 
@@ -140,6 +154,21 @@ class ContentScriptManager {
           this.settings.debugEnabled = changes.debugEnabled.newValue;
           logger.setDebugEnabled(this.settings.debugEnabled);
           settingsChanged = true;
+        }
+
+        // Debug work hours changes
+        if (this.settings.debugEnabled) {
+          if (changes.workHoursEnabled !== undefined ||
+              changes.workHoursStartTime !== undefined ||
+              changes.workHoursEndTime !== undefined ||
+              changes.workHoursDays !== undefined) {
+            console.log('Work hours storage change detected:', {
+              workHoursEnabled: changes.workHoursEnabled,
+              workHoursStartTime: changes.workHoursStartTime,
+              workHoursEndTime: changes.workHoursEndTime,
+              workHoursDays: changes.workHoursDays
+            });
+          }
         }
 
         if (settingsChanged) {
@@ -284,6 +313,13 @@ class ContentScriptManager {
     // Don't block if extension is disabled
     if (!this.settings.extensionEnabled) {
       logger.log('Extension disabled, removing any existing block');
+      this.blockedPageUI.removeBlockedPage();
+      return;
+    }
+
+    // Check work hours - if work hours are enabled and we're outside work hours, don't block
+    if (!shouldBlockBasedOnWorkHours(this.settings.workHours)) {
+      logger.log('Outside work hours, not blocking');
       this.blockedPageUI.removeBlockedPage();
       return;
     }

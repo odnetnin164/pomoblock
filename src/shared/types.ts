@@ -1,10 +1,18 @@
 // Extension Settings Types
+export interface WorkHours {
+  enabled: boolean;
+  startTime: string; // "09:00" format (24-hour)
+  endTime: string; // "17:00" format (24-hour)
+  days: number[]; // [1,2,3,4,5] for Mon-Fri, 0=Sunday, 6=Saturday
+}
+
 export interface ExtensionSettings {
   blockMode: 'block' | 'redirect';
   redirectUrl: string;
   redirectDelay: number;
   extensionEnabled: boolean;
   debugEnabled: boolean;
+  workHours: WorkHours;
 }
 
 // Storage Data Types
@@ -16,6 +24,10 @@ export interface StorageData {
   redirectDelay?: number;
   extensionEnabled?: boolean;
   debugEnabled?: boolean;
+  workHoursEnabled?: boolean;
+  workHoursStartTime?: string;
+  workHoursEndTime?: string;
+  workHoursDays?: number[];
 }
 
 // Site Types

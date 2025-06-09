@@ -1,5 +1,6 @@
 import { ExtensionSettings } from '@shared/types';
 import { logger } from '@shared/logger';
+import { getWorkHoursStatus, isWithinWorkHours, getFormattedDays } from '@shared/workHoursUtils';
 
 export class BlockedPageUI {
   private settings: ExtensionSettings;
@@ -153,6 +154,9 @@ export class BlockedPageUI {
     const currentTime = new Date().toLocaleString();
     const blockedURL = window.location.hostname + window.location.pathname;
     
+    // Work hours information
+    const workHoursInfo = this.generateWorkHoursInfo();
+    
     const redirectContent = isRedirectMode ? `
       <div class="redirect-info">
         <h3>🔄 Redirecting in <span id="countdown-seconds">${this.settings.redirectDelay}</span> seconds</h3>
@@ -195,11 +199,40 @@ export class BlockedPageUI {
         <div class="blocked-url">
           ${blockedURL}
         </div>
+        ${workHoursInfo}
         ${redirectContent}
         ${navigationHelp}
         <div class="blocked-time">
           Blocked at: ${currentTime}
         </div>
+      </div>
+    `;
+  }
+
+  /**
+   * Generate work hours information section
+   */
+  private generateWorkHoursInfo(): string {
+    if (!this.settings.workHours.enabled) {
+      return '';
+    }
+
+    const workHoursStatus = getWorkHoursStatus(this.settings.workHours);
+    const isWithin = isWithinWorkHours(this.settings.workHours);
+    const formattedDays = getFormattedDays(this.settings.workHours.days);
+    
+    const statusIcon = isWithin ? '🟢' : '🔴';
+    const statusClass = isWithin ? 'work-hours-active' : 'work-hours-inactive';
+
+    return `
+      <div class="work-hours-info ${statusClass}">
+        <h4>${statusIcon} Work Hours Status</h4>
+        <p class="work-hours-status-text">${workHoursStatus}</p>
+        <div class="work-hours-details">
+          <p><strong>Schedule:</strong> ${this.settings.workHours.startTime} - ${this.settings.workHours.endTime}</p>
+          <p><strong>Days:</strong> ${formattedDays}</p>
+        </div>
+        ${!isWithin ? '<p class="work-hours-note">💡 This site is only blocked during your work hours</p>' : ''}
       </div>
     `;
   }
@@ -223,7 +256,7 @@ export class BlockedPageUI {
         padding: 60px 40px !important;
         box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3) !important;
         border: 1px solid rgba(255, 255, 255, 0.2) !important;
-        max-width: 600px !important;
+        max-width: 700px !important;
         margin: 20px !important;
         color: white !important;
       }
@@ -260,6 +293,67 @@ export class BlockedPageUI {
         font-family: 'Courier New', monospace !important;
         font-size: 1.1em !important;
         word-break: break-all !important;
+      }
+
+      /* Work Hours Info Styles */
+      .work-hours-info {
+        background: rgba(255, 255, 255, 0.1) !important;
+        border-radius: 12px !important;
+        padding: 20px !important;
+        margin: 25px 0 !important;
+        border: 2px solid rgba(255, 255, 255, 0.2) !important;
+        text-align: left !important;
+      }
+
+      .work-hours-info.work-hours-active {
+        background: rgba(76, 175, 80, 0.2) !important;
+        border-color: rgba(76, 175, 80, 0.5) !important;
+      }
+
+      .work-hours-info.work-hours-inactive {
+        background: rgba(255, 152, 0, 0.2) !important;
+        border-color: rgba(255, 152, 0, 0.5) !important;
+      }
+
+      .work-hours-info h4 {
+        font-size: 1.2em !important;
+        margin-bottom: 10px !important;
+        color: white !important;
+        font-weight: 600 !important;
+        display: flex !important;
+        align-items: center !important;
+        gap: 8px !important;
+      }
+
+      .work-hours-status-text {
+        font-size: 1em !important;
+        color: rgba(255, 255, 255, 0.9) !important;
+        margin-bottom: 15px !important;
+        font-weight: 500 !important;
+      }
+
+      .work-hours-details {
+        background: rgba(255, 255, 255, 0.1) !important;
+        border-radius: 8px !important;
+        padding: 12px !important;
+        margin-bottom: 10px !important;
+      }
+
+      .work-hours-details p {
+        margin: 5px 0 !important;
+        font-size: 0.9em !important;
+        color: rgba(255, 255, 255, 0.8) !important;
+      }
+
+      .work-hours-note {
+        font-size: 0.9em !important;
+        color: #FFD93D !important;
+        font-weight: 500 !important;
+        margin-top: 10px !important;
+        padding: 8px 12px !important;
+        background: rgba(255, 217, 61, 0.2) !important;
+        border-radius: 6px !important;
+        border: 1px solid rgba(255, 217, 61, 0.3) !important;
       }
       
       .redirect-info {
@@ -531,7 +625,8 @@ export class BlockedPageUI {
           margin: 5px 0 !important;
         }
         
-        .navigation-help {
+        .navigation-help,
+        .work-hours-info {
           padding: 20px !important;
         }
       }

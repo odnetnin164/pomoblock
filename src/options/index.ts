@@ -1,8 +1,9 @@
 import './options.css';
-import { ExtensionSettings, StatusMessage } from '@shared/types';
-import { UI_CONFIG } from '@shared/constants';
+import { ExtensionSettings, StatusMessage, WorkHours } from '@shared/types';
+import { UI_CONFIG, WORK_HOURS_CONFIG } from '@shared/constants';
 import { SettingsManager } from './SettingsManager';
 import { SiteListManager } from './SiteListManager';
+import { isWithinWorkHours, getWorkHoursStatus } from '@shared/workHoursUtils';
 
 class OptionsPageManager {
   private settingsManager: SettingsManager;
@@ -33,6 +34,16 @@ class OptionsPageManager {
   private whitelistedPathsList!: HTMLElement;
   private whitelistCount!: HTMLElement;
   private clearAllWhitelist!: HTMLButtonElement;
+  
+  // Work Hours DOM Elements
+  private workHoursEnabled!: HTMLInputElement;
+  private workHoursSettings!: HTMLElement;
+  private workStartTime!: HTMLInputElement;
+  private workEndTime!: HTMLInputElement;
+  private workHoursStatus!: HTMLElement;
+  private workHoursStatusDot!: HTMLElement;
+  private workHoursStatusText!: HTMLElement;
+  private workHoursToggleLabel!: HTMLElement;
   
   // UI Elements
   private statusMessage!: HTMLElement;
@@ -81,6 +92,16 @@ class OptionsPageManager {
     this.whitelistedPathsList = document.getElementById('whitelistedPathsList')!;
     this.whitelistCount = document.getElementById('whitelistCount')!;
     this.clearAllWhitelist = document.getElementById('clearAllWhitelist') as HTMLButtonElement;
+    
+    // Work Hours elements
+    this.workHoursEnabled = document.getElementById('workHoursEnabled') as HTMLInputElement;
+    this.workHoursSettings = document.getElementById('workHoursSettings')!;
+    this.workStartTime = document.getElementById('workStartTime') as HTMLInputElement;
+    this.workEndTime = document.getElementById('workEndTime') as HTMLInputElement;
+    this.workHoursStatus = document.getElementById('workHoursStatus')!;
+    this.workHoursStatusDot = document.getElementById('workHoursStatusDot')!;
+    this.workHoursStatusText = document.getElementById('workHoursStatusText')!;
+    this.workHoursToggleLabel = document.getElementById('workHoursToggleLabel')!;
     
     // UI elements
     this.statusMessage = document.getElementById('statusMessage')!;
@@ -131,10 +152,24 @@ class OptionsPageManager {
     this.extensionEnabled.checked = settings.extensionEnabled;
     this.debugEnabled.checked = settings.debugEnabled;
 
+    // Set work hours settings
+    this.workHoursEnabled.checked = settings.workHours.enabled;
+    this.workStartTime.value = settings.workHours.startTime;
+    this.workEndTime.value = settings.workHours.endTime;
+    
+    // Set work days checkboxes
+    const workDayCheckboxes = document.querySelectorAll('.work-day') as NodeListOf<HTMLInputElement>;
+    workDayCheckboxes.forEach(checkbox => {
+      checkbox.checked = settings.workHours.days.includes(parseInt(checkbox.value));
+    });
+
     // Update UI state
     this.updateRedirectVisibility();
+    this.updateWorkHoursVisibility();
     this.updateToggleLabels();
     this.updatePresetButtons();
+    this.updateTimePresetButtons();
+    this.updateWorkHoursStatus(settings.workHours);
   }
 
   /**
@@ -146,6 +181,13 @@ class OptionsPageManager {
     this.redirectModeRadio.addEventListener('change', () => this.updateRedirectVisibility());
     this.extensionEnabled.addEventListener('change', () => this.updateToggleLabels());
     this.debugEnabled.addEventListener('change', () => this.updateToggleLabels());
+    this.workHoursEnabled.addEventListener('change', () => {
+      this.updateWorkHoursVisibility();
+      this.updateToggleLabels();
+      this.updateWorkHoursStatus();
+    });
+    this.workStartTime.addEventListener('change', () => this.updateWorkHoursStatus());
+    this.workEndTime.addEventListener('change', () => this.updateWorkHoursStatus());
     this.saveSettings.addEventListener('click', () => this.saveCurrentSettings());
     this.resetSettings.addEventListener('click', () => this.resetToDefaults());
     this.testRedirect.addEventListener('click', () => this.testRedirectUrl());
@@ -165,9 +207,17 @@ class OptionsPageManager {
     });
     this.clearAllWhitelist.addEventListener('click', () => this.clearAllWhitelistedPaths());
 
+    // Work day checkboxes
+    const workDayCheckboxes = document.querySelectorAll('.work-day') as NodeListOf<HTMLInputElement>;
+    workDayCheckboxes.forEach(checkbox => {
+      checkbox.addEventListener('change', () => this.updateWorkHoursStatus());
+    });
+
     // Suggestion and preset button listeners
     this.setupSuggestionButtons();
     this.setupPresetButtons();
+    this.setupTimePresetButtons();
+    this.setupDayPresetButtons();
   }
 
   /**
@@ -202,6 +252,56 @@ class OptionsPageManager {
           this.updatePresetButtons();
           this.showStatusMessage({
             text: 'Delay updated! Remember to save settings.',
+            type: 'success'
+          });
+        }
+      });
+    });
+  }
+
+  /**
+   * Setup time preset buttons
+   */
+  private setupTimePresetButtons(): void {
+    const timePresetButtons = document.querySelectorAll('.time-preset-btn');
+    timePresetButtons.forEach(button => {
+      button.addEventListener('click', () => {
+        const startTime = button.getAttribute('data-start');
+        const endTime = button.getAttribute('data-end');
+        if (startTime && endTime) {
+          this.workStartTime.value = startTime;
+          this.workEndTime.value = endTime;
+          this.updateTimePresetButtons();
+          this.updateWorkHoursStatus();
+          this.showStatusMessage({
+            text: 'Work hours updated! Remember to save settings.',
+            type: 'success'
+          });
+        }
+      });
+    });
+  }
+
+  /**
+   * Setup day preset buttons
+   */
+  private setupDayPresetButtons(): void {
+    const dayPresetButtons = document.querySelectorAll('.day-preset-btn');
+    dayPresetButtons.forEach(button => {
+      button.addEventListener('click', () => {
+        const daysStr = button.getAttribute('data-days');
+        if (daysStr) {
+          const days = daysStr.split(',').map(d => parseInt(d.trim()));
+          
+          // Update checkboxes
+          const workDayCheckboxes = document.querySelectorAll('.work-day') as NodeListOf<HTMLInputElement>;
+          workDayCheckboxes.forEach(checkbox => {
+            checkbox.checked = days.includes(parseInt(checkbox.value));
+          });
+          
+          this.updateWorkHoursStatus();
+          this.showStatusMessage({
+            text: 'Work days updated! Remember to save settings.',
             type: 'success'
           });
         }
@@ -248,6 +348,18 @@ class OptionsPageManager {
   }
 
   /**
+   * Update work hours settings visibility
+   */
+  private updateWorkHoursVisibility(): void {
+    if (this.workHoursEnabled.checked) {
+      this.workHoursSettings.classList.add('enabled');
+      this.updateWorkHoursStatus();
+    } else {
+      this.workHoursSettings.classList.remove('enabled');
+    }
+  }
+
+  /**
    * Update toggle labels
    */
   private updateToggleLabels(): void {
@@ -256,6 +368,7 @@ class OptionsPageManager {
 
     extensionLabel.textContent = this.extensionEnabled.checked ? 'Extension Enabled' : 'Extension Disabled';
     debugLabel.textContent = this.debugEnabled.checked ? 'Debug Enabled' : 'Debug Disabled';
+    this.workHoursToggleLabel.textContent = this.workHoursEnabled.checked ? 'Work Hours Enabled' : 'Work Hours Disabled';
   }
 
   /**
@@ -276,21 +389,94 @@ class OptionsPageManager {
   }
 
   /**
+   * Update time preset buttons active state
+   */
+  private updateTimePresetButtons(): void {
+    const currentStart = this.workStartTime.value;
+    const currentEnd = this.workEndTime.value;
+    const timePresetButtons = document.querySelectorAll('.time-preset-btn');
+    
+    timePresetButtons.forEach(button => {
+      const buttonStart = button.getAttribute('data-start');
+      const buttonEnd = button.getAttribute('data-end');
+      if (buttonStart === currentStart && buttonEnd === currentEnd) {
+        button.classList.add('active');
+      } else {
+        button.classList.remove('active');
+      }
+    });
+  }
+
+  /**
+   * Update work hours status display
+   */
+  private updateWorkHoursStatus(workHours?: WorkHours): void {
+    if (!workHours) {
+      workHours = this.getCurrentWorkHours();
+    }
+
+    const statusText = getWorkHoursStatus(workHours);
+    const isWithin = isWithinWorkHours(workHours);
+
+    this.workHoursStatusText.textContent = statusText;
+    
+    if (workHours.enabled && isWithin) {
+      this.workHoursStatusDot.classList.add('active');
+    } else {
+      this.workHoursStatusDot.classList.remove('active');
+    }
+  }
+
+  /**
+   * Get current work hours from UI
+   */
+  private getCurrentWorkHours(): WorkHours {
+    const workDayCheckboxes = document.querySelectorAll('.work-day:checked') as NodeListOf<HTMLInputElement>;
+    const selectedDays = Array.from(workDayCheckboxes).map(cb => parseInt(cb.value));
+
+    return {
+      enabled: this.workHoursEnabled.checked,
+      startTime: this.workStartTime.value,
+      endTime: this.workEndTime.value,
+      days: selectedDays
+    };
+  }
+
+  /**
    * Save current settings
    */
   private async saveCurrentSettings(): Promise<void> {
+    const workHours = this.getCurrentWorkHours();
+
+    // Debug log before saving
+    if (this.debugEnabled.checked) {
+      console.log('=== SAVING WORK HOURS DEBUG ===');
+      console.log('Work hours from UI:', workHours);
+      console.log('===============================');
+    }
+
     const settings: Partial<ExtensionSettings> = {
       blockMode: this.blockModeRadio.checked ? 'block' : 'redirect',
       redirectUrl: this.redirectUrl.value.trim(),
       redirectDelay: parseInt(this.redirectDelay.value) || 0,
       extensionEnabled: this.extensionEnabled.checked,
-      debugEnabled: this.debugEnabled.checked
+      debugEnabled: this.debugEnabled.checked,
+      workHours: workHours
     };
 
     const success = await this.settingsManager.saveSettingsToStorage(settings);
     if (success) {
       // Animate save button
       this.animateSaveButton();
+      // Update work hours status after save
+      this.updateWorkHoursStatus(workHours);
+      
+      // Debug log after saving
+      if (this.debugEnabled.checked) {
+        setTimeout(async () => {
+          await this.settingsManager.debugWorkHours();
+        }, 100);
+      }
     }
   }
 

@@ -77,6 +77,97 @@
         </div>
       </div>
     </div>
+
+    <div class="settings-section">
+      <div class="setting-group">
+        <h3>Work Hours</h3>
+        <p class="setting-description">Only block websites during specific work hours</p>
+        
+        <div class="toggle-group">
+          <label class="toggle-switch">
+            <input type="checkbox" id="workHoursEnabled">
+            <span class="toggle-slider"></span>
+          </label>
+          <span class="toggle-label" id="workHoursToggleLabel">Work Hours Disabled</span>
+        </div>
+        
+        <div class="work-hours-settings" id="workHoursSettings">
+          <div class="work-hours-subsetting">
+            <h4>Time Range</h4>
+            <p class="subsetting-description">Set your work hours when blocking should be active</p>
+            <div class="time-range-controls">
+              <div class="time-input-group">
+                <label for="workStartTime">Start Time:</label>
+                <input type="time" id="workStartTime" value="09:00">
+              </div>
+              <div class="time-input-group">
+                <label for="workEndTime">End Time:</label>
+                <input type="time" id="workEndTime" value="17:00">
+              </div>
+            </div>
+            
+            <div class="time-presets">
+              <p>Common work schedules:</p>
+              <div class="preset-buttons">
+                <button class="time-preset-btn" data-start="08:00" data-end="17:00">8 AM - 5 PM</button>
+                <button class="time-preset-btn" data-start="09:00" data-end="17:00">9 AM - 5 PM</button>
+                <button class="time-preset-btn" data-start="09:00" data-end="18:00">9 AM - 6 PM</button>
+                <button class="time-preset-btn" data-start="10:00" data-end="18:00">10 AM - 6 PM</button>
+                <button class="time-preset-btn" data-start="08:00" data-end="16:00">8 AM - 4 PM</button>
+              </div>
+            </div>
+          </div>
+          
+          <div class="work-hours-subsetting">
+            <h4>Work Days</h4>
+            <p class="subsetting-description">Select which days of the week are work days</p>
+            <div class="days-selector">
+              <label class="day-checkbox">
+                <input type="checkbox" value="1" class="work-day" id="workDayMon">
+                <span class="day-label">Monday</span>
+              </label>
+              <label class="day-checkbox">
+                <input type="checkbox" value="2" class="work-day" id="workDayTue">
+                <span class="day-label">Tuesday</span>
+              </label>
+              <label class="day-checkbox">
+                <input type="checkbox" value="3" class="work-day" id="workDayWed">
+                <span class="day-label">Wednesday</span>
+              </label>
+              <label class="day-checkbox">
+                <input type="checkbox" value="4" class="work-day" id="workDayThu">
+                <span class="day-label">Thursday</span>
+              </label>
+              <label class="day-checkbox">
+                <input type="checkbox" value="5" class="work-day" id="workDayFri">
+                <span class="day-label">Friday</span>
+              </label>
+              <label class="day-checkbox">
+                <input type="checkbox" value="6" class="work-day" id="workDaySat">
+                <span class="day-label">Saturday</span>
+              </label>
+              <label class="day-checkbox">
+                <input type="checkbox" value="0" class="work-day" id="workDaySun">
+                <span class="day-label">Sunday</span>
+              </label>
+            </div>
+            
+            <div class="day-presets">
+              <button class="day-preset-btn" data-days="1,2,3,4,5">Weekdays Only</button>
+              <button class="day-preset-btn" data-days="0,1,2,3,4,5,6">Every Day</button>
+              <button class="day-preset-btn" data-days="0,6">Weekends Only</button>
+            </div>
+          </div>
+          
+          <div class="work-hours-status" id="workHoursStatus">
+            <div class="status-indicator">
+              <span class="status-dot" id="workHoursStatusDot"></span>
+              <span class="status-text" id="workHoursStatusText">Work hours disabled</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
     
     <div class="settings-section">
       <div class="setting-group">

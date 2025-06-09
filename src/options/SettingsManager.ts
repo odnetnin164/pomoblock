@@ -1,7 +1,8 @@
-import { ExtensionSettings, StatusMessage } from '@shared/types';
+import { ExtensionSettings, StatusMessage, WorkHours } from '@shared/types';
 import { getSettings, saveSettings, resetSettings as resetToDefaults } from '@shared/storage';
-import { DEFAULT_SETTINGS, SUGGESTED_REDIRECT_URLS, DELAY_PRESETS } from '@shared/constants';
+import { DEFAULT_SETTINGS, SUGGESTED_REDIRECT_URLS, DELAY_PRESETS, WORK_HOURS_CONFIG } from '@shared/constants';
 import { isValidUrl } from '@shared/urlUtils';
+import { isValidTimeString } from '@shared/workHoursUtils';
 
 export class SettingsManager {
   private onStatusMessage: ((message: StatusMessage) => void) | undefined;
@@ -130,6 +131,72 @@ export class SettingsManager {
   }
 
   /**
+   * Get work hours configuration options
+   */
+  getWorkHoursConfig(): typeof WORK_HOURS_CONFIG {
+    return WORK_HOURS_CONFIG;
+  }
+
+  /**
+   * Validate work hours settings
+   */
+  validateWorkHours(workHours: WorkHours): string | null {
+    if (!workHours.enabled) {
+      return null; // No validation needed if disabled
+    }
+
+    // Validate time format
+    if (!isValidTimeString(workHours.startTime)) {
+      return 'Please enter a valid start time in HH:MM format.';
+    }
+
+    if (!isValidTimeString(workHours.endTime)) {
+      return 'Please enter a valid end time in HH:MM format.';
+    }
+
+    // Validate that at least one day is selected
+    if (!workHours.days || workHours.days.length === 0) {
+      return 'Please select at least one work day.';
+    }
+
+    // Validate day values
+    if (workHours.days.some(day => day < 0 || day > 6)) {
+      return 'Invalid day selected. Days must be between 0 (Sunday) and 6 (Saturday).';
+    }
+
+    return null;
+  }
+
+  /**
+   * Debug: Log current work hours settings to console
+   */
+  async debugWorkHours(): Promise<void> {
+    try {
+      const settings = await this.loadSettings();
+      console.log('=== WORK HOURS DEBUG ===');
+      console.log('Current settings:', settings);
+      console.log('Work hours enabled:', settings.workHours.enabled);
+      console.log('Work hours start time:', settings.workHours.startTime);
+      console.log('Work hours end time:', settings.workHours.endTime);
+      console.log('Work hours days:', settings.workHours.days);
+      console.log('========================');
+      
+      // Also check raw storage
+      chrome.storage.sync.get(null, (data) => {
+        console.log('=== RAW STORAGE DEBUG ===');
+        console.log('All storage data:', data);
+        console.log('Work hours enabled:', data.workHoursEnabled);
+        console.log('Work hours start:', data.workHoursStartTime);
+        console.log('Work hours end:', data.workHoursEndTime);
+        console.log('Work hours days:', data.workHoursDays);
+        console.log('=========================');
+      });
+    } catch (error) {
+      console.error('Error debugging work hours:', error);
+    }
+  }
+
+  /**
    * Validate settings before saving
    */
   private validateSettings(settings: Partial<ExtensionSettings>): string | null {
@@ -148,6 +215,14 @@ export class SettingsManager {
     if (settings.redirectDelay !== undefined) {
       if (settings.redirectDelay < 0 || settings.redirectDelay > 30) {
         return 'Redirect delay must be between 0 and 30 seconds.';
+      }
+    }
+
+    // Validate work hours
+    if (settings.workHours !== undefined) {
+      const workHoursError = this.validateWorkHours(settings.workHours);
+      if (workHoursError) {
+        return workHoursError;
       }
     }
 

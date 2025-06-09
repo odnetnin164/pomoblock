@@ -1,4 +1,12 @@
-import { ExtensionSettings } from './types';
+import { ExtensionSettings, WorkHours } from './types';
+
+// Default Work Hours Settings
+export const DEFAULT_WORK_HOURS: WorkHours = {
+  enabled: false,
+  startTime: '09:00',
+  endTime: '17:00',
+  days: [1, 2, 3, 4, 5] // Monday to Friday
+};
 
 // Default Extension Settings
 export const DEFAULT_SETTINGS: ExtensionSettings = {
@@ -6,7 +14,8 @@ export const DEFAULT_SETTINGS: ExtensionSettings = {
   redirectUrl: 'https://www.google.com',
   redirectDelay: 3,
   extensionEnabled: true,
-  debugEnabled: false
+  debugEnabled: false,
+  workHours: DEFAULT_WORK_HOURS
 };
 
 // Suggested Redirect URLs
@@ -26,6 +35,26 @@ export const DELAY_PRESETS = [
   { value: 5, label: '5s' },
   { value: 10, label: '10s' }
 ];
+
+// Work Hours Configuration
+export const WORK_HOURS_CONFIG = {
+  DAYS_OF_WEEK: [
+    { value: 0, label: 'Sunday', short: 'Sun' },
+    { value: 1, label: 'Monday', short: 'Mon' },
+    { value: 2, label: 'Tuesday', short: 'Tue' },
+    { value: 3, label: 'Wednesday', short: 'Wed' },
+    { value: 4, label: 'Thursday', short: 'Thu' },
+    { value: 5, label: 'Friday', short: 'Fri' },
+    { value: 6, label: 'Saturday', short: 'Sat' }
+  ],
+  TIME_PRESETS: [
+    { start: '08:00', end: '17:00', label: '8 AM - 5 PM' },
+    { start: '09:00', end: '17:00', label: '9 AM - 5 PM' },
+    { start: '09:00', end: '18:00', label: '9 AM - 6 PM' },
+    { start: '10:00', end: '18:00', label: '10 AM - 6 PM' },
+    { start: '08:00', end: '16:00', label: '8 AM - 4 PM' }
+  ]
+};
 
 // Special Sites Configuration
 export const SPECIAL_SITES = ['reddit.com', 'youtube.com', 'twitter.com', 'x.com'];
@@ -49,7 +78,11 @@ export const STORAGE_KEYS = {
   REDIRECT_URL: 'redirectUrl',
   REDIRECT_DELAY: 'redirectDelay',
   EXTENSION_ENABLED: 'extensionEnabled',
-  DEBUG_ENABLED: 'debugEnabled'
+  DEBUG_ENABLED: 'debugEnabled',
+  WORK_HOURS_ENABLED: 'workHoursEnabled',
+  WORK_HOURS_START_TIME: 'workHoursStartTime',
+  WORK_HOURS_END_TIME: 'workHoursEndTime',
+  WORK_HOURS_DAYS: 'workHoursDays'
 } as const;
 
 // Debug Configuration

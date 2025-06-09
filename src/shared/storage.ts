@@ -1,5 +1,5 @@
-import { ExtensionSettings, StorageData } from './types';
-import { DEFAULT_SETTINGS, STORAGE_KEYS } from './constants';
+import { ExtensionSettings, StorageData, WorkHours } from './types';
+import { DEFAULT_SETTINGS, DEFAULT_WORK_HOURS, STORAGE_KEYS } from './constants';
 
 /**
  * Get data from Chrome storage with type safety
@@ -30,6 +30,39 @@ export async function setStorageData(data: Partial<StorageData>): Promise<void> 
 }
 
 /**
+ * Get work hours settings with defaults
+ */
+export async function getWorkHours(): Promise<WorkHours> {
+  const data = await getStorageData([
+    STORAGE_KEYS.WORK_HOURS_ENABLED,
+    STORAGE_KEYS.WORK_HOURS_START_TIME,
+    STORAGE_KEYS.WORK_HOURS_END_TIME,
+    STORAGE_KEYS.WORK_HOURS_DAYS
+  ]);
+
+  return {
+    enabled: data.workHoursEnabled ?? DEFAULT_WORK_HOURS.enabled,
+    startTime: data.workHoursStartTime ?? DEFAULT_WORK_HOURS.startTime,
+    endTime: data.workHoursEndTime ?? DEFAULT_WORK_HOURS.endTime,
+    days: data.workHoursDays ?? DEFAULT_WORK_HOURS.days
+  };
+}
+
+/**
+ * Save work hours settings
+ */
+export async function saveWorkHours(workHours: WorkHours): Promise<void> {
+  const dataToSave: Partial<StorageData> = {
+    workHoursEnabled: workHours.enabled,
+    workHoursStartTime: workHours.startTime,
+    workHoursEndTime: workHours.endTime,
+    workHoursDays: workHours.days
+  };
+
+  await setStorageData(dataToSave);
+}
+
+/**
  * Get extension settings with defaults
  */
 export async function getSettings(): Promise<ExtensionSettings> {
@@ -38,15 +71,27 @@ export async function getSettings(): Promise<ExtensionSettings> {
     STORAGE_KEYS.REDIRECT_URL,
     STORAGE_KEYS.REDIRECT_DELAY,
     STORAGE_KEYS.EXTENSION_ENABLED,
-    STORAGE_KEYS.DEBUG_ENABLED
+    STORAGE_KEYS.DEBUG_ENABLED,
+    STORAGE_KEYS.WORK_HOURS_ENABLED,
+    STORAGE_KEYS.WORK_HOURS_START_TIME,
+    STORAGE_KEYS.WORK_HOURS_END_TIME,
+    STORAGE_KEYS.WORK_HOURS_DAYS
   ]);
+
+  const workHours: WorkHours = {
+    enabled: data.workHoursEnabled ?? DEFAULT_WORK_HOURS.enabled,
+    startTime: data.workHoursStartTime ?? DEFAULT_WORK_HOURS.startTime,
+    endTime: data.workHoursEndTime ?? DEFAULT_WORK_HOURS.endTime,
+    days: data.workHoursDays ?? DEFAULT_WORK_HOURS.days
+  };
 
   return {
     blockMode: data.blockMode ?? DEFAULT_SETTINGS.blockMode,
     redirectUrl: data.redirectUrl ?? DEFAULT_SETTINGS.redirectUrl,
     redirectDelay: data.redirectDelay ?? DEFAULT_SETTINGS.redirectDelay,
     extensionEnabled: data.extensionEnabled ?? DEFAULT_SETTINGS.extensionEnabled,
-    debugEnabled: data.debugEnabled ?? DEFAULT_SETTINGS.debugEnabled
+    debugEnabled: data.debugEnabled ?? DEFAULT_SETTINGS.debugEnabled,
+    workHours
   };
 }
 
@@ -70,6 +115,12 @@ export async function saveSettings(settings: Partial<ExtensionSettings>): Promis
   }
   if (settings.debugEnabled !== undefined) {
     dataToSave.debugEnabled = settings.debugEnabled;
+  }
+  if (settings.workHours !== undefined) {
+    dataToSave.workHoursEnabled = settings.workHours.enabled;
+    dataToSave.workHoursStartTime = settings.workHours.startTime;
+    dataToSave.workHoursEndTime = settings.workHours.endTime;
+    dataToSave.workHoursDays = settings.workHours.days;
   }
 
   await setStorageData(dataToSave);
