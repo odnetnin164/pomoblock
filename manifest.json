@@ -2,24 +2,21 @@
   "manifest_version": 3,
   "name": "PomoBlock",
   "description": "Block access to distracting websites and stay focused on what matters most.",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "permissions": [
     "storage",
     "tabs",
     "activeTab",
     "alarms"
   ],
-  
   "host_permissions": [
     "<all_urls>"
   ],
-  
   "icons": {
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",
     "128": "icons/icon128.png"
   },
-  
   "action": {
     "default_icon": {
       "16": "icons/icon16.png",
@@ -29,33 +26,38 @@
     "default_title": "PomoBlock - Website Blocker",
     "default_popup": "popup.html"
   },
-  
   "options_page": "options.html",
-  
   "background": {
     "service_worker": "background.js",
     "type": "module"
   },
-  
   "content_scripts": [
     {
-      "matches": ["<all_urls>"],
-      "js": ["shared.js", "contentScript.js"],
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "shared.js",
+        "contentScript.js"
+      ],
       "run_at": "document_start",
       "all_frames": false
     }
   ],
-  
   "web_accessible_resources": [
     {
-      "resources": ["icons/*", "*.css", "*.js"],
-      "matches": ["<all_urls>"]
+      "resources": [
+        "icons/*",
+        "*.css",
+        "*.js"
+      ],
+      "matches": [
+        "<all_urls>"
+      ]
     }
   ],
-  
   "content_security_policy": {
     "extension_pages": "script-src 'self'; object-src 'self'; style-src 'self' 'unsafe-inline';"
   },
-  
   "minimum_chrome_version": "88"
 }
