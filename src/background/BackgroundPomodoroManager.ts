@@ -1,6 +1,6 @@
 // src/background/BackgroundPomodoroManager.ts
 import { PomodoroTimer } from '@shared/pomodoroTimer';
-import { TimerStatus, TimerNotification, PomodoroMessage } from '@shared/pomodoroTypes';
+import { TimerStatus, TimerNotification, PomodoroMessage, TimerState } from '@shared/pomodoroTypes';
 import { getPomodoroSettings, savePomodoroSettings } from '@shared/pomodoroStorage';
 import { logger } from '@shared/logger';
 
@@ -120,13 +120,18 @@ export class BackgroundPomodoroManager {
             restDuration: 5,
             longRestDuration: 15,
             longRestInterval: 4,
-            autoStartRest: false,
-            autoStartWork: false,
+            autoStartRest: true,
+            autoStartWork: true,
             showNotifications: true,
             playSound: true
           }
         };
       }
+    }
+    
+    // Handle legacy IS_TIMER_BLOCKING for backward compatibility
+    if (!this.isInitialized && message.type === 'IS_TIMER_BLOCKING') {
+      return { blocking: false };
     }
     
     // For other operations, ensure we're initialized
@@ -179,6 +184,7 @@ export class BackgroundPomodoroManager {
           return { error: 'Failed to update settings' };
         }
         
+      // Legacy support - keep for backward compatibility
       case 'IS_TIMER_BLOCKING':
         return { blocking: this.timer.shouldBlockSites() };
         
@@ -265,7 +271,11 @@ export class BackgroundPomodoroManager {
     // Broadcast completion message
     this.broadcastMessage({
       type: 'TIMER_COMPLETE',
-      data: { state: 'STOPPED' }
+      data: { 
+        state: this.timer.getStatus().state,
+        timerStatus: this.timer.getStatus(),
+        notification: notification
+      }
     });
   }
 
@@ -297,7 +307,7 @@ export class BackgroundPomodoroManager {
   }
 
   /**
-   * Start badge update interval - FIXED: Use global setInterval instead of window.setInterval
+   * Start badge update interval
    */
   private startBadgeUpdates(): void {
     if (this.badgeUpdateInterval) {
@@ -340,7 +350,7 @@ export class BackgroundPomodoroManager {
   }
 
   /**
-   * Play notification sound - FIXED: Use notification API instead of Web Audio
+   * Play notification sound
    */
   private playNotificationSound(): void {
     try {
@@ -373,7 +383,7 @@ export class BackgroundPomodoroManager {
   }
 
   /**
-   * Check if timer should block sites
+   * Check if timer should block sites (legacy method for backward compatibility)
    */
   isTimerBlocking(): boolean {
     if (!this.isInitialized) {
@@ -396,6 +406,13 @@ export class BackgroundPomodoroManager {
       };
     }
     return this.timer.getStatus();
+  }
+
+  /**
+   * Get current timer state
+   */
+  getCurrentTimerState(): TimerState {
+    return this.getCurrentStatus().state;
   }
 
   /**

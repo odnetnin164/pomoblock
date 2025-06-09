@@ -7,6 +7,7 @@ import { shouldBlockBasedOnWorkHours } from '@shared/workHoursUtils';
 import { BlockingEngine } from './blockingEngine';
 import { BlockedPageUI } from './ui/blockedPage';
 import { FloatingTimer } from './ui/floatingTimer';
+import { TimerState } from '@shared/pomodoroTypes';
 
 class ContentScriptManager {
   private settings: ExtensionSettings = DEFAULT_SETTINGS;
@@ -16,7 +17,7 @@ class ContentScriptManager {
   private currentUrl: string = '';
   private urlCheckInterval: number | null = null;
   private isInitialized: boolean = false;
-  private isTimerBlocking: boolean = false;
+  private currentTimerState: TimerState = 'STOPPED';
 
   constructor() {
     this.blockingEngine = new BlockingEngine();
@@ -46,8 +47,8 @@ class ContentScriptManager {
     // Initialize floating timer
     await this.floatingTimer.initialize();
 
-    // Check timer blocking status
-    await this.checkTimerBlockingStatus();
+    // Check timer state
+    await this.checkTimerState();
 
     // Set up storage change listener
     this.setupStorageListener();
@@ -105,16 +106,20 @@ class ContentScriptManager {
   }
 
   /**
-   * Check current timer blocking status
+   * Check current timer state
    */
-  private async checkTimerBlockingStatus(): Promise<void> {
+  private async checkTimerState(): Promise<void> {
     try {
-      const response = await chrome.runtime.sendMessage({ type: 'IS_TIMER_BLOCKING' });
-      this.isTimerBlocking = response.blocking || false;
-      logger.log('Timer blocking status:', this.isTimerBlocking);
+      const response = await chrome.runtime.sendMessage({ type: 'GET_TIMER_STATUS' });
+      if (response.status && response.status.state) {
+        this.currentTimerState = response.status.state;
+        logger.log('Timer state:', this.currentTimerState);
+      } else {
+        this.currentTimerState = 'STOPPED';
+      }
     } catch (error) {
-      logger.log('Error checking timer blocking status', (error as Error).message);
-      this.isTimerBlocking = false;
+      logger.log('Error checking timer state', (error as Error).message);
+      this.currentTimerState = 'STOPPED';
     }
   }
 
@@ -285,11 +290,28 @@ class ContentScriptManager {
    */
   private setupTimerMessageListener(): void {
     chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-      if (message.type === 'TIMER_UPDATE' || message.type === 'TIMER_COMPLETE') {
+      if (message.type === 'TIMER_UPDATE') {
         logger.log('Timer message received:', message.type);
-        this.checkTimerBlockingStatus().then(() => {
+        // Update timer state immediately from the message
+        if (message.data && message.data.timerStatus) {
+          this.currentTimerState = message.data.timerStatus.state;
+          logger.log('Timer state updated to:', this.currentTimerState);
+          
+          // Update blocked page UI with new timer state
+          this.blockedPageUI.setTimerState(this.currentTimerState);
+          
+          // Re-check blocking with new timer state
+          this.checkAndBlock();
+        }
+      } else if (message.type === 'TIMER_COMPLETE') {
+        logger.log('Timer completion message received:', message.type);
+        // Timer completed, check new state
+        this.checkTimerState().then(() => {
           this.checkAndBlock();
         });
+      } else if (message.type === 'UPDATE_FLOATING_TIMER') {
+        // Handle floating timer settings updates
+        this.floatingTimer.setAlwaysShow(message.alwaysShow);
       }
     });
   }
@@ -340,7 +362,7 @@ class ContentScriptManager {
       }
       
       // Check timer status and then check if new page should be blocked
-      this.checkTimerBlockingStatus().then(() => {
+      this.checkTimerState().then(() => {
         setTimeout(() => {
           this.checkAndBlock();
         }, 250);
@@ -353,6 +375,7 @@ class ContentScriptManager {
    */
   private checkAndBlock(): void {
     logger.log('checkAndBlock called for URL:', window.location.href);
+    logger.log('Current timer state:', this.currentTimerState);
 
     // Don't block if extension is disabled
     if (!this.settings.extensionEnabled) {
@@ -367,18 +390,34 @@ class ContentScriptManager {
       return;
     }
 
-    // Check work hours - if work hours are enabled and we're outside work hours, don't block
-    if (!shouldBlockBasedOnWorkHours(this.settings.workHours)) {
-      logger.log('Outside work hours and no timer blocking, not blocking');
+    // INTEGRATED POMODORO BLOCKING LOGIC:
+    // 1. If timer is in REST period, never block any websites
+    if (this.currentTimerState === 'REST') {
+      logger.log('Timer is in REST period, not blocking any websites');
       this.blockedPageUI.removeBlockedPage();
       return;
     }
 
-    // Check regular blocking rules
+    // 2. If timer is in WORK period, always apply normal blocking rules
+    // 3. If timer is STOPPED or PAUSED, apply normal blocking rules
+    // (Both cases handled by the same logic below)
+
+    // Check work hours - if work hours are enabled and we're outside work hours, don't block
+    // (unless timer is in WORK period, which overrides work hours)
+    if (this.currentTimerState !== 'WORK' && !shouldBlockBasedOnWorkHours(this.settings.workHours)) {
+      logger.log('Outside work hours and timer not in work period, not blocking');
+      this.blockedPageUI.removeBlockedPage();
+      return;
+    }
+
+    // Apply normal blocking rules
     if (this.blockingEngine.shouldBlockWebsite()) {
-      logger.log('Site should be blocked by regular rules!');
+      logger.log('Site should be blocked by blocking rules!');
       logger.log('Block mode is', this.settings.blockMode);
 
+      // Show appropriate blocking message based on timer state
+      // const blockMessage = this.getBlockMessage();
+      
       if (this.settings.blockMode === 'redirect') {
         logger.log('Redirect mode - showing blocked page with countdown');
         this.blockedPageUI.createBlockedPage(true);

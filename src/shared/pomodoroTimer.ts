@@ -28,8 +28,8 @@ export class PomodoroTimer {
       restDuration: 5,
       longRestDuration: 15,
       longRestInterval: 4,
-      autoStartRest: false,
-      autoStartWork: false,
+      autoStartRest: true, // Enable by default for seamless flow
+      autoStartWork: true, // Enable by default for seamless flow
       showNotifications: true,
       playSound: true
     };
@@ -64,8 +64,8 @@ export class PomodoroTimer {
           restDuration: 5,
           longRestDuration: 15,
           longRestInterval: 4,
-          autoStartRest: false,
-          autoStartWork: false,
+          autoStartRest: true,
+          autoStartWork: true,
           showNotifications: true,
           playSound: true
         };
@@ -154,8 +154,8 @@ export class PomodoroTimer {
         restDuration: 5,
         longRestDuration: 15,
         longRestInterval: 4,
-        autoStartRest: false,
-        autoStartWork: false,
+        autoStartRest: true,
+        autoStartWork: true,
         showNotifications: true,
         playSound: true
       };
@@ -180,6 +180,11 @@ export class PomodoroTimer {
   async startWork(taskDescription: string = ''): Promise<void> {
     if (this.status.state === 'WORK' || this.status.state === 'REST') {
       return; // Timer already running
+    }
+
+    // If no task provided and we're auto-starting, use a default task
+    if (!taskDescription && this.status.state === 'STOPPED') {
+      taskDescription = this.getDefaultWorkTask();
     }
 
     this.status.state = 'WORK';
@@ -364,7 +369,7 @@ export class PomodoroTimer {
   }
 
   /**
-   * Start the tick interval - FIXED: Use global setInterval instead of window.setInterval
+   * Start the tick interval
    */
   private startTicking(): void {
     this.stopTicking();
@@ -452,15 +457,26 @@ export class PomodoroTimer {
     await this.saveStatus();
     this.notifyStatusUpdate();
 
-    // Auto-start next timer if enabled
+    // AUTO-START NEXT TIMER - IMPROVED LOGIC
     if (completed) {
       if (wasWork && this.settings.autoStartRest) {
-        setTimeout(() => this.startRest(), 1000);
+        // Work session completed -> Start rest period
+        logger.log('Auto-starting rest period after work session');
+        setTimeout(() => this.startRest(), 2000); // 2 second delay for notification
       } else if (!wasWork && this.settings.autoStartWork) {
-        // Don't auto-start work - user should manually start with a new task
-        // setTimeout(() => this.startWork(), 1000);
+        // Rest period completed -> Start next work period
+        logger.log('Auto-starting work period after rest');
+        setTimeout(() => this.startWork(this.getDefaultWorkTask()), 2000); // 2 second delay for notification
       }
     }
+  }
+
+  /**
+   * Get default work task based on session count
+   */
+  private getDefaultWorkTask(): string {
+    const sessionNumber = this.status.sessionCount + 1;
+    return `Work Session #${sessionNumber}`;
   }
 
   /**

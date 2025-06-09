@@ -1,14 +1,14 @@
 // src/shared/constants.ts
 import { ExtensionSettings, WorkHours } from './types';
 
-// Default Pomodoro Settings (defined here to avoid circular imports)
+// Default Pomodoro Settings (updated with auto-start enabled)
 const DEFAULT_POMODORO_SETTINGS = {
   workDuration: 25,
   restDuration: 5,
   longRestDuration: 15,
   longRestInterval: 4,
-  autoStartRest: false,
-  autoStartWork: false,
+  autoStartRest: true,  // Enable auto-start for seamless flow
+  autoStartWork: true,  // Enable auto-start for seamless flow
   showNotifications: true,
   playSound: true
 };

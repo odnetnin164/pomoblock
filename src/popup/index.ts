@@ -10,7 +10,7 @@ class PopupManager {
   private statusDisplay: StatusDisplay;
   private siteManager: SiteManager;
   private pomodoroControl: PomodoroControl;
-  private blockingStatusInterval: number | null = null;
+  private statusUpdateInterval: number | null = null;
   
   // DOM Elements
   private currentUrlElement: HTMLElement;
@@ -19,8 +19,6 @@ class PopupManager {
   private manageButton: HTMLButtonElement;
   private optionsButton: HTMLButtonElement;
   private historyButton: HTMLButtonElement;
-  private tabButtons: NodeListOf<HTMLElement>;
-  private tabContents: NodeListOf<HTMLElement>;
 
   constructor() {
     this.statusDisplay = new StatusDisplay('statusDisplay', 'siteCount');
@@ -34,10 +32,6 @@ class PopupManager {
     this.manageButton = document.getElementById('manageButton') as HTMLButtonElement;
     this.optionsButton = document.getElementById('optionsButton') as HTMLButtonElement;
     this.historyButton = document.getElementById('historyButton') as HTMLButtonElement;
-    
-    // Tab elements
-    this.tabButtons = document.querySelectorAll('.tab-button');
-    this.tabContents = document.querySelectorAll('.tab-content');
 
     this.init();
   }
@@ -46,9 +40,6 @@ class PopupManager {
    * Initialize the popup
    */
   private async init(): Promise<void> {
-    // Setup tabs
-    this.setupTabs();
-    
     // Load initial data
     await this.loadSiteCount();
     await this.getCurrentTabInfo();
@@ -58,54 +49,115 @@ class PopupManager {
     
     // Check current site status and timer status
     await this.checkCurrentSiteStatus();
-    await this.updateBlockingStatus();
     
-    // Start periodic blocking status updates
-    this.startBlockingStatusUpdates();
+    // Start periodic status updates
+    this.startStatusUpdates();
   }
 
   /**
-   * Start periodic updates for blocking status
+   * Start periodic updates for integrated status
    */
-  private startBlockingStatusUpdates(): void {
-    // Check blocking status every 2 seconds
-    this.blockingStatusInterval = window.setInterval(() => {
-      this.updateBlockingStatus();
+  private startStatusUpdates(): void {
+    // Check status every 2 seconds for real-time updates
+    this.statusUpdateInterval = window.setInterval(() => {
+      this.updateIntegratedStatus();
     }, 2000);
   }
 
   /**
-   * Stop blocking status updates
+   * Stop status updates
    */
-  private stopBlockingStatusUpdates(): void {
-    if (this.blockingStatusInterval) {
-      clearInterval(this.blockingStatusInterval);
-      this.blockingStatusInterval = null;
+  private stopStatusUpdates(): void {
+    if (this.statusUpdateInterval) {
+      clearInterval(this.statusUpdateInterval);
+      this.statusUpdateInterval = null;
     }
   }
 
   /**
-   * Setup tab functionality
+   * Update integrated status (timer + blocking)
    */
-  private setupTabs(): void {
-    this.tabButtons.forEach((button, index) => {
-      button.addEventListener('click', () => {
-        this.switchTab(index);
-      });
-    });
+  private async updateIntegratedStatus(): Promise<void> {
+    try {
+      // Get current timer status
+      const timerResponse = await chrome.runtime.sendMessage({ type: 'GET_TIMER_STATUS' });
+      const timerStatus = timerResponse.status;
+      
+      if (timerStatus) {
+        // Update blocking UI based on timer state
+        this.updateBlockingBasedOnTimer(timerStatus.state);
+      }
+    } catch (error) {
+      console.error('Error updating integrated status:', error);
+    }
   }
 
   /**
-   * Switch to a specific tab
+   * Update blocking UI based on timer state
    */
-  private switchTab(index: number): void {
-    // Remove active class from all tabs and contents
-    this.tabButtons.forEach(btn => btn.classList.remove('active'));
-    this.tabContents.forEach(content => content.classList.remove('active'));
+  private updateBlockingBasedOnTimer(timerState: string): void {
+    const blockTarget = this.siteManager.getBlockTarget();
     
-    // Add active class to selected tab and content
-    this.tabButtons[index].classList.add('active');
-    this.tabContents[index].classList.add('active');
+    if (timerState === 'WORK' && blockTarget) {
+      // Timer is in work period - show that blocking is active
+      this.blockCurrentButton.classList.add('timer-blocked');
+      this.blockCurrentButton.innerHTML = `
+        <span class="btn-icon">🍅</span>
+        <span class="btn-text">Blocked by Work Timer</span>
+      `;
+      this.blockCurrentButton.disabled = true;
+      
+      // Add timer blocking notice
+      this.addTimerBlockingNotice('This site is blocked during your work session. Stay focused! 🍅');
+      
+    } else if (timerState === 'REST' && blockTarget) {
+      // Timer is in rest period - show that blocking is disabled
+      this.blockCurrentButton.classList.remove('timer-blocked');
+      this.blockCurrentButton.classList.add('timer-rest');
+      this.blockCurrentButton.innerHTML = `
+        <span class="btn-icon">☕</span>
+        <span class="btn-text">Unblocked - Break Time</span>
+      `;
+      this.blockCurrentButton.disabled = true;
+      
+      // Add rest period notice
+      this.addTimerBlockingNotice('Enjoy your break! All sites are accessible during rest periods. ☕');
+      
+    } else {
+      // Timer is stopped or paused - use normal blocking logic
+      this.blockCurrentButton.classList.remove('timer-blocked', 'timer-rest');
+      this.removeTimerBlockingNotice();
+      
+      // Check regular blocking status
+      this.checkCurrentSiteStatus();
+    }
+  }
+
+  /**
+   * Add timer blocking notice
+   */
+  private addTimerBlockingNotice(message: string): void {
+    // Remove existing notice
+    this.removeTimerBlockingNotice();
+    
+    const timerNotice = document.createElement('div');
+    timerNotice.className = 'timer-blocking-notice';
+    timerNotice.innerHTML = `
+      <small style="color: #FFD93D; margin-top: 10px; display: block; font-weight: 600;">
+        ${message}
+      </small>
+    `;
+    document.querySelector('.site-info')?.appendChild(timerNotice);
+  }
+
+  /**
+   * Remove timer blocking notice
+   */
+  private removeTimerBlockingNotice(): void {
+    const timerNotice = document.querySelector('.timer-blocking-notice');
+    if (timerNotice) {
+      timerNotice.remove();
+    }
   }
 
   /**
@@ -119,7 +171,7 @@ class PopupManager {
 
     // Clean up intervals when popup closes
     window.addEventListener('beforeunload', () => {
-      this.stopBlockingStatusUpdates();
+      this.stopStatusUpdates();
       if (this.pomodoroControl) {
         this.pomodoroControl.destroy();
       }
@@ -128,76 +180,12 @@ class PopupManager {
     // Handle visibility changes
     document.addEventListener('visibilitychange', () => {
       if (document.hidden) {
-        this.stopBlockingStatusUpdates();
+        this.stopStatusUpdates();
       } else {
-        this.startBlockingStatusUpdates();
-        this.updateBlockingStatus(); // Immediate update when becoming visible
+        this.startStatusUpdates();
+        this.updateIntegratedStatus(); // Immediate update when becoming visible
       }
     });
-  }
-
-  /**
-   * Update blocking status based on timer and regular blocking rules
-   */
-  private async updateBlockingStatus(): Promise<void> {
-    try {
-      // Check if timer is blocking
-      const timerResponse = await chrome.runtime.sendMessage({ type: 'IS_TIMER_BLOCKING' });
-      const isTimerBlocking = timerResponse.blocking || false;
-      
-      // Update the site blocking UI based on timer status
-      if (isTimerBlocking) {
-        // Timer is running work session - blocking is active
-        this.updateSiteBlockingUI(true);
-      } else {
-        // Timer is not blocking - check regular blocking rules
-        await this.checkCurrentSiteStatus();
-      }
-    } catch (error) {
-      console.error('Error updating blocking status:', error);
-    }
-  }
-
-  /**
-   * Update site blocking UI
-   */
-  private updateSiteBlockingUI(isTimerBlocking: boolean): void {
-    const blockTarget = this.siteManager.getBlockTarget();
-    
-    if (isTimerBlocking && blockTarget) {
-      // Show that site is blocked by timer
-      this.blockCurrentButton.classList.add('timer-blocked');
-      this.blockCurrentButton.innerHTML = `
-        <span class="btn-icon">🍅</span>
-        <span class="btn-text">Blocked by Timer</span>
-      `;
-      this.blockCurrentButton.disabled = true;
-      
-      // Add timer blocking notice
-      let timerNotice = document.querySelector('.timer-blocking-notice');
-      if (!timerNotice) {
-        timerNotice = document.createElement('div');
-        timerNotice.className = 'timer-blocking-notice';
-        timerNotice.innerHTML = `
-          <small style="color: #ff6b6b; margin-top: 10px; display: block;">
-            🍅 This site is currently blocked by your active pomodoro timer
-          </small>
-        `;
-        document.querySelector('.site-info')?.appendChild(timerNotice);
-      }
-    } else {
-      // Remove timer blocking styling
-      this.blockCurrentButton.classList.remove('timer-blocked');
-      
-      // Remove timer notice
-      const timerNotice = document.querySelector('.timer-blocking-notice');
-      if (timerNotice) {
-        timerNotice.remove();
-      }
-      
-      // Check regular blocking status
-      this.checkCurrentSiteStatus();
-    }
   }
 
   /**

@@ -42,6 +42,7 @@ export interface PomodoroMessage {
     timerStatus?: TimerStatus;
     session?: PomodoroSession;
     state?: TimerState;
+    notification?: TimerNotification; // Add notification support
   };
 }
 
