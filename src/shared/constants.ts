@@ -1,4 +1,17 @@
+// src/shared/constants.ts
 import { ExtensionSettings, WorkHours } from './types';
+
+// Default Pomodoro Settings (defined here to avoid circular imports)
+const DEFAULT_POMODORO_SETTINGS = {
+  workDuration: 25,
+  restDuration: 5,
+  longRestDuration: 15,
+  longRestInterval: 4,
+  autoStartRest: false,
+  autoStartWork: false,
+  showNotifications: true,
+  playSound: true
+};
 
 // Default Work Hours Settings
 export const DEFAULT_WORK_HOURS: WorkHours = {
@@ -15,7 +28,8 @@ export const DEFAULT_SETTINGS: ExtensionSettings = {
   redirectDelay: 3,
   extensionEnabled: true,
   debugEnabled: false,
-  workHours: DEFAULT_WORK_HOURS
+  workHours: DEFAULT_WORK_HOURS,
+  pomodoro: DEFAULT_POMODORO_SETTINGS
 };
 
 // Suggested Redirect URLs

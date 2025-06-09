@@ -8,9 +8,11 @@
 <body>
   <div class="container">
     <div class="header">
-      <h1>🚫 PomoBlock Options</h1>
-      <p>Configure your website blocking preferences</p>
+      <h1>🍅 PomoBlock Options</h1>
+      <p>Configure your website blocking and pomodoro timer preferences</p>
     </div>
+    
+    <!-- Pomodoro settings will be injected here by PomodoroSettingsManager -->
     
     <div class="settings-section">
       <div class="setting-group">
@@ -267,13 +269,14 @@
     <div class="actions">
       <button id="saveSettings" class="save-btn">💾 Save Settings</button>
       <button id="resetSettings" class="reset-btn">🔄 Reset to Defaults</button>
+      <button id="historyButton" class="history-btn">📊 View History</button>
     </div>
     
     <div class="status-message" id="statusMessage"></div>
     
     <div class="footer">
       <p>PomoBlock Extension v0.1.0</p>
-      <p>Made to help you stay focused and productive</p>
+      <p>Made to help you stay focused and productive with the power of pomodoro</p>
     </div>
   </div>
 </body>

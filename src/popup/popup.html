@@ -7,31 +7,51 @@
 </head>
 <body>
   <div class="header">
-    <h2>🚫 Website Blocker</h2>
+    <h2>🍅 PomoBlock</h2>
   </div>
   
   <div class="status" id="statusDisplay">
     <span id="siteCount">0</span> sites blocked
   </div>
   
-  <div class="current-site">
-    <h4>Current Page:</h4>
-    <div class="site-info">
-      <div class="site-url" id="currentUrl">Loading...</div>
-      <div class="block-target" id="blockTarget"></div>
+  <div class="tabs">
+    <div class="tab-button active" data-tab="blocker">
+      <span class="tab-icon">🚫</span>
+      <span class="tab-text">Blocker</span>
+    </div>
+    <div class="tab-button" data-tab="timer">
+      <span class="tab-icon">🍅</span>
+      <span class="tab-text">Timer</span>
     </div>
   </div>
   
-  <div class="main-action">
-    <button class="block-btn" id="blockCurrentButton">
-      <span class="btn-icon">🚫</span>
-      <span class="btn-text">Block This Page</span>
-    </button>
+  <div class="tab-content active" id="blockerTab">
+    <div class="current-site">
+      <h4>Current Page:</h4>
+      <div class="site-info">
+        <div class="site-url" id="currentUrl">Loading...</div>
+        <div class="block-target" id="blockTarget"></div>
+      </div>
+    </div>
+    
+    <div class="main-action">
+      <button class="block-btn" id="blockCurrentButton">
+        <span class="btn-icon">🚫</span>
+        <span class="btn-text">Block This Page</span>
+      </button>
+    </div>
+  </div>
+  
+  <div class="tab-content" id="timerTab">
+    <div id="pomodoroContainer">
+      <!-- Pomodoro component will be inserted here -->
+    </div>
   </div>
   
   <div class="controls">
-    <button class="manage-btn" id="manageButton">📋 Manage Blocked Sites</button>
+    <button class="manage-btn" id="manageButton">📋 Manage Sites</button>
     <button class="options-btn" id="optionsButton">⚙️ Options</button>
+    <button class="history-btn" id="historyButton">📊 History</button>
   </div>
 </body>
 </html>

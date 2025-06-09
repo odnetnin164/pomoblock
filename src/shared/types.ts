@@ -1,9 +1,22 @@
+// src/shared/types.ts
 // Extension Settings Types
 export interface WorkHours {
   enabled: boolean;
   startTime: string; // "09:00" format (24-hour)
   endTime: string; // "17:00" format (24-hour)
   days: number[]; // [1,2,3,4,5] for Mon-Fri, 0=Sunday, 6=Saturday
+}
+
+// Pomodoro Settings (simplified to avoid circular imports)
+export interface PomodoroSettings {
+  workDuration: number; // minutes
+  restDuration: number; // minutes
+  longRestDuration: number; // minutes
+  longRestInterval: number; // every N sessions
+  autoStartRest: boolean;
+  autoStartWork: boolean;
+  showNotifications: boolean;
+  playSound: boolean;
 }
 
 export interface ExtensionSettings {
@@ -13,6 +26,7 @@ export interface ExtensionSettings {
   extensionEnabled: boolean;
   debugEnabled: boolean;
   workHours: WorkHours;
+  pomodoro: PomodoroSettings;
 }
 
 // Storage Data Types
@@ -28,6 +42,12 @@ export interface StorageData {
   workHoursStartTime?: string;
   workHoursEndTime?: string;
   workHoursDays?: number[];
+  // Pomodoro storage keys
+  pomodoroSettings?: PomodoroSettings;
+  pomodoroTimerStatus?: any;
+  pomodoroDailyStats?: any;
+  pomodoroSessionsHistory?: any;
+  pomodoroCurrentSession?: any;
 }
 
 // Site Types
@@ -77,7 +97,11 @@ export type ContentScriptMessageType =
   | 'SITE_BLOCKED'
   | 'REDIRECT_STARTED'
   | 'REDIRECT_CANCELLED'
-  | 'DEBUG_LOG';
+  | 'DEBUG_LOG'
+  | 'TIMER_UPDATE'
+  | 'TIMER_COMPLETE'
+  | 'SESSION_START'
+  | 'SESSION_END';
 
 export interface ContentScriptMessage {
   type: ContentScriptMessageType;

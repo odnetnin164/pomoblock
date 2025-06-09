@@ -1,12 +1,15 @@
+// src/popup/index.ts
 import './popup.css';
 import { getBlockedWebsites, getWhitelistedPaths } from '@shared/storage';
 import { StatusDisplay } from './components/StatusDisplay';
 import { SiteManager } from './components/SiteManager';
+import { PomodoroControl } from './components/PomodoroControl';
 import { UI_CONFIG } from '@shared/constants';
 
 class PopupManager {
   private statusDisplay: StatusDisplay;
   private siteManager: SiteManager;
+  private pomodoroControl: PomodoroControl;
   
   // DOM Elements
   private currentUrlElement: HTMLElement;
@@ -14,10 +17,14 @@ class PopupManager {
   private blockCurrentButton: HTMLButtonElement;
   private manageButton: HTMLButtonElement;
   private optionsButton: HTMLButtonElement;
+  private historyButton: HTMLButtonElement;
+  private tabButtons: NodeListOf<HTMLElement>;
+  private tabContents: NodeListOf<HTMLElement>;
 
   constructor() {
     this.statusDisplay = new StatusDisplay('statusDisplay', 'siteCount');
     this.siteManager = new SiteManager();
+    this.pomodoroControl = new PomodoroControl('pomodoroContainer');
     
     // Get DOM elements
     this.currentUrlElement = document.getElementById('currentUrl')!;
@@ -25,6 +32,11 @@ class PopupManager {
     this.blockCurrentButton = document.getElementById('blockCurrentButton') as HTMLButtonElement;
     this.manageButton = document.getElementById('manageButton') as HTMLButtonElement;
     this.optionsButton = document.getElementById('optionsButton') as HTMLButtonElement;
+    this.historyButton = document.getElementById('historyButton') as HTMLButtonElement;
+    
+    // Tab elements
+    this.tabButtons = document.querySelectorAll('.tab-button');
+    this.tabContents = document.querySelectorAll('.tab-content');
 
     this.init();
   }
@@ -33,6 +45,9 @@ class PopupManager {
    * Initialize the popup
    */
   private async init(): Promise<void> {
+    // Setup tabs
+    this.setupTabs();
+    
     // Load initial data
     await this.loadSiteCount();
     await this.getCurrentTabInfo();
@@ -40,8 +55,33 @@ class PopupManager {
     // Set up event listeners
     this.setupEventListeners();
     
-    // Check current site status
+    // Check current site status and timer status
     await this.checkCurrentSiteStatus();
+    await this.updateBlockingStatus();
+  }
+
+  /**
+   * Setup tab functionality
+   */
+  private setupTabs(): void {
+    this.tabButtons.forEach((button, index) => {
+      button.addEventListener('click', () => {
+        this.switchTab(index);
+      });
+    });
+  }
+
+  /**
+   * Switch to a specific tab
+   */
+  private switchTab(index: number): void {
+    // Remove active class from all tabs and contents
+    this.tabButtons.forEach(btn => btn.classList.remove('active'));
+    this.tabContents.forEach(content => content.classList.remove('active'));
+    
+    // Add active class to selected tab and content
+    this.tabButtons[index].classList.add('active');
+    this.tabContents[index].classList.add('active');
   }
 
   /**
@@ -51,6 +91,78 @@ class PopupManager {
     this.blockCurrentButton.addEventListener('click', () => this.handleBlockAction());
     this.manageButton.addEventListener('click', () => this.openOptionsPage());
     this.optionsButton.addEventListener('click', () => this.openOptionsPage());
+    this.historyButton.addEventListener('click', () => this.openHistoryPage());
+
+    // Listen for timer updates to refresh blocking status
+    chrome.runtime.onMessage.addListener((message) => {
+      if (message.type === 'TIMER_UPDATE' || message.type === 'TIMER_COMPLETE') {
+        this.updateBlockingStatus();
+      }
+    });
+  }
+
+  /**
+   * Update blocking status based on timer and regular blocking rules
+   */
+  private async updateBlockingStatus(): Promise<void> {
+    try {
+      // Check if timer is blocking
+      const timerResponse = await chrome.runtime.sendMessage({ type: 'IS_TIMER_BLOCKING' });
+      const isTimerBlocking = timerResponse.blocking || false;
+      
+      // Update the site blocking UI based on timer status
+      if (isTimerBlocking) {
+        // Timer is running work session - blocking is active
+        this.updateSiteBlockingUI(true);
+      } else {
+        // Timer is not blocking - check regular blocking rules
+        await this.checkCurrentSiteStatus();
+      }
+    } catch (error) {
+      console.error('Error updating blocking status:', error);
+    }
+  }
+
+  /**
+   * Update site blocking UI
+   */
+  private updateSiteBlockingUI(isTimerBlocking: boolean): void {
+    const blockTarget = this.siteManager.getBlockTarget();
+    
+    if (isTimerBlocking && blockTarget) {
+      // Show that site is blocked by timer
+      this.blockCurrentButton.classList.add('timer-blocked');
+      this.blockCurrentButton.innerHTML = `
+        <span class="btn-icon">🍅</span>
+        <span class="btn-text">Blocked by Timer</span>
+      `;
+      this.blockCurrentButton.disabled = true;
+      
+      // Add timer blocking notice
+      let timerNotice = document.querySelector('.timer-blocking-notice');
+      if (!timerNotice) {
+        timerNotice = document.createElement('div');
+        timerNotice.className = 'timer-blocking-notice';
+        timerNotice.innerHTML = `
+          <small style="color: #ff6b6b; margin-top: 10px; display: block;">
+            🍅 This site is currently blocked by your active pomodoro timer
+          </small>
+        `;
+        document.querySelector('.site-info')?.appendChild(timerNotice);
+      }
+    } else {
+      // Remove timer blocking styling
+      this.blockCurrentButton.classList.remove('timer-blocked');
+      
+      // Remove timer notice
+      const timerNotice = document.querySelector('.timer-blocking-notice');
+      if (timerNotice) {
+        timerNotice.remove();
+      }
+      
+      // Check regular blocking status
+      this.checkCurrentSiteStatus();
+    }
   }
 
   /**
@@ -403,6 +515,16 @@ class PopupManager {
   private openOptionsPage(): void {
     chrome.tabs.create({
       url: chrome.runtime.getURL('options.html')
+    });
+    window.close();
+  }
+
+  /**
+   * Open history page
+   */
+  private openHistoryPage(): void {
+    chrome.tabs.create({
+      url: chrome.runtime.getURL('history.html')
     });
     window.close();
   }
