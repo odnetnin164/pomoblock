@@ -1,4 +1,4 @@
-import { SiteType, SiteInfo } from './types';
+import { SiteType, SiteInfo, BlockOption, BlockType } from './types';
 import { SUBDOMAIN_PRESERVE_LIST, SOCIAL_SYSTEM_PAGES } from './constants';
 
 /**
@@ -239,4 +239,114 @@ export function getTargetLabel(target: string): string {
   }
   
   return `${target} domain`;
+}
+
+/**
+ * Generate block options for a given URL
+ */
+export function generateBlockOptions(url: string): BlockOption[] {
+  try {
+    const urlObj = new URL(url);
+    const hostname = normalizeURL(urlObj.hostname.toLowerCase());
+    const pathname = urlObj.pathname;
+    const fullPath = hostname + pathname;
+    
+    const options: BlockOption[] = [];
+    
+    // Get domain parts
+    const domainParts = hostname.split('.');
+    const isSubdomain = domainParts.length > 2;
+    const mainDomain = isSubdomain ? domainParts.slice(-2).join('.') : hostname;
+    
+    // Option 1: Block entire domain (including all subdomains)
+    options.push({
+      type: 'domain',
+      label: `Entire ${mainDomain} domain`,
+      target: mainDomain,
+      description: `Blocks ${mainDomain} and all its subdomains`
+    });
+    
+    // Option 2: Block specific subdomain (if applicable)
+    if (isSubdomain) {
+      options.push({
+        type: 'subdomain',
+        label: `${hostname} subdomain only`,
+        target: hostname,
+        description: `Blocks only ${hostname}, not other subdomains`
+      });
+    }
+    
+    // Option 3: Block specific path (if not root)
+    if (pathname && pathname !== '/' && pathname.length > 1) {
+      // Clean up pathname for display
+      const cleanPath = pathname.endsWith('/') ? pathname.slice(0, -1) : pathname;
+      
+      options.push({
+        type: 'path',
+        label: `${hostname}${cleanPath} path`,
+        target: `${hostname}${cleanPath}`,
+        description: `Blocks only this section of the site`
+      });
+    }
+    
+    // Option 4: Block specific page (full URL path)
+    if (pathname && pathname !== '/') {
+      const fullUrl = urlObj.href.split('?')[0].split('#')[0]; // Remove query params and fragment
+      const displayPath = fullUrl.replace(/^https?:\/\//, '');
+      
+      options.push({
+        type: 'page',
+        label: 'This specific page',
+        target: displayPath,
+        description: `Blocks only this exact page`
+      });
+    }
+    
+    return options;
+  } catch (error) {
+    // Fallback for invalid URLs
+    return [{
+      type: 'domain',
+      label: 'Invalid URL',
+      target: '',
+      description: 'Cannot parse this URL'
+    }];
+  }
+}
+
+/**
+ * Generate subdomain whitelist options for a given URL
+ */
+export function generateSubdomainWhitelistOptions(url: string, blockedDomains: string[]): BlockOption[] {
+  try {
+    const urlObj = new URL(url);
+    const hostname = normalizeURL(urlObj.hostname.toLowerCase());
+    const domainParts = hostname.split('.');
+    
+    const options: BlockOption[] = [];
+    
+    if (domainParts.length > 2) {
+      const mainDomain = domainParts.slice(-2).join('.');
+      const subdomain = hostname;
+      
+      // Check if the main domain is blocked
+      const isDomainBlocked = blockedDomains.some(blocked => {
+        const normalizedBlocked = normalizeURL(blocked.toLowerCase());
+        return normalizedBlocked === mainDomain;
+      });
+      
+      if (isDomainBlocked) {
+        options.push({
+          type: 'subdomain',
+          label: `Whitelist ${subdomain}`,
+          target: subdomain,
+          description: `Allow ${subdomain} while keeping ${mainDomain} blocked`
+        });
+      }
+    }
+    
+    return options;
+  } catch (error) {
+    return [];
+  }
 }

@@ -2,7 +2,7 @@
 import { ExtensionSettings, WorkHours } from './types';
 
 // Default Pomodoro Settings (updated with auto-start enabled)
-const DEFAULT_POMODORO_SETTINGS = {
+export const DEFAULT_POMODORO_SETTINGS = {
   workDuration: 25,
   restDuration: 5,
   longRestDuration: 15,
@@ -98,6 +98,35 @@ export const STORAGE_KEYS = {
   WORK_HOURS_END_TIME: 'workHoursEndTime',
   WORK_HOURS_DAYS: 'workHoursDays'
 } as const;
+
+// Pomodoro Storage Keys
+export const POMODORO_STORAGE_KEYS = {
+  SETTINGS: 'pomodoroSettings',
+  TIMER_STATUS: 'pomodoroTimerStatus',
+  DAILY_STATS: 'pomodoroDailyStats',
+  SESSIONS_HISTORY: 'pomodoroSessionsHistory',
+  CURRENT_SESSION: 'pomodoroCurrentSession',
+  FLOATING_TIMER_SETTINGS: 'floatingTimerSettings'
+} as const;
+
+// Default Timer Status
+export const DEFAULT_TIMER_STATUS = {
+  state: 'STOPPED' as const,
+  timeRemaining: 0,
+  totalTime: 0,
+  currentTask: '',
+  sessionCount: 0,
+  nextSessionType: 'WORK' as const,
+  nextSessionDuration: DEFAULT_POMODORO_SETTINGS.workDuration * 60,
+  lastCompletedSessionType: undefined as 'WORK' | 'REST' | undefined
+};
+
+// Default Floating Timer Settings
+export const DEFAULT_FLOATING_TIMER_SETTINGS = {
+  alwaysShow: false,
+  position: { x: 20, y: 20 },
+  minimized: false
+};
 
 // Debug Configuration
 export const DEBUG_CONFIG = {

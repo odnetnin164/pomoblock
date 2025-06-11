@@ -259,7 +259,15 @@ class ContentScriptManager {
       this.handleNavigationChange();
     });
 
-    // Method 5: Periodic URL checking as fallback (every 2 seconds)
+    // Method 5: Listen for visibility changes (tab switching)
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) {
+        logger.log('Tab became visible, updating floating timer');
+        this.handleTabBecameVisible();
+      }
+    });
+
+    // Method 6: Periodic URL checking as fallback (every 2 seconds)
     this.urlCheckInterval = window.setInterval(() => {
       if (window.location.href !== this.currentUrl) {
         logger.log('Navigation detected: periodic check');
@@ -267,7 +275,7 @@ class ContentScriptManager {
       }
     }, 2000);
 
-    // Method 6: Listen for DOM changes that might indicate navigation
+    // Method 7: Listen for DOM changes that might indicate navigation
     if (document.body) {
       this.setupMutationObserver();
     } else {
@@ -361,13 +369,36 @@ class ContentScriptManager {
         this.blockedPageUI.removeBlockedPage();
       }
       
-      // Check timer status and then check if new page should be blocked
+      // Check timer status and update floating timer
       this.checkTimerState().then(() => {
+        // Update floating timer status after navigation
+        this.floatingTimer.requestTimerStatus();
+        
         setTimeout(() => {
           this.checkAndBlock();
         }, 250);
       });
     }
+  }
+
+  /**
+   * Handle tab becoming visible (tab switching)
+   */
+  private handleTabBecameVisible(): void {
+    logger.log('Tab became visible, refreshing state');
+    
+    // Check for URL changes that might have happened while tab was hidden
+    this.handleNavigationChange();
+    
+    // Refresh timer status and floating timer
+    this.checkTimerState().then(() => {
+      this.floatingTimer.requestTimerStatus();
+      
+      // Small delay to ensure DOM is ready
+      setTimeout(() => {
+        this.checkAndBlock();
+      }, 100);
+    });
   }
 
   /**

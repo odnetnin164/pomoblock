@@ -1,13 +1,17 @@
 import { PomodoroSettings } from '@shared/pomodoroTypes';
 import { StatusMessage } from '@shared/types';
+import { DEFAULT_FLOATING_TIMER_SETTINGS, POMODORO_STORAGE_KEYS } from '@shared/constants';
 
 export class PomodoroSettingsManager {
   private onStatusMessage?: (message: StatusMessage) => void;
   
   // DOM Elements
-  private workDurationInput!: HTMLInputElement;
-  private restDurationInput!: HTMLInputElement;
-  private longRestDurationInput!: HTMLInputElement;
+  private workDurationMinutes!: HTMLInputElement;
+  private workDurationSeconds!: HTMLInputElement;
+  private restDurationMinutes!: HTMLInputElement;
+  private restDurationSeconds!: HTMLInputElement;
+  private longRestDurationMinutes!: HTMLInputElement;
+  private longRestDurationSeconds!: HTMLInputElement;
   private longRestIntervalInput!: HTMLInputElement;
   private autoStartRestToggle!: HTMLInputElement;
   private autoStartWorkToggle!: HTMLInputElement;
@@ -84,20 +88,32 @@ export class PomodoroSettingsManager {
             <div class="duration-controls">
               <div class="duration-input-group">
                 <label for="workDuration">Work Duration:</label>
-                <input type="number" id="workDuration" min="1" max="120" value="25">
-                <span class="duration-unit">minutes</span>
+                <div class="time-input-pair">
+                  <input type="number" id="workDurationMinutes" min="0" max="120" value="25" class="minutes-input">
+                  <span class="time-separator">:</span>
+                  <input type="number" id="workDurationSeconds" min="0" max="59" value="0" class="seconds-input">
+                </div>
+                <span class="duration-unit">mm:ss</span>
               </div>
               
               <div class="duration-input-group">
                 <label for="restDuration">Short Break:</label>
-                <input type="number" id="restDuration" min="1" max="60" value="5">
-                <span class="duration-unit">minutes</span>
+                <div class="time-input-pair">
+                  <input type="number" id="restDurationMinutes" min="0" max="60" value="5" class="minutes-input">
+                  <span class="time-separator">:</span>
+                  <input type="number" id="restDurationSeconds" min="0" max="59" value="0" class="seconds-input">
+                </div>
+                <span class="duration-unit">mm:ss</span>
               </div>
               
               <div class="duration-input-group">
                 <label for="longRestDuration">Long Break:</label>
-                <input type="number" id="longRestDuration" min="1" max="120" value="15">
-                <span class="duration-unit">minutes</span>
+                <div class="time-input-pair">
+                  <input type="number" id="longRestDurationMinutes" min="0" max="120" value="15" class="minutes-input">
+                  <span class="time-separator">:</span>
+                  <input type="number" id="longRestDurationSeconds" min="0" max="59" value="0" class="seconds-input">
+                </div>
+                <span class="duration-unit">mm:ss</span>
               </div>
               
               <div class="duration-input-group">
@@ -111,16 +127,16 @@ export class PomodoroSettingsManager {
               <p>Common configurations:</p>
               <div class="preset-buttons">
                 <button class="pomodoro-preset-btn" data-work="25" data-rest="5" data-long="15" data-interval="4">
-                  Classic (25/5/15)
+                  Classic (25:00/5:00/15:00)
                 </button>
                 <button class="pomodoro-preset-btn" data-work="45" data-rest="15" data-long="30" data-interval="3">
-                  Extended (45/15/30)
+                  Extended (45:00/15:00/30:00)
                 </button>
                 <button class="pomodoro-preset-btn" data-work="50" data-rest="10" data-long="20" data-interval="4">
-                  Ultradian (50/10/20)
+                  Ultradian (50:00/10:00/20:00)
                 </button>
                 <button class="pomodoro-preset-btn" data-work="15" data-rest="5" data-long="15" data-interval="3">
-                  Short (15/5/15)
+                  Short (15:00/5:00/15:00)
                 </button>
               </div>
             </div>
@@ -199,9 +215,12 @@ export class PomodoroSettingsManager {
    * Initialize DOM element references
    */
   private initializeDOMElements(): void {
-    this.workDurationInput = document.getElementById('workDuration') as HTMLInputElement;
-    this.restDurationInput = document.getElementById('restDuration') as HTMLInputElement;
-    this.longRestDurationInput = document.getElementById('longRestDuration') as HTMLInputElement;
+    this.workDurationMinutes = document.getElementById('workDurationMinutes') as HTMLInputElement;
+    this.workDurationSeconds = document.getElementById('workDurationSeconds') as HTMLInputElement;
+    this.restDurationMinutes = document.getElementById('restDurationMinutes') as HTMLInputElement;
+    this.restDurationSeconds = document.getElementById('restDurationSeconds') as HTMLInputElement;
+    this.longRestDurationMinutes = document.getElementById('longRestDurationMinutes') as HTMLInputElement;
+    this.longRestDurationSeconds = document.getElementById('longRestDurationSeconds') as HTMLInputElement;
     this.longRestIntervalInput = document.getElementById('longRestInterval') as HTMLInputElement;
     this.autoStartRestToggle = document.getElementById('autoStartRest') as HTMLInputElement;
     this.autoStartWorkToggle = document.getElementById('autoStartWork') as HTMLInputElement;
@@ -242,9 +261,12 @@ export class PomodoroSettingsManager {
         const interval = button.getAttribute('data-interval');
         
         if (work && rest && longRest && interval) {
-          this.workDurationInput.value = work;
-          this.restDurationInput.value = rest;
-          this.longRestDurationInput.value = longRest;
+          this.workDurationMinutes.value = work;
+          this.workDurationSeconds.value = '0';
+          this.restDurationMinutes.value = rest;
+          this.restDurationSeconds.value = '0';
+          this.longRestDurationMinutes.value = longRest;
+          this.longRestDurationSeconds.value = '0';
           this.longRestIntervalInput.value = interval;
           
           this.updatePresetButtons();
@@ -257,7 +279,8 @@ export class PomodoroSettingsManager {
     });
 
     // Input change listeners for preset highlighting
-    [this.workDurationInput, this.restDurationInput, this.longRestDurationInput, this.longRestIntervalInput].forEach(input => {
+    [this.workDurationMinutes, this.workDurationSeconds, this.restDurationMinutes, this.restDurationSeconds, 
+     this.longRestDurationMinutes, this.longRestDurationSeconds, this.longRestIntervalInput].forEach(input => {
       input.addEventListener('input', () => this.updatePresetButtons());
     });
   }
@@ -288,8 +311,8 @@ export class PomodoroSettingsManager {
    */
   private async loadFloatingTimerSettings(): Promise<void> {
     try {
-      const data = await chrome.storage.local.get(['floatingTimerSettings']);
-      const settings = data.floatingTimerSettings || { alwaysShow: false };
+      const data = await chrome.storage.local.get([POMODORO_STORAGE_KEYS.FLOATING_TIMER_SETTINGS]);
+      const settings = data[POMODORO_STORAGE_KEYS.FLOATING_TIMER_SETTINGS] || DEFAULT_FLOATING_TIMER_SETTINGS;
       this.floatingTimerToggle.checked = settings.alwaysShow;
       this.updateToggleLabels();
     } catch (error) {
@@ -301,9 +324,17 @@ export class PomodoroSettingsManager {
    * Display settings in UI
    */
   private displaySettings(settings: PomodoroSettings): void {
-    this.workDurationInput.value = settings.workDuration.toString();
-    this.restDurationInput.value = settings.restDuration.toString();
-    this.longRestDurationInput.value = settings.longRestDuration.toString();
+    // Convert decimal minutes back to minutes and seconds
+    const workTotalSeconds = Math.round(settings.workDuration * 60);
+    const restTotalSeconds = Math.round(settings.restDuration * 60);
+    const longRestTotalSeconds = Math.round(settings.longRestDuration * 60);
+    
+    this.workDurationMinutes.value = Math.floor(workTotalSeconds / 60).toString();
+    this.workDurationSeconds.value = (workTotalSeconds % 60).toString();
+    this.restDurationMinutes.value = Math.floor(restTotalSeconds / 60).toString();
+    this.restDurationSeconds.value = (restTotalSeconds % 60).toString();
+    this.longRestDurationMinutes.value = Math.floor(longRestTotalSeconds / 60).toString();
+    this.longRestDurationSeconds.value = (longRestTotalSeconds % 60).toString();
     this.longRestIntervalInput.value = settings.longRestInterval.toString();
     this.autoStartRestToggle.checked = settings.autoStartRest;
     this.autoStartWorkToggle.checked = settings.autoStartWork;
@@ -318,10 +349,18 @@ export class PomodoroSettingsManager {
    * Get current settings from UI
    */
   getCurrentSettings(): PomodoroSettings {
+    // Convert minutes:seconds to total minutes (with decimal precision)
+    const workMinutes = parseInt(this.workDurationMinutes.value) || 0;
+    const workSeconds = parseInt(this.workDurationSeconds.value) || 0;
+    const restMinutes = parseInt(this.restDurationMinutes.value) || 0;
+    const restSeconds = parseInt(this.restDurationSeconds.value) || 0;
+    const longRestMinutes = parseInt(this.longRestDurationMinutes.value) || 0;
+    const longRestSeconds = parseInt(this.longRestDurationSeconds.value) || 0;
+
     return {
-      workDuration: parseInt(this.workDurationInput.value) || 25,
-      restDuration: parseInt(this.restDurationInput.value) || 5,
-      longRestDuration: parseInt(this.longRestDurationInput.value) || 15,
+      workDuration: workMinutes + (workSeconds / 60),
+      restDuration: restMinutes + (restSeconds / 60),
+      longRestDuration: longRestMinutes + (longRestSeconds / 60),
       longRestInterval: parseInt(this.longRestIntervalInput.value) || 4,
       autoStartRest: this.autoStartRestToggle.checked,
       autoStartWork: this.autoStartWorkToggle.checked,
@@ -371,16 +410,21 @@ export class PomodoroSettingsManager {
    * Validate settings
    */
   private validateSettings(settings: PomodoroSettings): string | null {
-    if (settings.workDuration < 1 || settings.workDuration > 120) {
-      return 'Work duration must be between 1 and 120 minutes';
+    // Convert to total seconds for validation (allowing sub-minute durations)
+    const workSeconds = Math.round(settings.workDuration * 60);
+    const restSeconds = Math.round(settings.restDuration * 60);
+    const longRestSeconds = Math.round(settings.longRestDuration * 60);
+    
+    if (workSeconds < 1 || workSeconds > 120 * 60) {
+      return 'Work duration must be between 1 second and 120 minutes';
     }
     
-    if (settings.restDuration < 1 || settings.restDuration > 60) {
-      return 'Rest duration must be between 1 and 60 minutes';
+    if (restSeconds < 1 || restSeconds > 60 * 60) {
+      return 'Rest duration must be between 1 second and 60 minutes';
     }
     
-    if (settings.longRestDuration < 1 || settings.longRestDuration > 120) {
-      return 'Long rest duration must be between 1 and 120 minutes';
+    if (longRestSeconds < 1 || longRestSeconds > 120 * 60) {
+      return 'Long rest duration must be between 1 second and 120 minutes';
     }
     
     if (settings.longRestInterval < 2 || settings.longRestInterval > 10) {
@@ -416,12 +460,11 @@ export class PomodoroSettingsManager {
   private async updateFloatingTimerSetting(): Promise<void> {
     try {
       const settings = {
-        alwaysShow: this.floatingTimerToggle.checked,
-        position: { x: 20, y: 20 },
-        minimized: false
+        ...DEFAULT_FLOATING_TIMER_SETTINGS,
+        alwaysShow: this.floatingTimerToggle.checked
       };
       
-      await chrome.storage.local.set({ floatingTimerSettings: settings });
+      await chrome.storage.local.set({ [POMODORO_STORAGE_KEYS.FLOATING_TIMER_SETTINGS]: settings });
       
       // Notify all content scripts about the change
       const tabs = await chrome.tabs.query({});
@@ -453,9 +496,12 @@ export class PomodoroSettingsManager {
    * Update preset button active states
    */
   private updatePresetButtons(): void {
-    const currentWork = parseInt(this.workDurationInput.value);
-    const currentRest = parseInt(this.restDurationInput.value);
-    const currentLongRest = parseInt(this.longRestDurationInput.value);
+    const currentWork = parseInt(this.workDurationMinutes.value) || 0;
+    const currentWorkSeconds = parseInt(this.workDurationSeconds.value) || 0;
+    const currentRest = parseInt(this.restDurationMinutes.value) || 0;
+    const currentRestSeconds = parseInt(this.restDurationSeconds.value) || 0;
+    const currentLongRest = parseInt(this.longRestDurationMinutes.value) || 0;
+    const currentLongRestSeconds = parseInt(this.longRestDurationSeconds.value) || 0;
     const currentInterval = parseInt(this.longRestIntervalInput.value);
     
     const presetButtons = document.querySelectorAll('.pomodoro-preset-btn');
@@ -465,9 +511,10 @@ export class PomodoroSettingsManager {
       const presetLongRest = parseInt(button.getAttribute('data-long') || '0');
       const presetInterval = parseInt(button.getAttribute('data-interval') || '0');
       
-      if (currentWork === presetWork && 
-          currentRest === presetRest && 
-          currentLongRest === presetLongRest && 
+      // Check if current values match preset (preset values are in minutes, seconds should be 0)
+      if (currentWork === presetWork && currentWorkSeconds === 0 &&
+          currentRest === presetRest && currentRestSeconds === 0 &&
+          currentLongRest === presetLongRest && currentLongRestSeconds === 0 &&
           currentInterval === presetInterval) {
         button.classList.add('active');
       } else {

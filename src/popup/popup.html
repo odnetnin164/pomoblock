@@ -6,41 +6,59 @@
   <title>PomoBlock</title>
 </head>
 <body>
-  <div class="header">
-    <h2>🍅 PomoBlock</h2>
-  </div>
-  
-  <!-- Integrated Pomodoro Timer Section -->
-  <div id="pomodoroContainer">
-    <!-- Pomodoro component will be inserted here -->
-  </div>
-  
-  <!-- Site Blocking Section -->
-  <div id="blockerTab">
-    <div class="current-site">
-      <h4>Current Page:</h4>
-      <div class="site-info">
-        <div class="site-url" id="currentUrl">Loading...</div>
-        <div class="block-target" id="blockTarget"></div>
+  <div class="popup-container">
+    <!-- Compact Header -->
+    <div class="header">
+      <h2>🍅 PomoBlock</h2>
+      <div class="header-stats">
+        <span id="siteCount">0</span> blocked
       </div>
     </div>
     
-    <div class="main-action">
-      <button class="block-btn" id="blockCurrentButton">
-        <span class="btn-icon">🚫</span>
-        <span class="btn-text">Block This Page</span>
+    <!-- Integrated Pomodoro Timer Section -->
+    <div id="pomodoroContainer">
+      <!-- Pomodoro component will be inserted here -->
+    </div>
+    
+    <!-- Site Blocking Section -->
+    <div id="blockerTab">
+      <div class="current-site">
+        <div class="site-info">
+          <div class="site-url" id="currentUrl">Loading...</div>
+          <div class="block-target" id="blockTarget"></div>
+        </div>
+      </div>
+      
+      <!-- Block Type Selector -->
+      <div class="block-type-section" id="blockTypeSection" style="display: none;">
+        <div class="block-type-header">
+          <span class="block-type-title">Choose what to block:</span>
+          <button class="block-type-toggle" id="blockTypeToggle">▼</button>
+        </div>
+        <div class="block-options" id="blockOptions">
+          <!-- Options will be populated by JavaScript -->
+        </div>
+      </div>
+      
+      <div class="main-action">
+        <button class="block-btn" id="blockCurrentButton">
+          <span class="btn-icon">🚫</span>
+          <span class="btn-text">Block This Page</span>
+        </button>
+      </div>
+    </div>
+    
+    <!-- Compact Footer Controls -->
+    <div class="footer-controls">
+      <button class="footer-btn" id="optionsButton">
+        <span class="footer-icon">⚙️</span>
+        <span class="footer-text">Settings</span>
+      </button>
+      <button class="footer-btn" id="historyButton">
+        <span class="footer-icon">📊</span>
+        <span class="footer-text">History</span>
       </button>
     </div>
-  </div>
-
-  <div class="status" id="statusDisplay">
-    <span id="siteCount">0</span> sites blocked
-  </div>
-  
-  <div class="controls">
-    <button class="manage-btn" id="manageButton">📋 Manage Sites</button>
-    <button class="options-btn" id="optionsButton">⚙️ Options</button>
-    <button class="history-btn" id="historyButton">📊 History</button>
   </div>
 </body>
 </html>

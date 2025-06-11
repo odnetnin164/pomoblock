@@ -8,7 +8,8 @@ import {
   getCurrentSession, 
   saveCurrentSession, 
   generateSessionId,
-  getDailyStats
+  getDailyStats,
+  formatDuration
 } from './pomodoroStorage';
 import { logger } from '@shared/logger';
 
@@ -28,8 +29,8 @@ export class PomodoroTimer {
       restDuration: 5,
       longRestDuration: 15,
       longRestInterval: 4,
-      autoStartRest: true, // Enable by default for seamless flow
-      autoStartWork: true, // Enable by default for seamless flow
+      autoStartRest: true,
+      autoStartWork: true,
       showNotifications: true,
       playSound: true
     };
@@ -39,7 +40,9 @@ export class PomodoroTimer {
       timeRemaining: 0,
       totalTime: 0,
       currentTask: '',
-      sessionCount: 0
+      sessionCount: 0,
+      nextSessionType: 'WORK', // Add next session type
+      nextSessionDuration: 25 * 60 // Add next session duration
     };
     
     this.onStatusUpdate = onStatusUpdate;
@@ -82,7 +85,9 @@ export class PomodoroTimer {
           timeRemaining: 0,
           totalTime: 0,
           currentTask: '',
-          sessionCount: 0
+          sessionCount: 0,
+          nextSessionType: 'WORK',
+          nextSessionDuration: this.settings.workDuration * 60
         };
       }
       
@@ -93,8 +98,12 @@ export class PomodoroTimer {
         logger.log('Daily stats loaded, session count:', this.status.sessionCount);
       } catch (error) {
         console.error('Error loading daily stats, keeping current session count:', error);
-        // Keep existing session count or default to 0
         this.status.sessionCount = this.status.sessionCount || 0;
+      }
+      
+      // If timer is stopped, determine next session
+      if (this.status.state === 'STOPPED') {
+        this.determineNextSession();
       }
       
       // If timer was running when browser closed, try to restore it
@@ -106,38 +115,35 @@ export class PomodoroTimer {
             
             if (this.status.timeRemaining <= 0) {
               logger.log('Timer should have completed while browser was closed');
-              // Timer should have completed while browser was closed
               await this.completeCurrentTimer();
             } else {
               logger.log(`Resuming timer with ${this.status.timeRemaining} seconds remaining`);
-              // Resume timer
               this.startTicking();
             }
           } else {
             logger.log('Invalid timer state detected, resetting to stopped');
-            // Invalid state, reset
             this.status.state = 'STOPPED';
             this.status.timeRemaining = 0;
             this.status.totalTime = 0;
+            this.determineNextSession();
           }
         } catch (error) {
           console.error('Error restoring timer state, stopping timer:', error);
-          // If restoration fails, stop the timer
           this.status.state = 'STOPPED';
           this.status.timeRemaining = 0;
           this.status.totalTime = 0;
           this.status.currentTask = '';
           delete this.status.startTime;
+          this.determineNextSession();
         }
       }
       
-      // Save current status (with error handling)
+      // Save current status
       try {
         await this.saveStatus();
         logger.log('Timer status saved successfully');
       } catch (error) {
         console.error('Error saving timer status during initialization:', error);
-        // Don't fail initialization if save fails
       }
       
       // Notify status update
@@ -165,13 +171,58 @@ export class PomodoroTimer {
         timeRemaining: 0,
         totalTime: 0,
         currentTask: '',
-        sessionCount: 0
+        sessionCount: 0,
+        nextSessionType: 'WORK',
+        nextSessionDuration: 25 * 60
       };
       
       this.notifyStatusUpdate();
       
       logger.log('PomodoroTimer initialized with safe defaults due to errors');
     }
+  }
+
+  /**
+   * Determine what the next session should be
+   */
+  private determineNextSession(): void {
+    if (this.status.sessionCount === 0 && !this.status.lastCompletedSessionType) {
+      // First session of the day should be work
+      this.status.nextSessionType = 'WORK';
+      this.status.nextSessionDuration = this.settings.workDuration * 60;
+    } else if (this.status.lastCompletedSessionType) {
+      // Use last completed session type to properly alternate
+      if (this.status.lastCompletedSessionType === 'WORK') {
+        // Last session was work, so next should be rest
+        this.status.nextSessionType = 'REST';
+        
+        // Determine if it should be a long rest
+        const isLongRest = this.status.sessionCount % this.settings.longRestInterval === 0;
+        this.status.nextSessionDuration = isLongRest ? 
+          this.settings.longRestDuration * 60 : 
+          this.settings.restDuration * 60;
+      } else {
+        // Last session was rest, so next should be work
+        this.status.nextSessionType = 'WORK';
+        this.status.nextSessionDuration = this.settings.workDuration * 60;
+      }
+    } else {
+      // Fallback: if sessionCount > 0 but no lastCompletedSessionType tracked,
+      // assume we need rest next (maintains backward compatibility)
+      this.status.nextSessionType = 'REST';
+      
+      // Determine if it should be a long rest
+      const isLongRest = this.status.sessionCount % this.settings.longRestInterval === 0;
+      this.status.nextSessionDuration = isLongRest ? 
+        this.settings.longRestDuration * 60 : 
+        this.settings.restDuration * 60;
+    }
+    
+    logger.log('Next session determined:', {
+      type: this.status.nextSessionType,
+      duration: this.status.nextSessionDuration,
+      sessionCount: this.status.sessionCount
+    });
   }
 
   /**
@@ -182,8 +233,8 @@ export class PomodoroTimer {
       return; // Timer already running
     }
 
-    // If no task provided and we're auto-starting, use a default task
-    if (!taskDescription && this.status.state === 'STOPPED') {
+    // If no task provided, use a default task
+    if (!taskDescription) {
       taskDescription = this.getDefaultWorkTask();
     }
 
@@ -301,6 +352,9 @@ export class PomodoroTimer {
     this.status.currentTask = '';
     delete this.status.startTime;
 
+    // Determine next session
+    this.determineNextSession();
+
     this.stopTicking();
     await saveCurrentSession(null);
     await this.saveStatus();
@@ -313,6 +367,11 @@ export class PomodoroTimer {
   async reset(): Promise<void> {
     await this.stop();
     this.status.sessionCount = 0;
+    
+    // After reset, next session should be work
+    this.status.nextSessionType = 'WORK';
+    this.status.nextSessionDuration = this.settings.workDuration * 60;
+    
     await this.saveStatus();
     this.notifyStatusUpdate();
   }
@@ -347,6 +406,19 @@ export class PomodoroTimer {
    */
   async updateSettings(newSettings: PomodoroSettings): Promise<void> {
     this.settings = { ...newSettings };
+    
+    // If timer is stopped, update next session duration based on new settings
+    if (this.status.state === 'STOPPED') {
+      if (this.status.nextSessionType === 'WORK') {
+        this.status.nextSessionDuration = this.settings.workDuration * 60;
+      } else {
+        const isLongRest = this.status.sessionCount % this.settings.longRestInterval === 0;
+        this.status.nextSessionDuration = isLongRest ? 
+          this.settings.longRestDuration * 60 : 
+          this.settings.restDuration * 60;
+      }
+    }
+    
     await this.saveStatus();
     this.notifyStatusUpdate();
   }
@@ -411,6 +483,7 @@ export class PomodoroTimer {
    */
   private async completeCurrentTimer(completed: boolean = true): Promise<void> {
     const currentSession = await getCurrentSession();
+    const wasWork = this.status.state === 'WORK';
     
     if (currentSession) {
       // Calculate actual duration
@@ -428,11 +501,13 @@ export class PomodoroTimer {
       if (currentSession.type === 'WORK' && completed) {
         this.status.sessionCount++;
       }
+      
+      // Track last completed session type for proper alternation
+      if (completed) {
+        this.status.lastCompletedSessionType = currentSession.type;
+      }
     }
 
-    // Determine what just completed and what should come next
-    const wasWork = this.status.state === 'WORK';
-    
     // Send completion notification
     if (this.onTimerComplete && completed) {
       const notification: TimerNotification = {
@@ -452,21 +527,24 @@ export class PomodoroTimer {
     this.status.currentTask = '';
     delete this.status.startTime;
     
+    // Determine next session
+    this.determineNextSession();
+    
     this.stopTicking();
     await saveCurrentSession(null);
     await this.saveStatus();
     this.notifyStatusUpdate();
 
-    // AUTO-START NEXT TIMER - IMPROVED LOGIC
+    // AUTO-START NEXT TIMER
     if (completed) {
       if (wasWork && this.settings.autoStartRest) {
         // Work session completed -> Start rest period
         logger.log('Auto-starting rest period after work session');
-        setTimeout(() => this.startRest(), 2000); // 2 second delay for notification
+        setTimeout(() => this.startRest(), 2000);
       } else if (!wasWork && this.settings.autoStartWork) {
         // Rest period completed -> Start next work period
         logger.log('Auto-starting work period after rest');
-        setTimeout(() => this.startWork(this.getDefaultWorkTask()), 2000); // 2 second delay for notification
+        setTimeout(() => this.startWork(this.getDefaultWorkTask()), 2000);
       }
     }
   }
@@ -492,6 +570,151 @@ export class PomodoroTimer {
   private notifyStatusUpdate(): void {
     if (this.onStatusUpdate) {
       this.onStatusUpdate({ ...this.status });
+    }
+  }
+
+  /**
+   * Advance to next session type without starting the timer
+   */
+  async advanceToNextSession(): Promise<void> {
+    logger.log('Advancing to next session type');
+    
+    // Stop current timer if running
+    if (this.status.state !== 'STOPPED') {
+      await this.stop();
+    }
+    
+    // Determine next session type and update session count
+    const currentNextType = this.status.nextSessionType || 'WORK';
+    
+    if (currentNextType === 'WORK') {
+      // Advancing to work session
+      this.status.nextSessionType = 'REST';
+      this.status.sessionCount += 1; // Increment for the work session we're skipping to
+      
+      // Determine if next break should be long or short
+      const isLongBreak = this.status.sessionCount % this.settings.longRestInterval === 0;
+      this.status.nextSessionDuration = isLongBreak ? 
+        this.settings.longRestDuration * 60 : 
+        this.settings.restDuration * 60;
+    } else {
+      // Advancing to rest session  
+      this.status.nextSessionType = 'WORK';
+      this.status.nextSessionDuration = this.settings.workDuration * 60;
+      // Don't increment session count when advancing to rest
+    }
+    
+    // Update last completed session type for proper alternation
+    this.status.lastCompletedSessionType = currentNextType === 'WORK' ? 'REST' : 'WORK';
+    
+    // Save and notify
+    await this.saveStatus();
+    this.notifyStatusUpdate();
+    
+    logger.log('Advanced to next session:', this.status.nextSessionType);
+  }
+
+  /**
+   * Update status for UI helper calculations (internal use)
+   */
+  private updateStatusForUI(status: TimerStatus): void {
+    this.status = status;
+  }
+
+  /**
+   * Set status for UI calculations (public method for UI components)
+   */
+  setStatusForUI(status: TimerStatus): void {
+    this.updateStatusForUI(status);
+  }
+
+  /**
+   * Get formatted session info for UI display
+   */
+  getSessionDisplayInfo(): { sessionText: string; sessionIcon: string; sessionNumber: number } {
+    if (this.status.state === 'STOPPED') {
+      // Show next session info
+      const nextType = this.status.nextSessionType || 'WORK';
+      const sessionNumber = nextType === 'WORK' ? this.status.sessionCount + 1 : this.status.sessionCount;
+      const sessionIcon = nextType === 'WORK' ? '🍅' : '☕';
+      const sessionText = nextType === 'WORK' ? 
+        `#${sessionNumber} - Work` : 
+        `#${sessionNumber} - Break`;
+      
+      return { sessionText, sessionIcon, sessionNumber };
+    } else {
+      // Show current session info
+      const sessionNumber = this.status.sessionCount + (this.status.state === 'WORK' ? 1 : 0);
+      const sessionIcon = this.status.state === 'WORK' ? '🍅' : '☕';
+      const sessionText = this.status.state === 'WORK' ? 
+        `#${sessionNumber} - Work` : 
+        `#${sessionNumber} - Break`;
+      
+      return { sessionText, sessionIcon, sessionNumber };
+    }
+  }
+
+  /**
+   * Get progress percentage for current timer
+   */
+  getProgressPercentage(): number {
+    if (this.status.totalTime > 0) {
+      return ((this.status.totalTime - this.status.timeRemaining) / this.status.totalTime) * 100;
+    }
+    return 0;
+  }
+
+  /**
+   * Get appropriate task input value for session type
+   */
+  getTaskInputValue(): string {
+    if (this.status.state === 'STOPPED') {
+      const nextType = this.status.nextSessionType || 'WORK';
+      if (nextType === 'WORK') {
+        return this.status.currentTask || '';
+      } else {
+        // Determine if it's long or short break
+        const completedWorkSessions = this.status.sessionCount;
+        const isLongBreak = completedWorkSessions > 0 && completedWorkSessions % this.settings.longRestInterval === 0;
+        return isLongBreak ? 'Long Break' : 'Short Break';
+      }
+    } else {
+      return this.status.currentTask || '';
+    }
+  }
+
+  /**
+   * Get display time for current or next session
+   */
+  getDisplayTime(): string {
+    if (this.status.state === 'STOPPED') {
+      return formatDuration(this.status.nextSessionDuration || 25 * 60);
+    } else {
+      return formatDuration(this.status.timeRemaining);
+    }
+  }
+
+  /**
+   * Check if task input should be disabled
+   */
+  shouldDisableTaskInput(): boolean {
+    if (this.status.state === 'STOPPED') {
+      const nextType = this.status.nextSessionType || 'WORK';
+      return nextType !== 'WORK';
+    } else {
+      return true; // Always disabled when timer is running
+    }
+  }
+
+  /**
+   * Get appropriate task input placeholder
+   */
+  getTaskInputPlaceholder(): string {
+    if (this.status.state === 'STOPPED') {
+      const nextType = this.status.nextSessionType || 'WORK';
+      return nextType === 'WORK' ? 'What are you working on?' : 'Break time - no task needed';
+    } else {
+      return 'Task in progress...';
     }
   }
 

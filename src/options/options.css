@@ -755,3 +755,40 @@ input:checked + .toggle-slider:before {
     flex-direction: column;
   }
 }
+
+/* Time input styling for minutes:seconds */
+.time-input-pair {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.minutes-input {
+  width: 50px !important;
+  text-align: center;
+}
+
+.seconds-input {
+  width: 40px !important;
+  text-align: center;
+}
+
+.time-separator {
+  font-weight: bold;
+  font-size: 16px;
+  color: rgba(255, 255, 255, 0.8);
+  user-select: none;
+  margin: 0 2px;
+}
+
+.duration-input-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.duration-input-group label {
+  min-width: 120px;
+  font-weight: 500;
+}

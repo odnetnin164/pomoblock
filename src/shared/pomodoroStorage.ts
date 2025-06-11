@@ -1,35 +1,13 @@
 import { PomodoroSettings, TimerStatus, PomodoroSession, DailyStats } from './pomodoroTypes';
 import { logger } from '@shared/logger';
+import { 
+  POMODORO_STORAGE_KEYS, 
+  DEFAULT_POMODORO_SETTINGS, 
+  DEFAULT_TIMER_STATUS 
+} from '@shared/constants';
 
-// Storage Keys for Pomodoro
-export const POMODORO_STORAGE_KEYS = {
-  SETTINGS: 'pomodoroSettings',
-  TIMER_STATUS: 'pomodoroTimerStatus',
-  DAILY_STATS: 'pomodoroDailyStats',
-  SESSIONS_HISTORY: 'pomodoroSessionsHistory',
-  CURRENT_SESSION: 'pomodoroCurrentSession'
-} as const;
-
-// Default Pomodoro Settings
-export const DEFAULT_POMODORO_SETTINGS: PomodoroSettings = {
-  workDuration: 25,
-  restDuration: 5,
-  longRestDuration: 15,
-  longRestInterval: 4,
-  autoStartRest: false,
-  autoStartWork: false,
-  showNotifications: true,
-  playSound: true
-};
-
-// Default Timer Status
-export const DEFAULT_TIMER_STATUS: TimerStatus = {
-  state: 'STOPPED',
-  timeRemaining: 0,
-  totalTime: 0,
-  currentTask: '',
-  sessionCount: 0
-};
+// Re-export constants for backward compatibility
+export { POMODORO_STORAGE_KEYS, DEFAULT_POMODORO_SETTINGS, DEFAULT_TIMER_STATUS };
 
 /**
  * Get data from Chrome storage with error handling
@@ -115,7 +93,7 @@ export async function getTimerStatus(): Promise<TimerStatus> {
       return DEFAULT_TIMER_STATUS;
     }
     
-    // Merge with defaults to ensure all properties exist
+    // Merge with defaults to ensure all properties exist (including new ones)
     return {
       ...DEFAULT_TIMER_STATUS,
       ...status

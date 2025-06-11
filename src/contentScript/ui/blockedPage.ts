@@ -111,6 +111,12 @@ export class BlockedPageUI {
       document.body.style.overflow = '';
       
       this.isBlocked = false;
+      
+      // Dispatch event that blocked page was removed
+      window.dispatchEvent(new CustomEvent('pomoblock-page-unblocked', {
+        detail: { blocked: false }
+      }));
+      
       logger.log('Blocked page overlay removed and page state restored');
     }
   }
@@ -168,6 +174,9 @@ export class BlockedPageUI {
 
     // Handle escape key to go back
     this.setupKeyboardHandlers();
+    
+    // Ensure floating timer remains visible by sending a message to refresh it
+    this.ensureFloatingTimerVisible();
     
     logger.log('Block overlay created and added to page');
   }
@@ -275,39 +284,33 @@ export class BlockedPageUI {
       return '';
     }
 
-    let statusText = '';
-    let statusClass = '';
-    let statusIcon = '';
-
+    const currentTime = new Date().toLocaleString();
+    
     switch (this.currentTimerState) {
       case 'WORK':
-        statusText = 'You are currently in a work session. This site will be unblocked during your next break.';
-        statusClass = 'timer-work-active';
-        statusIcon = '🍅';
-        break;
-      case 'PAUSED':
-        statusText = 'Your pomodoro timer is paused. Resume your timer to continue your session.';
-        statusClass = 'timer-paused';
-        statusIcon = '⏸️';
-        break;
+        return `
+          <div class="timer-status-info timer-work-active">
+            <h4>🍅 Pomodoro Timer Active</h4>
+            <p class="timer-status-text">You're currently in a work session. The floating timer remains visible.</p>
+          </div>
+        `;
       case 'REST':
-        statusText = 'You are currently on a break. This site should be accessible.';
-        statusClass = 'timer-rest-active';
-        statusIcon = '☕';
-        break;
+        return `
+          <div class="timer-status-info timer-rest-active">
+            <h4>☕ Break Time</h4>
+            <p class="timer-status-text">You're currently on a break. The floating timer remains visible.</p>
+          </div>
+        `;
+      case 'PAUSED':
+        return `
+          <div class="timer-status-info timer-paused">
+            <h4>⏸️ Timer Paused</h4>
+            <p class="timer-status-text">Your pomodoro timer is paused. The floating timer remains visible.</p>
+          </div>
+        `;
+      default:
+        return '';
     }
-
-    return `
-      <div class="timer-status-info ${statusClass}">
-        <h4>${statusIcon} Pomodoro Status</h4>
-        <p class="timer-status-text">${statusText}</p>
-        <div class="timer-actions">
-          <p style="font-size: 0.9em; opacity: 0.8; margin-top: 10px;">
-            💡 Use the PomoBlock popup to manage your timer and view remaining time
-          </p>
-        </div>
-      </div>
-    `;
   }
 
   /**
@@ -511,6 +514,7 @@ export class BlockedPageUI {
         border-radius: 6px !important;
         border: 1px solid rgba(255, 217, 61, 0.3) !important;
       }
+
       
       .redirect-info {
         background: rgba(255, 152, 0, 0.2) !important;
@@ -1089,6 +1093,33 @@ export class BlockedPageUI {
         </div>
       `;
     }
+  }
+
+
+  /**
+   * Ensure floating timer remains visible when blocked page is shown
+   */
+  private ensureFloatingTimerVisible(): void {
+    // Send a message to notify that the blocked page is displayed
+    // This allows other components to ensure they remain visible
+    try {
+      chrome.runtime.sendMessage({ 
+        type: 'BLOCKED_PAGE_DISPLAYED',
+        timestamp: Date.now()
+      });
+    } catch (error) {
+      logger.log('Error sending blocked page displayed message:', error);
+    }
+    
+    // Also dispatch a custom event for the floating timer
+    setTimeout(() => {
+      window.dispatchEvent(new CustomEvent('pomoblock-page-blocked', {
+        detail: { 
+          blocked: true,
+          timerState: this.currentTimerState
+        }
+      }));
+    }, 100);
   }
 
   /**

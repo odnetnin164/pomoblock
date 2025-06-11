@@ -1,11 +1,13 @@
-import { BlockTarget, WhitelistTarget } from '@shared/types';
-import { determineBlockTarget, getTargetLabel, parseSiteInfo } from '@shared/urlUtils';
+import { BlockTarget, WhitelistTarget, BlockOption, BlockType } from '@shared/types';
+import { determineBlockTarget, getTargetLabel, parseSiteInfo, generateBlockOptions, generateSubdomainWhitelistOptions } from '@shared/urlUtils';
 import { addBlockedWebsite, addWhitelistedPath, removeWhitelistedPath } from '@shared/storage';
 import { SPECIAL_SITES } from '@shared/constants';
 
 export class SiteManager {
   private currentTabUrl: string = '';
   private blockTarget: BlockTarget | null = null;
+  private blockOptions: BlockOption[] = [];
+  private selectedBlockType: BlockType = 'domain';
 
   /**
    * Set current tab URL and analyze it
@@ -41,15 +43,52 @@ export class SiteManager {
   }
 
   /**
+   * Get available block options for current site
+   */
+  getBlockOptions(): BlockOption[] {
+    return this.blockOptions;
+  }
+
+  /**
+   * Get currently selected block type
+   */
+  getSelectedBlockType(): BlockType {
+    return this.selectedBlockType;
+  }
+
+  /**
+   * Set selected block type
+   */
+  setSelectedBlockType(blockType: BlockType): void {
+    this.selectedBlockType = blockType;
+  }
+
+  /**
+   * Get the target string for the currently selected block type
+   */
+  getSelectedBlockTarget(): string {
+    const option = this.blockOptions.find(opt => opt.type === this.selectedBlockType);
+    return option ? option.target : this.blockTarget?.target || '';
+  }
+
+  /**
    * Analyze current site and determine block target
    */
   private analyzeCurrentSite(): void {
     const siteInfo = this.getCurrentSiteInfo();
     if (!siteInfo) {
       this.blockTarget = null;
+      this.blockOptions = [];
       return;
     }
 
+    // Generate all available block options
+    this.blockOptions = generateBlockOptions(this.currentTabUrl);
+    
+    // Set default selection to domain block
+    this.selectedBlockType = 'domain';
+    
+    // Keep legacy block target for backward compatibility
     const target = determineBlockTarget(siteInfo.hostname, siteInfo.pathname);
     if (!target) {
       this.blockTarget = null;
@@ -76,25 +115,35 @@ export class SiteManager {
   }
 
   /**
-   * Add current site to blocked list
+   * Add current site to blocked list using selected block type
    */
   async addToBlockedList(): Promise<string[]> {
-    if (!this.blockTarget) {
+    const target = this.getSelectedBlockTarget();
+    if (!target) {
       throw new Error('No target to block');
     }
 
-    return await addBlockedWebsite(this.blockTarget.target);
+    return await addBlockedWebsite(target);
   }
 
   /**
    * Add current path to whitelist
    */
   async addToWhitelist(): Promise<string[]> {
-    if (!this.blockTarget) {
+    const target = this.getSelectedBlockTarget();
+    if (!target) {
       throw new Error('No target to whitelist');
     }
 
-    return await addWhitelistedPath(this.blockTarget.target);
+    return await addWhitelistedPath(target);
+  }
+
+  /**
+   * Get subdomain whitelist options for current site
+   */
+  getSubdomainWhitelistOptions(blockedDomains: string[]): BlockOption[] {
+    if (!this.currentTabUrl) return [];
+    return generateSubdomainWhitelistOptions(this.currentTabUrl, blockedDomains);
   }
 
   /**

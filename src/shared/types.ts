@@ -61,6 +61,16 @@ export interface SiteInfo {
   normalizedUrl: string;
 }
 
+// Block Types for user selection
+export type BlockType = 'domain' | 'subdomain' | 'path' | 'page';
+
+export interface BlockOption {
+  type: BlockType;
+  label: string;
+  target: string;
+  description: string;
+}
+
 // UI Status Types
 export type StatusMessageType = 'success' | 'error' | 'info';
 

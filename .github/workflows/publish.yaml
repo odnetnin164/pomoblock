@@ -4,8 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       prerelease_tag:
-        description: 'Tag name of the prerelease to promote (e.g., v1.0.1)'
+        description: 'Tag name of the prerelease to promote (e.g., v0.1.7)'
         required: true
+        type: string
 
 jobs:
   publish:
@@ -14,24 +15,112 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Download prerelease ZIP
+      - name: Validate tag format
         run: |
-          gh release download "${{ github.event.inputs.prerelease_tag }}" -p "*.zip"
+          if [[ ! "${{ github.event.inputs.prerelease_tag }}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "❌ Invalid tag format. Expected format: v1.2.3"
+            exit 1
+          fi
+          echo "✅ Tag format is valid: ${{ github.event.inputs.prerelease_tag }}"
+
+      - name: Extract version number
+        id: extract_version
+        run: |
+          VERSION="${{ github.event.inputs.prerelease_tag }}"
+          VERSION_NUMBER="${VERSION#v}"
+          echo "version_number=${VERSION_NUMBER}" >> $GITHUB_OUTPUT
+          echo "Extracted version number: ${VERSION_NUMBER}"
+
+      - name: Download prerelease ZIP
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "📥 Downloading release assets for ${{ github.event.inputs.prerelease_tag }}"
+          
+          # Download the specific ZIP file
+          gh release download "${{ github.event.inputs.prerelease_tag }}" -p "pomoblock-${{ steps.extract_version.outputs.version_number }}.zip"
+          
+          # Verify download
+          if [ ! -f "pomoblock-${{ steps.extract_version.outputs.version_number }}.zip" ]; then
+            echo "❌ Failed to download pomoblock-${{ steps.extract_version.outputs.version_number }}.zip"
+            echo "Available files:"
+            gh release view "${{ github.event.inputs.prerelease_tag }}" --json assets --jq '.assets[].name'
+            exit 1
+          fi
+          
+          echo "✅ Successfully downloaded: pomoblock-${{ steps.extract_version.outputs.version_number }}.zip"
+          ls -la *.zip
+
+      - name: Verify ZIP contents
+        run: |
+          echo "📦 Verifying ZIP contents..."
+          unzip -l "pomoblock-${{ steps.extract_version.outputs.version_number }}.zip"
+          
+          # Create a temporary directory and extract to verify structure
+          mkdir -p temp_verify
+          unzip -q "pomoblock-${{ steps.extract_version.outputs.version_number }}.zip" -d temp_verify
+          
+          # Check for required files
+          if [ ! -f "temp_verify/manifest.json" ]; then
+            echo "❌ manifest.json not found in ZIP"
+            exit 1
+          fi
+          
+          echo "✅ ZIP structure verified"
+          echo "Manifest version: $(cat temp_verify/manifest.json | jq -r '.version')"
+          rm -rf temp_verify
 
       - name: Mark prerelease as full release
-        run: |
-          gh release edit "${{ github.event.inputs.prerelease_tag }}" --prerelease=false
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "🎯 Promoting ${{ github.event.inputs.prerelease_tag }} to full release"
+          gh release edit "${{ github.event.inputs.prerelease_tag }}" --prerelease=false
+          echo "✅ Successfully promoted to full release"
 
       - name: Upload to Chrome Web Store
         uses: mnao305/chrome-extension-upload@v5.0.0
         with:
-          file-path: dist/file.zip
+          file-path: "./pomoblock-${{ steps.extract_version.outputs.version_number }}.zip"
           extension-id: ${{ secrets.EXTENSION_ID }}
           client-id: ${{ secrets.CLIENT_ID }}
           client-secret: ${{ secrets.CLIENT_SECRET }}
           refresh-token: ${{ secrets.REFRESH_TOKEN }}
-          file-path: "./siteblocker-${{ github.event.inputs.prerelease_tag }}.zip"
+
+      - name: Update release with Chrome Web Store info
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Get current release body
+          CURRENT_BODY=$(gh release view "${{ github.event.inputs.prerelease_tag }}" --json body --jq '.body')
+          
+          # Add Chrome Web Store info to release notes
+          NEW_BODY="${CURRENT_BODY}
+
+          ---
+          
+          ## 🌐 Chrome Web Store
+          
+          This version has been published to the Chrome Web Store!
+          
+          **Published**: $(date -u '+%Y-%m-%d %H:%M:%S UTC')
+          **Version**: ${{ steps.extract_version.outputs.version_number }}
+          
+          > ⏱️ It may take a few hours for the update to be available to all users.
+          "
+          
+          # Update release with new body
+          gh release edit "${{ github.event.inputs.prerelease_tag }}" --notes "${NEW_BODY}"
+          echo "✅ Updated release notes with Chrome Web Store information"
+
+      - name: Output success info
+        run: |
+          echo "🎉 Successfully published PomoBlock ${{ github.event.inputs.prerelease_tag }} to Chrome Web Store!"
+          echo ""
+          echo "📋 Summary:"
+          echo "  • Version: ${{ github.event.inputs.prerelease_tag }}"
+          echo "  • Package: pomoblock-${{ steps.extract_version.outputs.version_number }}.zip"
+          echo "  • Status: Published to Chrome Web Store"
+          echo "  • Release: Promoted from prerelease to full release"
+          echo ""
+          echo "🔗 Release URL: https://github.com/${{ github.repository }}/releases/tag/${{ github.event.inputs.prerelease_tag }}"

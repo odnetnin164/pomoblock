@@ -45,6 +45,9 @@ export class BackgroundPomodoroManager {
       
       this.isInitialized = true;
       logger.log('BackgroundPomodoroManager initialized successfully');
+      
+      // Send initialization complete status to all listeners
+      await this.broadcastInitializationComplete();
     } catch (error) {
       console.error('Failed to initialize BackgroundPomodoroManager:', error);
       
@@ -104,7 +107,9 @@ export class BackgroundPomodoroManager {
           timeRemaining: 0,
           totalTime: 0,
           currentTask: '',
-          sessionCount: 0
+          sessionCount: 0,
+          nextSessionType: 'WORK',
+          nextSessionDuration: 25 * 60
         }
       };
     }
@@ -164,6 +169,10 @@ export class BackgroundPomodoroManager {
         
       case 'STOP_TIMER':
         await this.timer.stop();
+        return { success: true };
+        
+      case 'ADVANCE_SESSION':
+        await this.timer.advanceToNextSession();
         return { success: true };
         
       case 'RESET_TIMER':
@@ -285,24 +294,36 @@ export class BackgroundPomodoroManager {
   private updateBadge(): void {
     try {
       const status = this.timer.getStatus();
+      const badgeInfo = this.getBadgeInfo(status);
       
-      if (status.state === 'STOPPED') {
-        chrome.action.setBadgeText({ text: '' });
-        chrome.action.setBadgeBackgroundColor({ color: '#4CAF50' });
-      } else if (status.state === 'WORK') {
-        const minutes = Math.ceil(status.timeRemaining / 60);
-        chrome.action.setBadgeText({ text: minutes.toString() });
-        chrome.action.setBadgeBackgroundColor({ color: '#f44336' });
-      } else if (status.state === 'REST') {
-        const minutes = Math.ceil(status.timeRemaining / 60);
-        chrome.action.setBadgeText({ text: minutes.toString() });
-        chrome.action.setBadgeBackgroundColor({ color: '#4CAF50' });
-      } else if (status.state === 'PAUSED') {
-        chrome.action.setBadgeText({ text: '⏸' });
-        chrome.action.setBadgeBackgroundColor({ color: '#FF9800' });
-      }
+      chrome.action.setBadgeText({ text: badgeInfo.text });
+      chrome.action.setBadgeBackgroundColor({ color: badgeInfo.color });
     } catch (error) {
       console.error('Error updating badge:', error);
+    }
+  }
+
+  /**
+   * Get badge info based on timer status
+   */
+  private getBadgeInfo(status: TimerStatus): { text: string; color: string } {
+    switch (status.state) {
+      case 'STOPPED':
+        return { text: '', color: '#4CAF50' };
+      case 'WORK':
+        return { 
+          text: Math.ceil(status.timeRemaining / 60).toString(), 
+          color: '#f44336' 
+        };
+      case 'REST':
+        return { 
+          text: Math.ceil(status.timeRemaining / 60).toString(), 
+          color: '#4CAF50' 
+        };
+      case 'PAUSED':
+        return { text: '⏸', color: '#FF9800' };
+      default:
+        return { text: '', color: '#4CAF50' };
     }
   }
 
@@ -378,8 +399,10 @@ export class BackgroundPomodoroManager {
       });
     });
     
-    // Note: We don't send messages to the popup directly from background
-    // The popup will request updates when it opens and handle its own refresh
+    // Send to popup and other extension pages
+    chrome.runtime.sendMessage(message).catch(() => {
+      // Ignore errors if popup is not open
+    });
   }
 
   /**
@@ -393,7 +416,7 @@ export class BackgroundPomodoroManager {
   }
 
   /**
-   * Get current timer status
+   * Get current timer status (updated with all fields)
    */
   getCurrentStatus(): TimerStatus {
     if (!this.isInitialized) {
@@ -402,7 +425,9 @@ export class BackgroundPomodoroManager {
         timeRemaining: 0,
         totalTime: 0,
         currentTask: '',
-        sessionCount: 0
+        sessionCount: 0,
+        nextSessionType: 'WORK',
+        nextSessionDuration: 25 * 60
       };
     }
     return this.timer.getStatus();
@@ -413,6 +438,43 @@ export class BackgroundPomodoroManager {
    */
   getCurrentTimerState(): TimerState {
     return this.getCurrentStatus().state;
+  }
+
+  /**
+   * Broadcast initialization complete with real status
+   */
+  private async broadcastInitializationComplete(): Promise<void> {
+    try {
+      const status = this.timer.getStatus();
+      logger.log('Broadcasting initialization complete with status:', status);
+      
+      // Send to all tabs - this will update popup and content scripts
+      const tabs = await chrome.tabs.query({});
+      for (const tab of tabs) {
+        if (tab.id) {
+          try {
+            await chrome.tabs.sendMessage(tab.id, {
+              type: 'TIMER_INITIALIZATION_COMPLETE',
+              data: { timerStatus: status }
+            });
+          } catch (error) {
+            // Tab might not have content script, ignore
+          }
+        }
+      }
+      
+      // Also try to send to popup if it's open
+      try {
+        await chrome.runtime.sendMessage({
+          type: 'TIMER_INITIALIZATION_COMPLETE',
+          data: { timerStatus: status }
+        });
+      } catch (error) {
+        // Popup might not be open, ignore
+      }
+    } catch (error) {
+      console.error('Error broadcasting initialization complete:', error);
+    }
   }
 
   /**

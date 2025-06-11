@@ -13,6 +13,9 @@ export interface TimerStatus {
   currentTask: string;
   sessionCount: number; // today's completed work sessions
   startTime?: number; // timestamp when current timer started
+  nextSessionType?: 'WORK' | 'REST'; // what the next session will be when timer is stopped
+  nextSessionDuration?: number; // duration in seconds for next session
+  lastCompletedSessionType?: 'WORK' | 'REST'; // track last completed session for proper alternation
 }
 
 export interface PomodoroSession {
