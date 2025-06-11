@@ -1,10 +1,12 @@
+@import url('../shared/common-ui.css');
+
 body {
   width: 360px;
   padding: 0;
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
   margin: 0;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
+  background: var(--primary-bg);
+  color: var(--text-primary);
   min-height: 480px;
 }
 
@@ -18,7 +20,7 @@ body {
   align-items: center;
   margin-bottom: 16px;
   padding-bottom: 12px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+  border-bottom: 1px solid var(--surface-border);
 }
 
 .header-right {
@@ -31,13 +33,13 @@ body {
 .header h2 {
   margin: 0;
   font-size: 1.3em;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
 }
 
 .header-stats {
   font-size: 0.9em;
-  opacity: 0.8;
-  font-weight: 500;
+  color: var(--text-secondary);
+  font-weight: var(--font-weight-medium);
 }
 
 /* Pomodoro Timer Styles */
@@ -66,7 +68,7 @@ body {
 }
 
 .progress-ring-background {
-  stroke: rgba(255, 255, 255, 0.15);
+  stroke: var(--surface-border);
 }
 
 .progress-ring-bar {
@@ -112,10 +114,10 @@ body {
 .task-input {
   width: 100%;
   padding: 10px 14px;
-  border: 2px solid rgba(255, 255, 255, 0.25);
+  border: 2px solid var(--surface-border);
   border-radius: 20px;
-  background: rgba(255, 255, 255, 0.1);
-  color: white;
+  background: var(--surface-bg);
+  color: var(--text-primary);
   font-size: 0.9em;
   transition: all 0.3s ease;
   box-sizing: border-box;
@@ -123,12 +125,12 @@ body {
 
 .task-input:focus {
   outline: none;
-  border-color: #4CAF50;
+  border-color: var(--success-color);
   background: rgba(255, 255, 255, 0.15);
 }
 
 .task-input::placeholder {
-  color: rgba(255, 255, 255, 0.6);
+  color: var(--text-muted);
 }
 
 .task-input:disabled {
@@ -221,16 +223,16 @@ body {
 .stats-section {
   text-align: center;
   padding: 8px 12px;
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: var(--surface-bg);
+  border-radius: var(--border-radius-lg);
+  border: 1px solid var(--surface-border);
   margin-bottom: 16px;
 }
 
 .session-counter {
   font-size: 0.85em;
-  font-weight: 600;
-  color: rgba(255, 255, 255, 0.9);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-secondary);
 }
 
 .floating-timer-toggle {
@@ -291,24 +293,27 @@ body {
 }
 
 /* Timer State Styling */
-.timer-work .progress-ring-bar {
-  stroke: #f44336;
+.timer-work .progress-ring-bar,
+.progress-work {
+  stroke: var(--error-color);
 }
 
 .timer-work .timer-display {
   color: #ff6b6b;
 }
 
-.timer-rest .progress-ring-bar {
-  stroke: #4CAF50;
+.timer-rest .progress-ring-bar,
+.progress-rest {
+  stroke: var(--success-color);
 }
 
 .timer-rest .timer-display {
   color: #66bb6a;
 }
 
-.timer-paused .progress-ring-bar {
-  stroke: #FF9800;
+.timer-paused .progress-ring-bar,
+.progress-paused {
+  stroke: var(--warning-color);
 }
 
 .timer-paused .timer-display {
@@ -316,8 +321,13 @@ body {
   opacity: 0.8;
 }
 
+.timer-stopped .progress-ring-bar,
+.progress-stopped {
+  stroke: #9E9E9E;
+}
+
 .timer-stopped .timer-display {
-  color: rgba(255, 255, 255, 0.9);
+  color: var(--text-secondary);
 }
 
 /* Site Blocking Section */
@@ -328,10 +338,10 @@ body {
 /* Block Type Selector */
 .block-type-section {
   margin-bottom: 16px;
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 12px;
+  background: var(--surface-bg);
+  border-radius: var(--border-radius-lg);
   padding: 12px 16px;
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  border: 1px solid var(--surface-border);
 }
 
 .block-type-header {
@@ -409,23 +419,23 @@ body {
 }
 
 .site-info {
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 12px;
+  background: var(--surface-bg);
+  border-radius: var(--border-radius-lg);
   padding: 12px 16px;
   margin-bottom: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  border: 1px solid var(--surface-border);
 }
 
 .site-url {
   font-size: 0.9em;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   margin-bottom: 4px;
   word-break: break-all;
 }
 
 .block-target {
   font-size: 0.8em;
-  opacity: 0.8;
+  color: var(--text-secondary);
   word-break: break-all;
 }
 

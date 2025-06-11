@@ -1,0 +1,174 @@
+/* Blocked Page Overlay Styles */
+#pomoblock-blocked-overlay {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  background: linear-gradient(135deg, rgba(102, 126, 234, 0.95) 0%, rgba(118, 75, 162, 0.95) 100%) !important;
+  z-index: 2147483647 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  color: white !important;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif !important;
+  text-align: center !important;
+  backdrop-filter: blur(10px) !important;
+}
+
+.blocked-content {
+  max-width: 600px !important;
+  padding: 40px 20px !important;
+  background: rgba(255, 255, 255, 0.1) !important;
+  border-radius: 20px !important;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2) !important;
+  backdrop-filter: blur(15px) !important;
+}
+
+.blocked-icon {
+  font-size: 4em !important;
+  margin-bottom: 20px !important;
+  display: block !important;
+}
+
+.blocked-title {
+  font-size: 2.5em !important;
+  font-weight: 600 !important;
+  margin-bottom: 15px !important;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.3) !important;
+}
+
+.blocked-message {
+  font-size: 1.2em !important;
+  margin-bottom: 20px !important;
+  opacity: 0.9 !important;
+  line-height: 1.6 !important;
+}
+
+.blocked-site {
+  font-size: 1.1em !important;
+  font-weight: 600 !important;
+  margin-bottom: 25px !important;
+  padding: 12px 20px !important;
+  background: rgba(255, 255, 255, 0.15) !important;
+  border-radius: 10px !important;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  font-family: 'Courier New', monospace !important;
+  word-break: break-all !important;
+}
+
+.blocked-timer-info {
+  margin-bottom: 25px !important;
+  padding: 15px 20px !important;
+  background: rgba(244, 67, 54, 0.2) !important;
+  border: 1px solid rgba(244, 67, 54, 0.4) !important;
+  border-radius: 12px !important;
+  font-weight: 500 !important;
+}
+
+.blocked-timer-status {
+  font-size: 1em !important;
+  margin-bottom: 8px !important;
+}
+
+.blocked-timer-note {
+  font-size: 0.9em !important;
+  opacity: 0.8 !important;
+  font-style: italic !important;
+}
+
+.blocked-actions {
+  display: flex !important;
+  gap: 15px !important;
+  justify-content: center !important;
+  flex-wrap: wrap !important;
+  margin-top: 30px !important;
+}
+
+.blocked-btn {
+  padding: 12px 24px !important;
+  border: none !important;
+  border-radius: 10px !important;
+  font-size: 1em !important;
+  font-weight: 600 !important;
+  cursor: pointer !important;
+  transition: all 0.3s ease !important;
+  text-decoration: none !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  font-family: inherit !important;
+  min-width: 120px !important;
+  justify-content: center !important;
+}
+
+.blocked-btn:hover {
+  transform: translateY(-2px) !important;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3) !important;
+}
+
+.blocked-btn.primary {
+  background: #4CAF50 !important;
+  color: white !important;
+}
+
+.blocked-btn.primary:hover {
+  background: #45a049 !important;
+}
+
+.blocked-btn.secondary {
+  background: rgba(255, 255, 255, 0.2) !important;
+  color: white !important;
+  border: 1px solid rgba(255, 255, 255, 0.3) !important;
+}
+
+.blocked-btn.secondary:hover {
+  background: rgba(255, 255, 255, 0.3) !important;
+}
+
+.blocked-footer {
+  position: absolute !important;
+  bottom: 20px !important;
+  left: 50% !important;
+  transform: translateX(-50%) !important;
+  font-size: 0.9em !important;
+  opacity: 0.7 !important;
+  text-align: center !important;
+}
+
+.blocked-footer a {
+  color: rgba(255, 255, 255, 0.8) !important;
+  text-decoration: none !important;
+}
+
+.blocked-footer a:hover {
+  color: white !important;
+  text-decoration: underline !important;
+}
+
+/* Responsive adjustments */
+@media (max-width: 600px) {
+  .blocked-content {
+    margin: 20px !important;
+    padding: 30px 20px !important;
+  }
+  
+  .blocked-title {
+    font-size: 2em !important;
+  }
+  
+  .blocked-message {
+    font-size: 1.1em !important;
+  }
+  
+  .blocked-actions {
+    flex-direction: column !important;
+    align-items: center !important;
+  }
+  
+  .blocked-btn {
+    width: 200px !important;
+  }
+}

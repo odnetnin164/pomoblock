@@ -25,6 +25,21 @@ export class FloatingTimer {
   }
 
   /**
+   * Inject CSS for floating timer if not already present
+   */
+  private injectCSS(): void {
+    if (document.getElementById('pomoblock-floating-timer-styles')) {
+      return; // CSS already injected
+    }
+
+    const link = document.createElement('link');
+    link.id = 'pomoblock-floating-timer-styles';
+    link.rel = 'stylesheet';
+    link.href = chrome.runtime.getURL('shared/floating-timer.css');
+    document.head.appendChild(link);
+  }
+
+  /**
    * Initialize widget with proper settings loading
    */
   private async initializeWidget(): Promise<void> {

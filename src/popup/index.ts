@@ -284,7 +284,7 @@ class PopupManager {
       this.currentUrlElement.textContent = 'Cannot block this page';
       this.blockTargetElement.textContent = '';
       this.blockCurrentButton.disabled = true;
-      this.blockTypeSection.style.display = 'none';
+      this.blockTypeSection.classList.add('hidden');
       return;
     }
 
@@ -626,11 +626,11 @@ class PopupManager {
     const blockOptions = this.siteManager.getBlockOptions();
     
     if (blockOptions.length <= 1) {
-      this.blockTypeSection.style.display = 'none';
+      this.blockTypeSection.classList.add('hidden');
       return;
     }
     
-    this.blockTypeSection.style.display = 'block';
+    this.blockTypeSection.classList.remove('hidden');
     
     // Populate block options
     this.blockOptionsContainer.innerHTML = '';

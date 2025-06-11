@@ -15,6 +15,21 @@ export class BlockedPageUI {
   }
 
   /**
+   * Inject CSS for blocked page if not already present
+   */
+  private injectCSS(): void {
+    if (document.getElementById('pomoblock-blocked-page-styles')) {
+      return; // CSS already injected
+    }
+
+    const link = document.createElement('link');
+    link.id = 'pomoblock-blocked-page-styles';
+    link.rel = 'stylesheet';
+    link.href = chrome.runtime.getURL('shared/blocked-page.css');
+    document.head.appendChild(link);
+  }
+
+  /**
    * Update settings
    */
   updateSettings(settings: ExtensionSettings): void {
@@ -139,31 +154,14 @@ export class BlockedPageUI {
     // Remove any existing overlay
     this.removeBlockedPage();
 
+    // Inject CSS if not already present
+    this.injectCSS();
+
     const overlay = document.createElement('div');
-    overlay.id = 'pomoblock-overlay';
-    overlay.style.cssText = `
-      position: fixed !important;
-      top: 0 !important;
-      left: 0 !important;
-      width: 100% !important;
-      height: 100% !important;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
-      z-index: 2147483647 !important;
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif !important;
-      color: white !important;
-      overflow: auto !important;
-      display: flex !important;
-      align-items: center !important;
-      justify-content: center !important;
-    `;
+    overlay.id = 'pomoblock-blocked-overlay';
 
     const content = this.generateBlockedContent(isRedirectMode);
     overlay.innerHTML = content;
-
-    // Add styles
-    const styleElement = document.createElement('style');
-    styleElement.textContent = this.generateCSS();
-    overlay.appendChild(styleElement);
 
     // Prevent scrolling on background page
     document.body.style.overflow = 'hidden';
@@ -209,41 +207,34 @@ export class BlockedPageUI {
     ` : '';
 
     const navigationHelp = `
-      <div class="navigation-help">
-        <h4>🔙 Want to navigate away?</h4>
-        <p>Press your browser's back button, press <kbd>Esc</kbd>, or use the buttons below:</p>
-        <div class="navigation-buttons">
-          <button id="go-back-btn" class="nav-btn">
-            <span class="button-icon">←</span>
-            <span>Go Back</span>
-          </button>
-          <button id="redirect-safe-btn" class="nav-btn alternative-btn">
-            <span class="button-icon">🏠</span>
-            <span>Safe Page</span>
-          </button>
-          <button id="close-tab-btn" class="nav-btn close-btn">
-            <span class="button-icon">✕</span>
-            <span>Close Tab</span>
-          </button>
-        </div>
+      <div class="blocked-actions">
+        <button id="go-back-btn" class="blocked-btn primary">
+          <span>← Go Back</span>
+        </button>
+        <button id="redirect-safe-btn" class="blocked-btn secondary">
+          <span>🏠 Safe Page</span>
+        </button>
+        <button id="close-tab-btn" class="blocked-btn secondary">
+          <span>✕ Close Tab</span>
+        </button>
       </div>
     `;
     
     return `
-      <div class="blocked-container">
+      <div class="blocked-content">
         <div class="blocked-icon">${icon}</div>
-        <h1>${title}</h1>
+        <h1 class="blocked-title">${title}</h1>
         <div class="blocked-message">
           ${message}
         </div>
-        <div class="blocked-url">
+        <div class="blocked-site">
           ${blockedURL}
         </div>
         ${timerInfo}
         ${workHoursInfo}
         ${redirectContent}
         ${navigationHelp}
-        <div class="blocked-time">
+        <div class="blocked-footer">
           Blocked at: ${currentTime}
         </div>
       </div>
@@ -289,23 +280,23 @@ export class BlockedPageUI {
     switch (this.currentTimerState) {
       case 'WORK':
         return `
-          <div class="timer-status-info timer-work-active">
-            <h4>🍅 Pomodoro Timer Active</h4>
-            <p class="timer-status-text">You're currently in a work session. The floating timer remains visible.</p>
+          <div class="blocked-timer-info">
+            <div class="blocked-timer-status">🍅 Pomodoro Timer Active</div>
+            <div class="blocked-timer-note">You're currently in a work session. The floating timer remains visible.</div>
           </div>
         `;
       case 'REST':
         return `
-          <div class="timer-status-info timer-rest-active">
-            <h4>☕ Break Time</h4>
-            <p class="timer-status-text">You're currently on a break. The floating timer remains visible.</p>
+          <div class="blocked-timer-info" style="background: rgba(76, 175, 80, 0.2) !important; border-color: rgba(76, 175, 80, 0.4) !important;">
+            <div class="blocked-timer-status">☕ Break Time</div>
+            <div class="blocked-timer-note">You're currently on a break. The floating timer remains visible.</div>
           </div>
         `;
       case 'PAUSED':
         return `
-          <div class="timer-status-info timer-paused">
-            <h4>⏸️ Timer Paused</h4>
-            <p class="timer-status-text">Your pomodoro timer is paused. The floating timer remains visible.</p>
+          <div class="blocked-timer-info" style="background: rgba(255, 152, 0, 0.2) !important; border-color: rgba(255, 152, 0, 0.4) !important;">
+            <div class="blocked-timer-status">⏸️ Timer Paused</div>
+            <div class="blocked-timer-note">Your pomodoro timer is paused. The floating timer remains visible.</div>
           </div>
         `;
       default:
@@ -341,458 +332,6 @@ export class BlockedPageUI {
     `;
   }
 
-  /**
-   * Generate CSS styles for blocked page
-   */
-  private generateCSS(): string {
-    return `
-      /* Reset and base styles with high specificity */
-      #pomoblock-overlay * {
-        box-sizing: border-box !important;
-        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif !important;
-      }
-      
-      .blocked-container {
-        text-align: center !important;
-        background: rgba(255, 255, 255, 0.1) !important;
-        backdrop-filter: blur(10px) !important;
-        border-radius: 20px !important;
-        padding: 60px 40px !important;
-        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3) !important;
-        border: 1px solid rgba(255, 255, 255, 0.2) !important;
-        max-width: 700px !important;
-        margin: 20px !important;
-        color: white !important;
-      }
-      
-      .blocked-icon {
-        font-size: 80px !important;
-        margin-bottom: 30px !important;
-        color: #ff6b6b !important;
-        animation: pulse 2s infinite !important;
-      }
-      
-      /* Timer-specific icon colors */
-      .timer-work-active .blocked-icon {
-        color: #ff6b6b !important;
-      }
-      
-      .timer-paused .blocked-icon {
-        color: #FF9800 !important;
-      }
-      
-      .timer-rest-active .blocked-icon {
-        color: #4CAF50 !important;
-      }
-      
-      #pomoblock-overlay h1 {
-        font-size: 2.5em !important;
-        margin-bottom: 20px !important;
-        color: white !important;
-        font-weight: 600 !important;
-        text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3) !important;
-        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif !important;
-      }
-      
-      .blocked-message {
-        font-size: 1.2em !important;
-        color: rgba(255, 255, 255, 0.9) !important;
-        margin-bottom: 30px !important;
-        line-height: 1.6 !important;
-      }
-      
-      .blocked-url {
-        background: rgba(255, 255, 255, 0.1) !important;
-        border-radius: 10px !important;
-        padding: 15px !important;
-        margin: 20px 0 !important;
-        color: #ffd93d !important;
-        font-family: 'Courier New', monospace !important;
-        font-size: 1.1em !important;
-        word-break: break-all !important;
-      }
-
-      /* Timer Status Info Styles */
-      .timer-status-info {
-        background: rgba(255, 255, 255, 0.1) !important;
-        border-radius: 12px !important;
-        padding: 20px !important;
-        margin: 25px 0 !important;
-        border: 2px solid rgba(255, 255, 255, 0.2) !important;
-        text-align: left !important;
-      }
-
-      .timer-status-info.timer-work-active {
-        background: rgba(244, 67, 54, 0.2) !important;
-        border-color: rgba(244, 67, 54, 0.5) !important;
-      }
-
-      .timer-status-info.timer-paused {
-        background: rgba(255, 152, 0, 0.2) !important;
-        border-color: rgba(255, 152, 0, 0.5) !important;
-      }
-
-      .timer-status-info.timer-rest-active {
-        background: rgba(76, 175, 80, 0.2) !important;
-        border-color: rgba(76, 175, 80, 0.5) !important;
-      }
-
-      .timer-status-info h4 {
-        font-size: 1.2em !important;
-        margin-bottom: 10px !important;
-        color: white !important;
-        font-weight: 600 !important;
-        display: flex !important;
-        align-items: center !important;
-        gap: 8px !important;
-      }
-
-      .timer-status-text {
-        font-size: 1em !important;
-        color: rgba(255, 255, 255, 0.9) !important;
-        margin-bottom: 15px !important;
-        font-weight: 500 !important;
-      }
-
-      /* Work Hours Info Styles */
-      .work-hours-info {
-        background: rgba(255, 255, 255, 0.1) !important;
-        border-radius: 12px !important;
-        padding: 20px !important;
-        margin: 25px 0 !important;
-        border: 2px solid rgba(255, 255, 255, 0.2) !important;
-        text-align: left !important;
-      }
-
-      .work-hours-info.work-hours-active {
-        background: rgba(76, 175, 80, 0.2) !important;
-        border-color: rgba(76, 175, 80, 0.5) !important;
-      }
-
-      .work-hours-info.work-hours-inactive {
-        background: rgba(255, 152, 0, 0.2) !important;
-        border-color: rgba(255, 152, 0, 0.5) !important;
-      }
-
-      .work-hours-info h4 {
-        font-size: 1.2em !important;
-        margin-bottom: 10px !important;
-        color: white !important;
-        font-weight: 600 !important;
-        display: flex !important;
-        align-items: center !important;
-        gap: 8px !important;
-      }
-
-      .work-hours-status-text {
-        font-size: 1em !important;
-        color: rgba(255, 255, 255, 0.9) !important;
-        margin-bottom: 15px !important;
-        font-weight: 500 !important;
-      }
-
-      .work-hours-details {
-        background: rgba(255, 255, 255, 0.1) !important;
-        border-radius: 8px !important;
-        padding: 12px !important;
-        margin-bottom: 10px !important;
-      }
-
-      .work-hours-details p {
-        margin: 5px 0 !important;
-        font-size: 0.9em !important;
-        color: rgba(255, 255, 255, 0.8) !important;
-      }
-
-      .work-hours-note {
-        font-size: 0.9em !important;
-        color: #FFD93D !important;
-        font-weight: 500 !important;
-        margin-top: 10px !important;
-        padding: 8px 12px !important;
-        background: rgba(255, 217, 61, 0.2) !important;
-        border-radius: 6px !important;
-        border: 1px solid rgba(255, 217, 61, 0.3) !important;
-      }
-
-      
-      .redirect-info {
-        background: rgba(255, 152, 0, 0.2) !important;
-        border: 2px solid rgba(255, 152, 0, 0.5) !important;
-        border-radius: 15px !important;
-        padding: 25px !important;
-        margin: 25px 0 !important;
-        color: white !important;
-      }
-      
-      .redirect-info h3 {
-        font-size: 1.3em !important;
-        margin-bottom: 15px !important;
-        color: #FFD93D !important;
-        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif !important;
-      }
-      
-      .redirect-info p {
-        margin-bottom: 15px !important;
-        font-size: 1em !important;
-        color: rgba(255, 255, 255, 0.9) !important;
-      }
-      
-      #countdown-seconds {
-        font-size: 1.2em !important;
-        font-weight: bold !important;
-        color: #FFD93D !important;
-        background: rgba(255, 217, 61, 0.2) !important;
-        padding: 2px 8px !important;
-        border-radius: 5px !important;
-      }
-      
-      .progress-container {
-        width: 100% !important;
-        height: 8px !important;
-        background: rgba(255, 255, 255, 0.2) !important;
-        border-radius: 4px !important;
-        margin: 20px 0 !important;
-        overflow: hidden !important;
-      }
-      
-      .progress-bar {
-        height: 100% !important;
-        background: linear-gradient(90deg, #FFD93D 0%, #FF9800 100%) !important;
-        border-radius: 4px !important;
-        width: 100% !important;
-        transform: translateX(-100%) !important;
-        transition: transform 0.1s linear !important;
-      }
-      
-      .progress-bar.running {
-        animation: progressAnimation linear forwards !important;
-      }
-      
-      @keyframes progressAnimation {
-        from { transform: translateX(-100%) !important; }
-        to { transform: translateX(0%) !important; }
-      }
-      
-      .navigation-help {
-        background: rgba(76, 175, 80, 0.1) !important;
-        border: 2px solid rgba(76, 175, 80, 0.3) !important;
-        border-radius: 15px !important;
-        padding: 25px !important;
-        margin: 25px 0 !important;
-        color: white !important;
-      }
-      
-      .navigation-help h4 {
-        font-size: 1.2em !important;
-        margin-bottom: 15px !important;
-        color: #4CAF50 !important;
-        font-weight: 600 !important;
-        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif !important;
-      }
-      
-      .navigation-help p {
-        margin-bottom: 20px !important;
-        color: rgba(255, 255, 255, 0.9) !important;
-        font-size: 0.95em !important;
-        line-height: 1.5 !important;
-      }
-      
-      #pomoblock-overlay kbd {
-        background: rgba(255, 255, 255, 0.2) !important;
-        border: 1px solid rgba(255, 255, 255, 0.3) !important;
-        border-radius: 4px !important;
-        padding: 3px 8px !important;
-        font-size: 0.85em !important;
-        font-family: 'Courier New', monospace !important;
-        color: #FFD93D !important;
-        font-weight: bold !important;
-        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2) !important;
-      }
-      
-      .navigation-buttons {
-        display: flex !important;
-        gap: 15px !important;
-        justify-content: center !important;
-        flex-wrap: wrap !important;
-        margin-top: 20px !important;
-      }
-      
-      /* High specificity button styles to override site CSS */
-      #pomoblock-overlay .navigation-buttons .nav-btn,
-      #pomoblock-overlay .nav-btn,
-      #pomoblock-overlay button.nav-btn {
-        /* Reset all potentially inherited styles */
-        all: unset !important;
-        
-        /* Apply our specific styles */
-        background: #4CAF50 !important;
-        color: white !important;
-        border: none !important;
-        border-radius: 10px !important;
-        padding: 14px 24px !important;
-        font-size: 1em !important;
-        font-weight: 700 !important;
-        cursor: pointer !important;
-        transition: all 0.3s ease !important;
-        text-transform: uppercase !important;
-        letter-spacing: 0.5px !important;
-        box-shadow: 0 4px 15px rgba(76, 175, 80, 0.3) !important;
-        display: flex !important;
-        align-items: center !important;
-        gap: 8px !important;
-        min-width: 140px !important;
-        justify-content: center !important;
-        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif !important;
-        border: 2px solid transparent !important;
-        box-sizing: border-box !important;
-        text-decoration: none !important;
-        outline: none !important;
-        
-        /* Override common site-specific properties */
-        height: auto !important;
-        line-height: normal !important;
-        width: auto !important;
-        max-width: none !important;
-        min-height: auto !important;
-        white-space: nowrap !important;
-        text-overflow: clip !important;
-        overflow: visible !important;
-        text-align: center !important;
-        vertical-align: baseline !important;
-        margin: 0 !important;
-        position: relative !important;
-        z-index: auto !important;
-        transform: none !important;
-        opacity: 1 !important;
-        visibility: visible !important;
-      }
-      
-      #pomoblock-overlay .navigation-buttons .nav-btn:hover,
-      #pomoblock-overlay .nav-btn:hover,
-      #pomoblock-overlay button.nav-btn:hover {
-        background: #45a049 !important;
-        transform: translateY(-3px) !important;
-        box-shadow: 0 6px 20px rgba(76, 175, 80, 0.4) !important;
-        border-color: rgba(255, 255, 255, 0.2) !important;
-      }
-      
-      #pomoblock-overlay .navigation-buttons .nav-btn:active,
-      #pomoblock-overlay .nav-btn:active,
-      #pomoblock-overlay button.nav-btn:active {
-        transform: translateY(-1px) !important;
-        box-shadow: 0 3px 10px rgba(76, 175, 80, 0.3) !important;
-      }
-      
-      #pomoblock-overlay .close-btn {
-        background: #f44336 !important;
-        box-shadow: 0 4px 15px rgba(244, 67, 54, 0.3) !important;
-      }
-      
-      #pomoblock-overlay .close-btn:hover {
-        background: #da190b !important;
-        box-shadow: 0 6px 20px rgba(244, 67, 54, 0.4) !important;
-        border-color: rgba(255, 255, 255, 0.2) !important;
-      }
-      
-      #pomoblock-overlay .close-btn:active {
-        box-shadow: 0 3px 10px rgba(244, 67, 54, 0.3) !important;
-      }
-      
-      #pomoblock-overlay .alternative-btn {
-        background: #FF9800 !important;
-        box-shadow: 0 4px 15px rgba(255, 152, 0, 0.3) !important;
-      }
-      
-      #pomoblock-overlay .alternative-btn:hover {
-        background: #f57c00 !important;
-        box-shadow: 0 6px 20px rgba(255, 152, 0, 0.4) !important;
-        border-color: rgba(255, 255, 255, 0.2) !important;
-      }
-      
-      #pomoblock-overlay .alternative-btn:active {
-        box-shadow: 0 3px 10px rgba(255, 152, 0, 0.3) !important;
-      }
-      
-      #pomoblock-overlay .cancel-btn {
-        background: rgba(244, 67, 54, 0.8) !important;
-        color: white !important;
-        border: 2px solid #f44336 !important;
-        padding: 12px 24px !important;
-        border-radius: 10px !important;
-        font-size: 0.95em !important;
-        font-weight: 600 !important;
-        cursor: pointer !important;
-        transition: all 0.3s ease !important;
-        margin-top: 15px !important;
-        text-transform: uppercase !important;
-        letter-spacing: 0.5px !important;
-        box-shadow: 0 4px 15px rgba(244, 67, 54, 0.3) !important;
-        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif !important;
-        height: auto !important;
-        line-height: normal !important;
-        width: auto !important;
-        display: inline-block !important;
-      }
-      
-      #pomoblock-overlay .cancel-btn:hover {
-        background: #f44336 !important;
-        transform: translateY(-2px) !important;
-        box-shadow: 0 6px 20px rgba(244, 67, 54, 0.4) !important;
-      }
-      
-      .blocked-time {
-        color: rgba(255, 255, 255, 0.7) !important;
-        font-size: 0.9em !important;
-        margin-top: 20px !important;
-      }
-      
-      .button-icon {
-        font-size: 1.1em !important;
-        font-weight: bold !important;
-        display: inline-block !important;
-      }
-      
-      @keyframes pulse {
-        0% { transform: scale(1) !important; }
-        50% { transform: scale(1.1) !important; }
-        100% { transform: scale(1) !important; }
-      }
-      
-      @media (max-width: 600px) {
-        .blocked-container {
-          padding: 40px 20px !important;
-          margin: 10px !important;
-          max-width: 95% !important;
-        }
-        
-        #pomoblock-overlay h1 {
-          font-size: 2em !important;
-        }
-        
-        .blocked-icon {
-          font-size: 60px !important;
-        }
-        
-        .navigation-buttons {
-          flex-direction: column !important;
-          align-items: center !important;
-        }
-        
-        #pomoblock-overlay .nav-btn {
-          width: 100% !important;
-          max-width: 280px !important;
-          margin: 5px 0 !important;
-        }
-        
-        .navigation-help,
-        .work-hours-info,
-        .timer-status-info {
-          padding: 20px !important;
-        }
-      }
-    `;
-  }
 
   /**
    * Set up keyboard handlers for navigation

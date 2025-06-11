@@ -69,7 +69,8 @@ module.exports = (env, argv) => {
         patterns: [
           { from: 'manifest.json', to: 'manifest.json' },
           { from: 'icons', to: 'icons', noErrorOnMissing: true },
-          { from: 'readme.md', to: 'readme.md' }
+          { from: 'readme.md', to: 'readme.md' },
+          { from: 'src/shared', to: 'shared', globOptions: { ignore: ['**/*.ts'] } }
         ]
       })
     ],

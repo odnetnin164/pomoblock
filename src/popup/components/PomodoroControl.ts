@@ -426,24 +426,25 @@ export class PomodoroControl {
   private updateContainerStyling(state: TimerState): void {
     // Remove all state classes
     this.container.classList.remove('timer-work', 'timer-rest', 'timer-paused', 'timer-stopped');
+    this.progressBar.classList.remove('progress-work', 'progress-rest', 'progress-paused', 'progress-stopped');
     
-    // Add current state class and update circle color
+    // Add current state class
     switch (state) {
       case 'WORK':
         this.container.classList.add('timer-work');
-        this.progressBar.style.stroke = '#f44336';
+        this.progressBar.classList.add('progress-work');
         break;
       case 'REST':
         this.container.classList.add('timer-rest');
-        this.progressBar.style.stroke = '#4CAF50';
+        this.progressBar.classList.add('progress-rest');
         break;
       case 'PAUSED':
         this.container.classList.add('timer-paused');
-        this.progressBar.style.stroke = '#FF9800';
+        this.progressBar.classList.add('progress-paused');
         break;
       default:
         this.container.classList.add('timer-stopped');
-        this.progressBar.style.stroke = '#9E9E9E';
+        this.progressBar.classList.add('progress-stopped');
         break;
     }
   }

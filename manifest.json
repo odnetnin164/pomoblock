@@ -50,6 +50,7 @@
         "icons/*",
         "*.css",
         "*.js",
+        "shared/*.css",
         "history.html"
       ],
       "matches": [
