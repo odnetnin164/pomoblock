@@ -1,4 +1,23 @@
-/* Floating Timer Widget Styles */
+/* Floating Timer Widget Styles - Maximum CSS Isolation */
+#pomoblock-floating-timer,
+#pomoblock-floating-timer *,
+#pomoblock-floating-timer *::before,
+#pomoblock-floating-timer *::after {
+  all: unset !important;
+  box-sizing: border-box !important;
+}
+
+/* Ultra-high specificity for aggressive sites like Reddit */
+html body #pomoblock-floating-timer,
+html body #pomoblock-floating-timer *,
+html body #pomoblock-floating-timer *::before,
+html body #pomoblock-floating-timer *::after {
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif !important;
+  font-size: 14px !important;
+  font-weight: normal !important;
+  color: white !important;
+}
+
 #pomoblock-floating-timer {
   position: fixed !important;
   width: 280px !important;
@@ -31,7 +50,8 @@
   border-color: rgba(255, 152, 0, 0.6) !important;
 }
 
-.timer-bar-content {
+#pomoblock-floating-timer .timer-bar-content {
+  all: unset !important;
   width: 100% !important;
   height: 100% !important;
   display: flex !important;
@@ -39,7 +59,8 @@
   position: relative !important;
 }
 
-.timer-control-btn {
+#pomoblock-floating-timer .timer-control-btn {
+  all: unset !important;
   width: 40px !important;
   height: 40px !important;
   border-radius: 50% !important;
@@ -55,19 +76,25 @@
   margin-right: 8px !important;
   transition: all 0.2s ease !important;
   flex-shrink: 0 !important;
+  box-sizing: border-box !important;
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif !important;
+  text-align: center !important;
+  vertical-align: middle !important;
+  line-height: 1 !important;
 }
 
-.timer-control-btn:hover:not(.disabled) {
+#pomoblock-floating-timer .timer-control-btn:hover:not(.disabled) {
   background: rgba(255, 255, 255, 0.3) !important;
   transform: scale(1.1) !important;
 }
 
-.timer-control-btn.disabled {
+#pomoblock-floating-timer .timer-control-btn.disabled {
   opacity: 0.5 !important;
   cursor: not-allowed !important;
 }
 
-.timer-progress-container {
+#pomoblock-floating-timer .timer-progress-container {
+  all: unset !important;
   flex: 1 !important;
   height: 30px !important;
   position: relative !important;
@@ -77,7 +104,8 @@
   margin-right: 8px !important;
 }
 
-.timer-progress-bar {
+#pomoblock-floating-timer .timer-progress-bar {
+  all: unset !important;
   height: 100% !important;
   border-radius: 15px !important;
   transition: width 1s ease !important;
@@ -86,23 +114,24 @@
   top: 0 !important;
 }
 
-.timer-progress-bar.work {
+#pomoblock-floating-timer .timer-progress-bar.work {
   background: linear-gradient(90deg, #f44336 0%, #ff6b6b 100%) !important;
 }
 
-.timer-progress-bar.rest {
+#pomoblock-floating-timer .timer-progress-bar.rest {
   background: linear-gradient(90deg, #4CAF50 0%, #66BB6A 100%) !important;
 }
 
-.timer-progress-bar.paused {
+#pomoblock-floating-timer .timer-progress-bar.paused {
   background: linear-gradient(90deg, #FF9800 0%, #FFB74D 100%) !important;
 }
 
-.timer-progress-bar.stopped {
+#pomoblock-floating-timer .timer-progress-bar.stopped {
   background: linear-gradient(90deg, #9E9E9E 0%, #BDBDBD 100%) !important;
 }
 
-.timer-text-overlay {
+#pomoblock-floating-timer .timer-text-overlay {
+  all: unset !important;
   position: absolute !important;
   top: 50% !important;
   left: 50% !important;
@@ -116,7 +145,8 @@
   font-family: 'Courier New', monospace !important;
 }
 
-.timer-close-btn {
+#pomoblock-floating-timer .timer-close-btn {
+  all: unset !important;
   width: 30px !important;
   height: 30px !important;
   border-radius: 50% !important;
@@ -132,9 +162,47 @@
   margin-right: 5px !important;
   transition: all 0.2s ease !important;
   flex-shrink: 0 !important;
+  box-sizing: border-box !important;
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif !important;
+  text-align: center !important;
+  vertical-align: middle !important;
+  line-height: 1 !important;
 }
 
-.timer-close-btn:hover {
+#pomoblock-floating-timer .timer-close-btn:hover {
   background: rgba(255, 255, 255, 0.3) !important;
   transform: scale(1.1) !important;
+}
+
+/* Reddit-specific ultra-high specificity font overrides */
+html body div#pomoblock-floating-timer,
+html body #pomoblock-floating-timer,
+html body div#pomoblock-floating-timer .timer-text-overlay,
+html body #pomoblock-floating-timer .timer-text-overlay,
+html body div#pomoblock-floating-timer .timer-control-btn,
+html body #pomoblock-floating-timer .timer-control-btn,
+html body div#pomoblock-floating-timer .timer-close-btn,
+html body #pomoblock-floating-timer .timer-close-btn {
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif !important;
+  color: white !important;
+}
+
+/* Specific font sizes for Reddit override */
+html body div#pomoblock-floating-timer .timer-text-overlay,
+html body #pomoblock-floating-timer .timer-text-overlay {
+  font-size: 14px !important;
+  font-weight: 600 !important;
+  font-family: 'Courier New', monospace !important;
+}
+
+html body div#pomoblock-floating-timer .timer-control-btn,
+html body #pomoblock-floating-timer .timer-control-btn {
+  font-size: 16px !important;
+  font-weight: normal !important;
+}
+
+html body div#pomoblock-floating-timer .timer-close-btn,
+html body #pomoblock-floating-timer .timer-close-btn {
+  font-size: 18px !important;
+  font-weight: bold !important;
 }
