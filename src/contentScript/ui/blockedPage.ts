@@ -87,13 +87,13 @@ export class BlockedPageUI {
   private updatePageTitle(): void {
     switch (this.currentTimerState) {
       case 'WORK':
-        document.title = '🍅 Focus Time - Site Blocked';
+        document.title = '🍅 BLOCKED - Focus Time ';
         break;
       case 'PAUSED':
-        document.title = '⏸️ Timer Paused - Site Blocked';
+        document.title = '⏸️ BLOCKED - Timer Paused';
         break;
       default:
-        document.title = '🚫 Site Blocked - PomoBlock';
+        document.title = '🚫 BLOCKED - PomoBlock';
         break;
     }
   }

@@ -524,6 +524,8 @@ export class FloatingTimer {
       if (message.type === 'TIMER_UPDATE' && message.data.timerStatus) {
         this.updateStatus(message.data.timerStatus);
       } else if (message.type === 'TIMER_COMPLETE') {
+        // Add vibration when session completes
+        this.triggerVibration();
         // Refresh status after timer completion
         this.requestTimerStatus();
       } else if (message.type === 'UPDATE_FLOATING_TIMER') {
@@ -614,6 +616,77 @@ export class FloatingTimer {
       await chrome.runtime.sendMessage({ type, ...data });
     } catch (error) {
       logger.log('Error sending message:', error);
+    }
+  }
+
+  /**
+   * Trigger vibration when session completes
+   */
+  private triggerVibration(): void {
+    // Trigger haptic vibration if supported
+    if (navigator.vibrate) {
+      try {
+        // Vibrate for 500ms, pause 200ms, vibrate 300ms
+        // This creates a distinctive pattern for session completion
+        navigator.vibrate([500, 200, 300]);
+        logger.log('Session completion haptic vibration triggered');
+      } catch (error) {
+        logger.log('Error triggering haptic vibration:', error);
+      }
+    } else {
+      logger.log('Haptic vibration API not supported');
+    }
+
+    // Always trigger visual vibration effect
+    this.triggerVisualVibration();
+  }
+
+  /**
+   * Trigger visual vibration effect on the widget
+   */
+  private triggerVisualVibration(): void {
+    if (!this.widget) {
+      logger.log('No widget available for visual vibration');
+      return;
+    }
+
+    try {
+      // Add shake animation class
+      this.widget.style.animation = 'shake 0.6s ease-in-out';
+      
+      // Add shake keyframes to the document if not already present
+      const styleId = 'pomoblock-shake-animation';
+      if (!document.getElementById(styleId)) {
+        const shakeStyle = document.createElement('style');
+        shakeStyle.id = styleId;
+        shakeStyle.textContent = `
+          @keyframes shake {
+            0% { transform: translate(0, 0) rotate(0deg); }
+            10% { transform: translate(-5px, -2px) rotate(-1deg); }
+            20% { transform: translate(5px, 2px) rotate(1deg); }
+            30% { transform: translate(-5px, 2px) rotate(0deg); }
+            40% { transform: translate(5px, -2px) rotate(1deg); }
+            50% { transform: translate(-2px, 5px) rotate(-1deg); }
+            60% { transform: translate(2px, -5px) rotate(0deg); }
+            70% { transform: translate(-5px, -2px) rotate(-1deg); }
+            80% { transform: translate(5px, 2px) rotate(1deg); }
+            90% { transform: translate(-2px, -2px) rotate(0deg); }
+            100% { transform: translate(0, 0) rotate(0deg); }
+          }
+        `;
+        document.head.appendChild(shakeStyle);
+      }
+
+      // Remove animation after it completes
+      setTimeout(() => {
+        if (this.widget) {
+          this.widget.style.animation = '';
+        }
+      }, 600);
+
+      logger.log('Session completion visual vibration triggered');
+    } catch (error) {
+      logger.log('Error triggering visual vibration:', error);
     }
   }
 

@@ -349,6 +349,12 @@ body {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 8px;
+  cursor: pointer;
+  padding: 8px;
+  margin: -8px -8px -8px -8px;
+  border-radius: var(--border-radius-md);
+  transition: all 0.3s ease;
+  user-select: none;
 }
 
 .block-type-title {
@@ -361,14 +367,21 @@ body {
   background: none;
   border: none;
   color: white;
-  font-size: 0.8em;
+  font-size: 1em;
   cursor: pointer;
-  opacity: 0.7;
-  transition: opacity 0.3s ease;
+  opacity: 0.8;
+  transition: all 0.3s ease;
+  padding: 4px;
+  border-radius: 4px;
 }
 
-.block-type-toggle:hover {
+.block-type-header:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.block-type-header:hover .block-type-toggle {
   opacity: 1;
+  transform: scale(1.1);
 }
 
 .block-options {
@@ -379,6 +392,7 @@ body {
 
 .block-options.expanded {
   display: flex;
+  margin-top: 8px;
 }
 
 .block-option {

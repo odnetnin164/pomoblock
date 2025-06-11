@@ -19,6 +19,7 @@ class PopupManager {
   private optionsButton: HTMLButtonElement;
   private historyButton: HTMLButtonElement;
   private blockTypeSection: HTMLElement;
+  private blockTypeHeader: HTMLElement;
   private blockTypeToggle: HTMLButtonElement;
   private blockOptionsContainer: HTMLElement;
   private floatingTimerToggle: HTMLInputElement;
@@ -35,6 +36,7 @@ class PopupManager {
     this.optionsButton = document.getElementById('optionsButton') as HTMLButtonElement;
     this.historyButton = document.getElementById('historyButton') as HTMLButtonElement;
     this.blockTypeSection = document.getElementById('blockTypeSection')!;
+    this.blockTypeHeader = document.getElementById('blockTypeHeader')!;
     this.blockTypeToggle = document.getElementById('blockTypeToggle') as HTMLButtonElement;
     this.blockOptionsContainer = document.getElementById('blockOptions')!;
     this.floatingTimerToggle = document.getElementById('floatingTimerToggle') as HTMLInputElement;
@@ -211,7 +213,7 @@ class PopupManager {
     this.blockCurrentButton.addEventListener('click', () => this.handleBlockAction());
     this.optionsButton.addEventListener('click', () => this.openOptionsPage());
     this.historyButton.addEventListener('click', () => this.openHistoryPage());
-    this.blockTypeToggle.addEventListener('click', () => this.toggleBlockOptions());
+    this.blockTypeHeader.addEventListener('click', () => this.toggleBlockOptions());
     this.floatingTimerToggle.addEventListener('change', () => this.handleFloatingTimerToggle());
     
     // Load initial floating timer settings
