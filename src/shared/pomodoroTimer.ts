@@ -714,7 +714,7 @@ export class PomodoroTimer {
       const nextType = this.status.nextSessionType || 'WORK';
       return nextType !== 'WORK';
     } else {
-      return true; // Always disabled when timer is running
+      return false; // Allow editing when timer is running
     }
   }
 

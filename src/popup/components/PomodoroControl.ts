@@ -229,13 +229,13 @@ export class PomodoroControl {
    * Handle start action (starts next appropriate session)
    */
   private async handleStartAction(): Promise<void> {
-    const task = this.taskInput.value.trim();
+    const task = this.taskInput.value;
     
     try {
       if (this.currentStatus.nextSessionType === 'WORK') {
         await chrome.runtime.sendMessage({ 
           type: 'START_WORK', 
-          task: task || `Work Session #${this.currentStatus.sessionCount + 1}`
+          task: task.trim() || `Work Session #${this.currentStatus.sessionCount + 1}`
         });
       } else {
         await chrome.runtime.sendMessage({ type: 'START_REST' });
@@ -292,7 +292,7 @@ export class PomodoroControl {
    * Update task description
    */
   private async updateTask(): Promise<void> {
-    const task = this.taskInput.value.trim();
+    const task = this.taskInput.value; // Don't trim to preserve trailing spaces
     
     try {
       await chrome.runtime.sendMessage({ 
@@ -405,7 +405,7 @@ export class PomodoroControl {
         this.startBtn.innerHTML = `<span class="player-icon">⏸</span>`;
         this.startBtn.className = 'player-btn pause-btn';
         this.stopBtn.disabled = false;
-        this.taskInput.disabled = true;
+        this.taskInput.disabled = false; // Allow editing during timer
         break;
         
       case 'PAUSED':
@@ -413,7 +413,7 @@ export class PomodoroControl {
         this.startBtn.innerHTML = `<span class="player-icon">▶</span>`;
         this.startBtn.className = 'player-btn play-btn';
         this.stopBtn.disabled = false;
-        this.taskInput.disabled = true;
+        this.taskInput.disabled = false; // Allow editing when paused
         break;
     }
   }
