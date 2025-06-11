@@ -312,19 +312,31 @@ export class BackgroundPomodoroManager {
         return { text: '', color: '#4CAF50' };
       case 'WORK':
         return { 
-          text: Math.ceil(status.timeRemaining / 60).toString(), 
+          text: this.formatTimeForBadge(status.timeRemaining), 
           color: '#f44336' 
         };
       case 'REST':
         return { 
-          text: Math.ceil(status.timeRemaining / 60).toString(), 
+          text: this.formatTimeForBadge(status.timeRemaining), 
           color: '#4CAF50' 
         };
       case 'PAUSED':
-        return { text: '⏸', color: '#FF9800' };
+        return { 
+          text: this.formatTimeForBadge(status.timeRemaining), 
+          color: '#FF9800' 
+        };
       default:
         return { text: '', color: '#4CAF50' };
     }
+  }
+
+  /**
+   * Format time for badge display (MM:SS)
+   */
+  private formatTimeForBadge(seconds: number): string {
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
   }
 
   /**
@@ -337,7 +349,7 @@ export class BackgroundPomodoroManager {
     
     this.badgeUpdateInterval = setInterval(() => {
       this.updateBadge();
-    }, 10000); // Update every 10 seconds
+    }, 1000); // Update every second for real-time timer display
   }
 
   /**

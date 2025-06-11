@@ -118,7 +118,7 @@ export class PomodoroSettingsManager {
               
               <div class="duration-input-group">
                 <label for="longRestInterval">Long Break Every:</label>
-                <input type="number" id="longRestInterval" min="2" max="10" value="4">
+                <input type="number" class="smallOptionsInput" id="longRestInterval" min="2" max="10" value="4">
                 <span class="duration-unit">sessions</span>
               </div>
             </div>

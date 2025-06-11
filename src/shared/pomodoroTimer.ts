@@ -643,10 +643,22 @@ export class PomodoroTimer {
       
       return { sessionText, sessionIcon, sessionNumber };
     } else {
-      // Show current session info
-      const sessionNumber = this.status.sessionCount + (this.status.state === 'WORK' ? 1 : 0);
-      const sessionIcon = this.status.state === 'WORK' ? '🍅' : '☕';
-      const sessionText = this.status.state === 'WORK' ? 
+      // Show current session info (including when paused)
+      let currentSessionType: 'WORK' | 'REST';
+      
+      if (this.status.state === 'PAUSED') {
+        // For paused state, determine what type of session was paused
+        // If last completed was REST (or no sessions yet), current is WORK
+        // If last completed was WORK, current is REST
+        currentSessionType = (this.status.lastCompletedSessionType === 'WORK') ? 'REST' : 'WORK';
+      } else {
+        // For WORK/REST states, use the current state
+        currentSessionType = this.status.state as 'WORK' | 'REST';
+      }
+      
+      const sessionNumber = this.status.sessionCount + (currentSessionType === 'WORK' ? 1 : 0);
+      const sessionIcon = currentSessionType === 'WORK' ? '🍅' : '☕';
+      const sessionText = currentSessionType === 'WORK' ? 
         `#${sessionNumber} - Work` : 
         `#${sessionNumber} - Break`;
       
