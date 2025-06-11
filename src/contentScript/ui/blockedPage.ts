@@ -8,6 +8,7 @@ export class BlockedPageUI {
   private originalTitle: string = '';
   private blockOverlay: HTMLElement | null = null;
   private redirectCountdownInterval: number | null = null;
+  private currentTimerState: string = 'STOPPED';
 
   constructor(settings: ExtensionSettings) {
     this.settings = settings;
@@ -21,6 +22,13 @@ export class BlockedPageUI {
   }
 
   /**
+   * Set current timer state for appropriate messaging
+   */
+  setTimerState(timerState: string): void {
+    this.currentTimerState = timerState;
+  }
+
+  /**
    * Check if page is currently blocked
    */
   isPageBlocked(): boolean {
@@ -31,7 +39,7 @@ export class BlockedPageUI {
    * Create blocked page with overlay approach (preserves history)
    */
   createBlockedPage(isRedirectMode: boolean = false): void {
-    logger.log('Creating blocked page overlay', { isRedirectMode });
+    logger.log('Creating blocked page overlay', { isRedirectMode, timerState: this.currentTimerState });
     
     // Don't block if already blocked
     if (this.isBlocked) {
@@ -50,11 +58,28 @@ export class BlockedPageUI {
     this.createBlockOverlay(isRedirectMode);
     this.isBlocked = true;
     
-    // Update page title
-    document.title = '🚫 Site Blocked - PomoBlock';
+    // Update page title based on timer state
+    this.updatePageTitle();
     
     if (isRedirectMode) {
       this.startRedirectCountdown();
+    }
+  }
+
+  /**
+   * Update page title based on timer state
+   */
+  private updatePageTitle(): void {
+    switch (this.currentTimerState) {
+      case 'WORK':
+        document.title = '🍅 Focus Time - Site Blocked';
+        break;
+      case 'PAUSED':
+        document.title = '⏸️ Timer Paused - Site Blocked';
+        break;
+      default:
+        document.title = '🚫 Site Blocked - PomoBlock';
+        break;
     }
   }
 
@@ -86,6 +111,12 @@ export class BlockedPageUI {
       document.body.style.overflow = '';
       
       this.isBlocked = false;
+      
+      // Dispatch event that blocked page was removed
+      window.dispatchEvent(new CustomEvent('pomoblock-page-unblocked', {
+        detail: { blocked: false }
+      }));
+      
       logger.log('Blocked page overlay removed and page state restored');
     }
   }
@@ -144,6 +175,9 @@ export class BlockedPageUI {
     // Handle escape key to go back
     this.setupKeyboardHandlers();
     
+    // Ensure floating timer remains visible by sending a message to refresh it
+    this.ensureFloatingTimerVisible();
+    
     logger.log('Block overlay created and added to page');
   }
 
@@ -154,8 +188,14 @@ export class BlockedPageUI {
     const currentTime = new Date().toLocaleString();
     const blockedURL = window.location.hostname + window.location.pathname;
     
+    // Get appropriate block message and icon based on timer state
+    const { message, icon, title } = this.getBlockMessageAndIcon();
+    
     // Work hours information
     const workHoursInfo = this.generateWorkHoursInfo();
+    
+    // Timer-specific information
+    const timerInfo = this.generateTimerInfo();
     
     const redirectContent = isRedirectMode ? `
       <div class="redirect-info">
@@ -191,14 +231,15 @@ export class BlockedPageUI {
     
     return `
       <div class="blocked-container">
-        <div class="blocked-icon">🚫</div>
-        <h1>Access Blocked</h1>
+        <div class="blocked-icon">${icon}</div>
+        <h1>${title}</h1>
         <div class="blocked-message">
-          This website has been blocked by PomoBlock extension.
+          ${message}
         </div>
         <div class="blocked-url">
           ${blockedURL}
         </div>
+        ${timerInfo}
         ${workHoursInfo}
         ${redirectContent}
         ${navigationHelp}
@@ -207,6 +248,69 @@ export class BlockedPageUI {
         </div>
       </div>
     `;
+  }
+
+  /**
+   * Get appropriate block message and icon based on timer state
+   */
+  private getBlockMessageAndIcon(): { message: string; icon: string; title: string } {
+    switch (this.currentTimerState) {
+      case 'WORK':
+        return {
+          message: 'This website is blocked during your work session. Stay focused and get things done!',
+          icon: '🍅',
+          title: 'Focus Time - Site Blocked'
+        };
+      case 'PAUSED':
+        return {
+          message: 'This website is blocked. Your pomodoro timer is currently paused.',
+          icon: '⏸️',
+          title: 'Timer Paused - Site Blocked'
+        };
+      default:
+        return {
+          message: 'This website has been blocked by PomoBlock extension.',
+          icon: '🚫',
+          title: 'Access Blocked'
+        };
+    }
+  }
+
+  /**
+   * Generate timer-specific information section
+   */
+  private generateTimerInfo(): string {
+    if (this.currentTimerState === 'STOPPED') {
+      return '';
+    }
+
+    const currentTime = new Date().toLocaleString();
+    
+    switch (this.currentTimerState) {
+      case 'WORK':
+        return `
+          <div class="timer-status-info timer-work-active">
+            <h4>🍅 Pomodoro Timer Active</h4>
+            <p class="timer-status-text">You're currently in a work session. The floating timer remains visible.</p>
+          </div>
+        `;
+      case 'REST':
+        return `
+          <div class="timer-status-info timer-rest-active">
+            <h4>☕ Break Time</h4>
+            <p class="timer-status-text">You're currently on a break. The floating timer remains visible.</p>
+          </div>
+        `;
+      case 'PAUSED':
+        return `
+          <div class="timer-status-info timer-paused">
+            <h4>⏸️ Timer Paused</h4>
+            <p class="timer-status-text">Your pomodoro timer is paused. The floating timer remains visible.</p>
+          </div>
+        `;
+      default:
+        return '';
+    }
   }
 
   /**
@@ -268,6 +372,19 @@ export class BlockedPageUI {
         animation: pulse 2s infinite !important;
       }
       
+      /* Timer-specific icon colors */
+      .timer-work-active .blocked-icon {
+        color: #ff6b6b !important;
+      }
+      
+      .timer-paused .blocked-icon {
+        color: #FF9800 !important;
+      }
+      
+      .timer-rest-active .blocked-icon {
+        color: #4CAF50 !important;
+      }
+      
       #pomoblock-overlay h1 {
         font-size: 2.5em !important;
         margin-bottom: 20px !important;
@@ -293,6 +410,48 @@ export class BlockedPageUI {
         font-family: 'Courier New', monospace !important;
         font-size: 1.1em !important;
         word-break: break-all !important;
+      }
+
+      /* Timer Status Info Styles */
+      .timer-status-info {
+        background: rgba(255, 255, 255, 0.1) !important;
+        border-radius: 12px !important;
+        padding: 20px !important;
+        margin: 25px 0 !important;
+        border: 2px solid rgba(255, 255, 255, 0.2) !important;
+        text-align: left !important;
+      }
+
+      .timer-status-info.timer-work-active {
+        background: rgba(244, 67, 54, 0.2) !important;
+        border-color: rgba(244, 67, 54, 0.5) !important;
+      }
+
+      .timer-status-info.timer-paused {
+        background: rgba(255, 152, 0, 0.2) !important;
+        border-color: rgba(255, 152, 0, 0.5) !important;
+      }
+
+      .timer-status-info.timer-rest-active {
+        background: rgba(76, 175, 80, 0.2) !important;
+        border-color: rgba(76, 175, 80, 0.5) !important;
+      }
+
+      .timer-status-info h4 {
+        font-size: 1.2em !important;
+        margin-bottom: 10px !important;
+        color: white !important;
+        font-weight: 600 !important;
+        display: flex !important;
+        align-items: center !important;
+        gap: 8px !important;
+      }
+
+      .timer-status-text {
+        font-size: 1em !important;
+        color: rgba(255, 255, 255, 0.9) !important;
+        margin-bottom: 15px !important;
+        font-weight: 500 !important;
       }
 
       /* Work Hours Info Styles */
@@ -355,6 +514,7 @@ export class BlockedPageUI {
         border-radius: 6px !important;
         border: 1px solid rgba(255, 217, 61, 0.3) !important;
       }
+
       
       .redirect-info {
         background: rgba(255, 152, 0, 0.2) !important;
@@ -626,7 +786,8 @@ export class BlockedPageUI {
         }
         
         .navigation-help,
-        .work-hours-info {
+        .work-hours-info,
+        .timer-status-info {
           padding: 20px !important;
         }
       }
@@ -932,6 +1093,33 @@ export class BlockedPageUI {
         </div>
       `;
     }
+  }
+
+
+  /**
+   * Ensure floating timer remains visible when blocked page is shown
+   */
+  private ensureFloatingTimerVisible(): void {
+    // Send a message to notify that the blocked page is displayed
+    // This allows other components to ensure they remain visible
+    try {
+      chrome.runtime.sendMessage({ 
+        type: 'BLOCKED_PAGE_DISPLAYED',
+        timestamp: Date.now()
+      });
+    } catch (error) {
+      logger.log('Error sending blocked page displayed message:', error);
+    }
+    
+    // Also dispatch a custom event for the floating timer
+    setTimeout(() => {
+      window.dispatchEvent(new CustomEvent('pomoblock-page-blocked', {
+        detail: { 
+          blocked: true,
+          timerState: this.currentTimerState
+        }
+      }));
+    }, 100);
   }
 
   /**

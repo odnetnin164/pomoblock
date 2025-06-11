@@ -11,7 +11,8 @@ module.exports = (env, argv) => {
       contentScript: './src/contentScript/index.ts',
       popup: './src/popup/index.ts',
       options: './src/options/index.ts',
-      background: './src/background/index.ts'
+      background: './src/background/index.ts',
+      history: './src/history/index.ts'
     },
     output: {
       path: path.resolve(__dirname, 'dist'),
@@ -40,7 +41,9 @@ module.exports = (env, argv) => {
         '@shared': path.resolve(__dirname, 'src/shared'),
         '@popup': path.resolve(__dirname, 'src/popup'),
         '@options': path.resolve(__dirname, 'src/options'),
-        '@contentScript': path.resolve(__dirname, 'src/contentScript')
+        '@contentScript': path.resolve(__dirname, 'src/contentScript'),
+        '@background': path.resolve(__dirname, 'src/background'),
+        '@history': path.resolve(__dirname, 'src/history')
       }
     },
     plugins: [
@@ -57,6 +60,11 @@ module.exports = (env, argv) => {
         filename: 'options.html',
         chunks: ['options']
       }),
+      new HtmlWebpackPlugin({
+        template: './src/history/history.html',
+        filename: 'history.html',
+        chunks: ['history']
+      }),
       new CopyWebpackPlugin({
         patterns: [
           { from: 'manifest.json', to: 'manifest.json' },
@@ -67,16 +75,9 @@ module.exports = (env, argv) => {
     ],
     devtool: isProduction ? 'source-map' : 'inline-source-map',
     optimization: {
+      // Disable all code splitting to ensure each entry point is self-contained
       splitChunks: {
-        chunks: 'all',
-        cacheGroups: {
-          shared: {
-            name: 'shared',
-            chunks: 'all',
-            test: /[\\/]src[\\/]shared[\\/]/,
-            enforce: true
-          }
-        }
+        chunks: () => false
       }
     }
   };

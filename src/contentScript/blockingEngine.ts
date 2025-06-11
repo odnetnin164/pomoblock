@@ -67,17 +67,15 @@ export class BlockingEngine {
         // This is a domain-only whitelist entry
         const normalizedDomain = normalizeURL(whitelistedPath.toLowerCase());
         
-        // Exact domain match
+        // Exact domain match (for subdomains in whitelist)
         if (currentHostname === normalizedDomain) {
-          logger.log('WHITELIST DOMAIN MATCH FOUND', { currentHostname, whitelistedPath: normalizedDomain });
+          logger.log('WHITELIST EXACT DOMAIN MATCH FOUND', { currentHostname, whitelistedPath: normalizedDomain });
           return true;
         }
         
-        // Subdomain match
-        if (currentHostname.endsWith('.' + normalizedDomain)) {
-          logger.log('WHITELIST SUBDOMAIN MATCH FOUND', { currentHostname, whitelistedPath: normalizedDomain });
-          return true;
-        }
+        // NOTE: We DO NOT do subdomain matching for whitelisted entries
+        // If user wants to whitelist music.youtube.com, they whitelist exactly that
+        // This prevents youtube.com whitelist from affecting gaming.youtube.com
       }
     }
     
@@ -132,9 +130,15 @@ export class BlockingEngine {
         }
         
         // Subdomain match (e.g., blocking "google.com" should block "mail.google.com")
+        // BUT NOT if the specific subdomain is whitelisted
         if (currentHostname.endsWith('.' + normalizedSite)) {
-          logger.log('SUBDOMAIN MATCH FOUND', { currentHostname, matchedSite: normalizedSite });
-          return true;
+          // Check if this specific subdomain is whitelisted
+          if (!this.isSubdomainWhitelisted(currentHostname)) {
+            logger.log('SUBDOMAIN MATCH FOUND', { currentHostname, matchedSite: normalizedSite });
+            return true;
+          } else {
+            logger.log('SUBDOMAIN BLOCKED BUT WHITELISTED', { currentHostname, matchedSite: normalizedSite });
+          }
         }
         
         // Partial match for complex domains
@@ -146,6 +150,24 @@ export class BlockingEngine {
     }
     
     logger.log('No match found');
+    return false;
+  }
+
+  /**
+   * Check if a specific subdomain is whitelisted
+   */
+  private isSubdomainWhitelisted(hostname: string): boolean {
+    const normalizedHostname = normalizeURL(hostname.toLowerCase());
+    
+    for (const whitelistedPath of this.whitelistedPaths) {
+      if (!whitelistedPath.includes('/')) {
+        const normalizedWhitelisted = normalizeURL(whitelistedPath.toLowerCase());
+        if (normalizedHostname === normalizedWhitelisted) {
+          return true;
+        }
+      }
+    }
+    
     return false;
   }
 

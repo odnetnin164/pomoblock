@@ -1,13 +1,17 @@
+// src/options/index.ts
 import './options.css';
 import { ExtensionSettings, StatusMessage, WorkHours } from '@shared/types';
 import { UI_CONFIG, WORK_HOURS_CONFIG } from '@shared/constants';
 import { SettingsManager } from './SettingsManager';
 import { SiteListManager } from './SiteListManager';
+import { PomodoroSettingsManager } from './PomodoroSettingsManager';
 import { isWithinWorkHours, getWorkHoursStatus } from '@shared/workHoursUtils';
+import { logger } from '@shared/logger';
 
 class OptionsPageManager {
   private settingsManager: SettingsManager;
   private siteListManager: SiteListManager;
+  private pomodoroSettingsManager: PomodoroSettingsManager;
   
   // Settings DOM Elements
   private blockModeRadio!: HTMLInputElement;
@@ -54,6 +58,9 @@ class OptionsPageManager {
     this.siteListManager = new SiteListManager(
       (msg: StatusMessage) => this.showStatusMessage(msg),
       () => this.refreshSiteLists()
+    );
+    this.pomodoroSettingsManager = new PomodoroSettingsManager(
+      (msg: StatusMessage) => this.showStatusMessage(msg)
     );
     
     // Get DOM elements
@@ -111,6 +118,9 @@ class OptionsPageManager {
    * Initialize the options page
    */
   private async init(): Promise<void> {
+    // Initialize pomodoro settings UI first (creates HTML)
+    this.pomodoroSettingsManager.initializeUI();
+    
     // Load and display settings
     await this.loadAndDisplaySettings();
     
@@ -218,6 +228,14 @@ class OptionsPageManager {
     this.setupPresetButtons();
     this.setupTimePresetButtons();
     this.setupDayPresetButtons();
+    
+    // History button
+    const historyButton = document.getElementById('historyButton');
+    if (historyButton) {
+      historyButton.addEventListener('click', () => {
+        chrome.tabs.create({ url: chrome.runtime.getURL('history.html') });
+      });
+    }
   }
 
   /**
@@ -450,9 +468,9 @@ class OptionsPageManager {
 
     // Debug log before saving
     if (this.debugEnabled.checked) {
-      console.log('=== SAVING WORK HOURS DEBUG ===');
-      console.log('Work hours from UI:', workHours);
-      console.log('===============================');
+      logger.log('=== SAVING WORK HOURS DEBUG ===');
+      logger.log('Work hours from UI:', workHours);
+      logger.log('===============================');
     }
 
     const settings: Partial<ExtensionSettings> = {
@@ -464,8 +482,11 @@ class OptionsPageManager {
       workHours: workHours
     };
 
-    const success = await this.settingsManager.saveSettingsToStorage(settings);
-    if (success) {
+    // Save pomodoro settings
+    const pomodoroSuccess = await this.pomodoroSettingsManager.saveSettings();
+    const settingsSuccess = await this.settingsManager.saveSettingsToStorage(settings);
+    
+    if (settingsSuccess && pomodoroSuccess) {
       // Animate save button
       this.animateSaveButton();
       // Update work hours status after save

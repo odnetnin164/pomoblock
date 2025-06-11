@@ -1,3 +1,4 @@
+// src/contentScript/index.ts
 import { ExtensionSettings } from '@shared/types';
 import { getSettings, getBlockedWebsites, getWhitelistedPaths, onStorageChanged } from '@shared/storage';
 import { logger } from '@shared/logger';
@@ -5,18 +6,23 @@ import { DEFAULT_SETTINGS } from '@shared/constants';
 import { shouldBlockBasedOnWorkHours } from '@shared/workHoursUtils';
 import { BlockingEngine } from './blockingEngine';
 import { BlockedPageUI } from './ui/blockedPage';
+import { FloatingTimer } from './ui/floatingTimer';
+import { TimerState } from '@shared/pomodoroTypes';
 
 class ContentScriptManager {
   private settings: ExtensionSettings = DEFAULT_SETTINGS;
   private blockingEngine: BlockingEngine;
   private blockedPageUI: BlockedPageUI;
+  private floatingTimer: FloatingTimer;
   private currentUrl: string = '';
   private urlCheckInterval: number | null = null;
   private isInitialized: boolean = false;
+  private currentTimerState: TimerState = 'STOPPED';
 
   constructor() {
     this.blockingEngine = new BlockingEngine();
     this.blockedPageUI = new BlockedPageUI(this.settings);
+    this.floatingTimer = new FloatingTimer();
     this.currentUrl = window.location.href;
     
     this.init();
@@ -38,11 +44,20 @@ class ContentScriptManager {
     // Load settings and site lists
     await this.loadConfiguration();
 
+    // Initialize floating timer
+    await this.floatingTimer.initialize();
+
+    // Check timer state
+    await this.checkTimerState();
+
     // Set up storage change listener
     this.setupStorageListener();
 
     // Set up navigation detection
     this.setupNavigationDetection();
+
+    // Set up timer message listener
+    this.setupTimerMessageListener();
 
     // Check if current site should be blocked
     this.checkAndBlock();
@@ -87,6 +102,24 @@ class ContentScriptManager {
 
     } catch (error) {
       logger.log('Error loading configuration', (error as Error).message);
+    }
+  }
+
+  /**
+   * Check current timer state
+   */
+  private async checkTimerState(): Promise<void> {
+    try {
+      const response = await chrome.runtime.sendMessage({ type: 'GET_TIMER_STATUS' });
+      if (response.status && response.status.state) {
+        this.currentTimerState = response.status.state;
+        logger.log('Timer state:', this.currentTimerState);
+      } else {
+        this.currentTimerState = 'STOPPED';
+      }
+    } catch (error) {
+      logger.log('Error checking timer state', (error as Error).message);
+      this.currentTimerState = 'STOPPED';
     }
   }
 
@@ -162,7 +195,7 @@ class ContentScriptManager {
               changes.workHoursStartTime !== undefined ||
               changes.workHoursEndTime !== undefined ||
               changes.workHoursDays !== undefined) {
-            console.log('Work hours storage change detected:', {
+            logger.log('Work hours storage change detected:', {
               workHoursEnabled: changes.workHoursEnabled,
               workHoursStartTime: changes.workHoursStartTime,
               workHoursEndTime: changes.workHoursEndTime,
@@ -226,7 +259,15 @@ class ContentScriptManager {
       this.handleNavigationChange();
     });
 
-    // Method 5: Periodic URL checking as fallback (every 2 seconds)
+    // Method 5: Listen for visibility changes (tab switching)
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) {
+        logger.log('Tab became visible, updating floating timer');
+        this.handleTabBecameVisible();
+      }
+    });
+
+    // Method 6: Periodic URL checking as fallback (every 2 seconds)
     this.urlCheckInterval = window.setInterval(() => {
       if (window.location.href !== this.currentUrl) {
         logger.log('Navigation detected: periodic check');
@@ -234,7 +275,7 @@ class ContentScriptManager {
       }
     }, 2000);
 
-    // Method 6: Listen for DOM changes that might indicate navigation
+    // Method 7: Listen for DOM changes that might indicate navigation
     if (document.body) {
       this.setupMutationObserver();
     } else {
@@ -250,6 +291,37 @@ class ContentScriptManager {
 
     // Make this instance available globally for the overridden history methods
     (window as any).contentScriptManager = this;
+  }
+
+  /**
+   * Set up timer message listener
+   */
+  private setupTimerMessageListener(): void {
+    chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+      if (message.type === 'TIMER_UPDATE') {
+        logger.log('Timer message received:', message.type);
+        // Update timer state immediately from the message
+        if (message.data && message.data.timerStatus) {
+          this.currentTimerState = message.data.timerStatus.state;
+          logger.log('Timer state updated to:', this.currentTimerState);
+          
+          // Update blocked page UI with new timer state
+          this.blockedPageUI.setTimerState(this.currentTimerState);
+          
+          // Re-check blocking with new timer state
+          this.checkAndBlock();
+        }
+      } else if (message.type === 'TIMER_COMPLETE') {
+        logger.log('Timer completion message received:', message.type);
+        // Timer completed, check new state
+        this.checkTimerState().then(() => {
+          this.checkAndBlock();
+        });
+      } else if (message.type === 'UPDATE_FLOATING_TIMER') {
+        // Handle floating timer settings updates
+        this.floatingTimer.setAlwaysShow(message.alwaysShow);
+      }
+    });
   }
 
   /**
@@ -297,11 +369,36 @@ class ContentScriptManager {
         this.blockedPageUI.removeBlockedPage();
       }
       
-      // Small delay to let the page settle, then check if new page should be blocked
+      // Check timer status and update floating timer
+      this.checkTimerState().then(() => {
+        // Update floating timer status after navigation
+        this.floatingTimer.requestTimerStatus();
+        
+        setTimeout(() => {
+          this.checkAndBlock();
+        }, 250);
+      });
+    }
+  }
+
+  /**
+   * Handle tab becoming visible (tab switching)
+   */
+  private handleTabBecameVisible(): void {
+    logger.log('Tab became visible, refreshing state');
+    
+    // Check for URL changes that might have happened while tab was hidden
+    this.handleNavigationChange();
+    
+    // Refresh timer status and floating timer
+    this.checkTimerState().then(() => {
+      this.floatingTimer.requestTimerStatus();
+      
+      // Small delay to ensure DOM is ready
       setTimeout(() => {
         this.checkAndBlock();
-      }, 250);
-    }
+      }, 100);
+    });
   }
 
   /**
@@ -309,17 +406,11 @@ class ContentScriptManager {
    */
   private checkAndBlock(): void {
     logger.log('checkAndBlock called for URL:', window.location.href);
+    logger.log('Current timer state:', this.currentTimerState);
 
     // Don't block if extension is disabled
     if (!this.settings.extensionEnabled) {
       logger.log('Extension disabled, removing any existing block');
-      this.blockedPageUI.removeBlockedPage();
-      return;
-    }
-
-    // Check work hours - if work hours are enabled and we're outside work hours, don't block
-    if (!shouldBlockBasedOnWorkHours(this.settings.workHours)) {
-      logger.log('Outside work hours, not blocking');
       this.blockedPageUI.removeBlockedPage();
       return;
     }
@@ -330,10 +421,34 @@ class ContentScriptManager {
       return;
     }
 
+    // INTEGRATED POMODORO BLOCKING LOGIC:
+    // 1. If timer is in REST period, never block any websites
+    if (this.currentTimerState === 'REST') {
+      logger.log('Timer is in REST period, not blocking any websites');
+      this.blockedPageUI.removeBlockedPage();
+      return;
+    }
+
+    // 2. If timer is in WORK period, always apply normal blocking rules
+    // 3. If timer is STOPPED or PAUSED, apply normal blocking rules
+    // (Both cases handled by the same logic below)
+
+    // Check work hours - if work hours are enabled and we're outside work hours, don't block
+    // (unless timer is in WORK period, which overrides work hours)
+    if (this.currentTimerState !== 'WORK' && !shouldBlockBasedOnWorkHours(this.settings.workHours)) {
+      logger.log('Outside work hours and timer not in work period, not blocking');
+      this.blockedPageUI.removeBlockedPage();
+      return;
+    }
+
+    // Apply normal blocking rules
     if (this.blockingEngine.shouldBlockWebsite()) {
-      logger.log('Site should be blocked!');
+      logger.log('Site should be blocked by blocking rules!');
       logger.log('Block mode is', this.settings.blockMode);
 
+      // Show appropriate blocking message based on timer state
+      // const blockMessage = this.getBlockMessage();
+      
       if (this.settings.blockMode === 'redirect') {
         logger.log('Redirect mode - showing blocked page with countdown');
         this.blockedPageUI.createBlockedPage(true);
@@ -356,6 +471,16 @@ class ContentScriptManager {
 
     // Clean up blocked page UI
     this.blockedPageUI.cleanup();
+
+    // Clean up floating timer
+    this.floatingTimer.destroy();
+
+    // Remove timer-specific overlay if it exists
+    const timerOverlay = document.getElementById('pomoblock-timer-overlay');
+    if (timerOverlay) {
+      timerOverlay.remove();
+      document.body.style.overflow = '';
+    }
 
     // Clear URL check interval
     if (this.urlCheckInterval) {

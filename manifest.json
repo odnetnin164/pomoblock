@@ -1,13 +1,15 @@
 {
   "manifest_version": 3,
   "name": "PomoBlock",
-  "description": "Block access to distracting websites and stay focused on what matters most.",
-  "version": "0.0.5",
+  "description": "Block access to distracting websites and stay focused with an integrated pomodoro timer.",
+  "version": "0.0.6",
   "permissions": [
     "storage",
     "tabs",
     "activeTab",
-    "alarms"
+    "alarms",
+    "notifications",
+    "contextMenus"
   ],
   "host_permissions": [
     "<all_urls>"
@@ -23,13 +25,12 @@
       "48": "icons/icon48.png",
       "128": "icons/icon128.png"
     },
-    "default_title": "PomoBlock - Website Blocker",
+    "default_title": "PomoBlock - Website Blocker & Pomodoro Timer",
     "default_popup": "popup.html"
   },
   "options_page": "options.html",
   "background": {
-    "service_worker": "background.js",
-    "type": "module"
+    "service_worker": "background.js"
   },
   "content_scripts": [
     {
@@ -37,7 +38,6 @@
         "<all_urls>"
       ],
       "js": [
-        "shared.js",
         "contentScript.js"
       ],
       "run_at": "document_start",
@@ -49,7 +49,8 @@
       "resources": [
         "icons/*",
         "*.css",
-        "*.js"
+        "*.js",
+        "history.html"
       ],
       "matches": [
         "<all_urls>"
