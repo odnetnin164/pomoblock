@@ -21,6 +21,13 @@ body {
   border-bottom: 1px solid rgba(255, 255, 255, 0.2);
 }
 
+.header-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+
 .header h2 {
   margin: 0;
   font-size: 1.3em;
@@ -224,6 +231,63 @@ body {
   font-size: 0.85em;
   font-weight: 600;
   color: rgba(255, 255, 255, 0.9);
+}
+
+.floating-timer-toggle {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+}
+
+.toggle-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  font-size: 0.75em;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.85);
+  user-select: none;
+}
+
+.toggle-checkbox {
+  display: none;
+}
+
+.toggle-slider {
+  position: relative;
+  width: 36px;
+  height: 18px;
+  background-color: rgba(255, 255, 255, 0.2);
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  transition: all 0.3s ease;
+}
+
+.toggle-slider:before {
+  content: '';
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background-color: white;
+  top: 1px;
+  left: 1px;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.toggle-checkbox:checked + .toggle-slider {
+  background-color: #4CAF50;
+  border-color: #4CAF50;
+}
+
+.toggle-checkbox:checked + .toggle-slider:before {
+  transform: translateX(18px);
+}
+
+.toggle-text {
+  font-size: 0.75em;
 }
 
 /* Timer State Styling */

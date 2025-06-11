@@ -21,6 +21,7 @@ class PopupManager {
   private blockTypeSection: HTMLElement;
   private blockTypeToggle: HTMLButtonElement;
   private blockOptionsContainer: HTMLElement;
+  private floatingTimerToggle: HTMLInputElement;
 
   constructor() {
     this.statusDisplay = new StatusDisplay('statusDisplay', 'siteCount');
@@ -36,6 +37,7 @@ class PopupManager {
     this.blockTypeSection = document.getElementById('blockTypeSection')!;
     this.blockTypeToggle = document.getElementById('blockTypeToggle') as HTMLButtonElement;
     this.blockOptionsContainer = document.getElementById('blockOptions')!;
+    this.floatingTimerToggle = document.getElementById('floatingTimerToggle') as HTMLInputElement;
 
     this.init();
   }
@@ -210,6 +212,10 @@ class PopupManager {
     this.optionsButton.addEventListener('click', () => this.openOptionsPage());
     this.historyButton.addEventListener('click', () => this.openHistoryPage());
     this.blockTypeToggle.addEventListener('click', () => this.toggleBlockOptions());
+    this.floatingTimerToggle.addEventListener('change', () => this.handleFloatingTimerToggle());
+    
+    // Load initial floating timer settings
+    this.loadFloatingTimerSettings();
 
     // Clean up intervals when popup closes
     window.addEventListener('beforeunload', () => {
@@ -784,6 +790,56 @@ class PopupManager {
           <span class="btn-text">Whitelist</span>
         `;
       }, UI_CONFIG.SUCCESS_DISPLAY_DURATION);
+    }
+  }
+
+  /**
+   * Load floating timer settings
+   */
+  private async loadFloatingTimerSettings(): Promise<void> {
+    try {
+      const result = await chrome.storage.local.get(['floatingTimerSettings']);
+      const settings = result.floatingTimerSettings || { alwaysShow: false };
+      this.floatingTimerToggle.checked = settings.alwaysShow;
+    } catch (error) {
+      console.error('Error loading floating timer settings:', error);
+      this.floatingTimerToggle.checked = false;
+    }
+  }
+
+  /**
+   * Handle floating timer toggle change
+   */
+  private async handleFloatingTimerToggle(): Promise<void> {
+    try {
+      const alwaysShow = this.floatingTimerToggle.checked;
+      
+      // Save to storage
+      const result = await chrome.storage.local.get(['floatingTimerSettings']);
+      const settings = result.floatingTimerSettings || { position: { x: 20, y: 20 }, minimized: false };
+      settings.alwaysShow = alwaysShow;
+      
+      await chrome.storage.local.set({ floatingTimerSettings: settings });
+      
+      // Send message to content scripts to update floating timer visibility
+      chrome.tabs.query({ active: true, currentWindow: true }, async (tabs) => {
+        if (tabs[0]?.id) {
+          try {
+            await chrome.tabs.sendMessage(tabs[0].id, {
+              type: 'UPDATE_FLOATING_TIMER',
+              alwaysShow: alwaysShow
+            });
+          } catch (error) {
+            // Tab might not have content script, ignore
+          }
+        }
+      });
+      
+      console.log('Floating timer setting updated:', alwaysShow ? 'enabled' : 'disabled');
+    } catch (error) {
+      console.error('Error updating floating timer setting:', error);
+      // Revert toggle on error
+      this.floatingTimerToggle.checked = !this.floatingTimerToggle.checked;
     }
   }
 }

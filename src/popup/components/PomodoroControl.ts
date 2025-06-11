@@ -140,7 +140,6 @@ export class PomodoroControl {
     this.statusText = document.getElementById('sessionInfo')!; // Use session info as status
     this.sessionCounter = document.getElementById('sessionCounter')!;
     this.progressBar = document.getElementById('progressBar')!;
-    
     // Add next button handler
     const nextBtn = document.getElementById('nextBtn') as HTMLButtonElement;
     nextBtn.addEventListener('click', () => this.handleNextAction());
@@ -160,6 +159,7 @@ export class PomodoroControl {
         this.handleStartAction();
       }
     });
+
 
     // Clean up polling when popup closes/unloads
     window.addEventListener('beforeunload', () => {
