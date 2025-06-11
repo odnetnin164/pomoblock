@@ -282,21 +282,14 @@ export class BlockedPageUI {
         return `
           <div class="blocked-timer-info">
             <div class="blocked-timer-status">🍅 Pomodoro Timer Active</div>
-            <div class="blocked-timer-note">You're currently in a work session. The floating timer remains visible.</div>
-          </div>
-        `;
-      case 'REST':
-        return `
-          <div class="blocked-timer-info" style="background: rgba(76, 175, 80, 0.2) !important; border-color: rgba(76, 175, 80, 0.4) !important;">
-            <div class="blocked-timer-status">☕ Break Time</div>
-            <div class="blocked-timer-note">You're currently on a break. The floating timer remains visible.</div>
+            <div class="blocked-timer-note">You're currently in a work session.</div>
           </div>
         `;
       case 'PAUSED':
         return `
           <div class="blocked-timer-info" style="background: rgba(255, 152, 0, 0.2) !important; border-color: rgba(255, 152, 0, 0.4) !important;">
             <div class="blocked-timer-status">⏸️ Timer Paused</div>
-            <div class="blocked-timer-note">Your pomodoro timer is paused. The floating timer remains visible.</div>
+            <div class="blocked-timer-note">Your pomodoro timer is paused.</div>
           </div>
         `;
       default:
