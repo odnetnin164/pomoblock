@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "PomoBlock",
   "description": "Block access to distracting websites and stay focused with an integrated pomodoro timer.",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "permissions": [
     "storage",
     "tabs",
