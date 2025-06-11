@@ -13,7 +13,6 @@ export class PomodoroControl {
   private sessionCounter!: HTMLElement;
   private progressBar!: HTMLElement;
   private statusUpdateInterval: number | null = null;
-  private lastSetSessionInfo: string = '';
   private helperTimer: PomodoroTimer;
   
   private currentStatus: TimerStatus = {
@@ -358,7 +357,6 @@ export class PomodoroControl {
     const sessionInfo = document.getElementById('sessionInfo')!;
     const displayInfo = this.helperTimer.getSessionDisplayInfo();
     sessionInfo.textContent = displayInfo.sessionText;
-    this.lastSetSessionInfo = displayInfo.sessionText;
   }
 
   /**
@@ -368,11 +366,11 @@ export class PomodoroControl {
     // Update timer display
     this.timerDisplay.textContent = formatDuration(status.timeRemaining);
     
-    // Preserve the session info that was set when stopped - don't change it
+    // Update session info with current session data
     const sessionInfo = document.getElementById('sessionInfo')!;
-    if (this.lastSetSessionInfo && sessionInfo.textContent !== this.lastSetSessionInfo) {
-      sessionInfo.textContent = this.lastSetSessionInfo;
-    }
+    this.helperTimer.setStatusForUI(status);
+    const displayInfo = this.helperTimer.getSessionDisplayInfo();
+    sessionInfo.textContent = displayInfo.sessionText;
     
     // Update task input
     if (status.currentTask && status.currentTask !== this.taskInput.value) {

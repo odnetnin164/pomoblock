@@ -48,6 +48,18 @@ class PopupManager {
    * Initialize the popup
    */
   private async init(): Promise<void> {
+    // Ensure DOM is fully ready before proceeding
+    await new Promise(resolve => {
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', resolve);
+      } else {
+        resolve(undefined);
+      }
+    });
+
+    // Small delay to ensure all components have initialized
+    await new Promise(resolve => setTimeout(resolve, 10));
+    
     // Load initial data
     await this.loadSiteCount();
     await this.getCurrentTabInfo();
