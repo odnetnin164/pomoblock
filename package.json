@@ -1,6 +1,6 @@
 {
   "name": "pomoblock-extension",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Website blocker extension with TypeScript and Webpack",
   "scripts": {
     "build": "webpack --mode=production",
