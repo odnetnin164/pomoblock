@@ -55,3 +55,18 @@ import 'jest';
 
 // Mock DOM globals for jsdom - simple approach
 // Individual tests will override window.location as needed
+
+// Prevent jsdom navigation errors during tests
+const originalConsoleError = console.error;
+beforeEach(() => {
+  console.error = (...args: any[]) => {
+    if (args[0] && args[0].message && args[0].message.includes('Not implemented: navigation')) {
+      return; // suppress navigation errors
+    }
+    originalConsoleError.apply(console, args);
+  };
+});
+
+afterEach(() => {
+  console.error = originalConsoleError;
+});

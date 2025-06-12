@@ -3,7 +3,11 @@
     "allow": [
       "Bash(find:*)",
       "Bash(grep:*)",
-      "Bash(rg:*)"
+      "Bash(rg:*)",
+      "Bash(npm run test:coverage:*)",
+      "Bash(npm test:*)",
+      "Bash(node:*)",
+      "Bash(npm run build:*)"
     ],
     "deny": []
   }

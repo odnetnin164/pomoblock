@@ -1,0 +1,514 @@
+import { BlockedPageUI } from '@contentScript/ui/blockedPage';
+import { ExtensionSettings } from '@shared/types';
+import * as workHoursUtils from '@shared/workHoursUtils';
+
+// Mock dependencies
+jest.mock('@shared/logger', () => ({
+  logger: {
+    log: jest.fn()
+  }
+}));
+
+jest.mock('@shared/workHoursUtils');
+
+const mockWorkHoursUtils = workHoursUtils as jest.Mocked<typeof workHoursUtils>;
+
+// Mock Chrome APIs
+const mockChrome = {
+  runtime: {
+    getURL: jest.fn(),
+    sendMessage: jest.fn()
+  }
+};
+
+(global as any).chrome = mockChrome;
+
+describe('BlockedPageUI', () => {
+  let blockedPageUI: BlockedPageUI;
+  let mockSettings: ExtensionSettings;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    
+    // Setup DOM
+    document.head.innerHTML = '';
+    document.body.innerHTML = '';
+    document.body.style.overflow = '';
+    document.title = 'Original Title';
+    
+    // Mock settings
+    mockSettings = {
+      blockMode: 'block',
+      redirectUrl: 'https://example.com',
+      redirectDelay: 3,
+      extensionEnabled: true,
+      debugEnabled: false,
+      workHours: {
+        enabled: true,
+        startTime: '09:00',
+        endTime: '17:00',
+        days: [1, 2, 3, 4, 5]
+      },
+      pomodoro: {
+        workDuration: 25,
+        restDuration: 5,
+        longRestDuration: 15,
+        longRestInterval: 4,
+        autoStartRest: true,
+        autoStartWork: true,
+        showNotifications: true,
+        playSound: true
+      }
+    };
+
+    // Setup mocks
+    mockChrome.runtime.getURL.mockReturnValue('shared/blocked-page.css');
+    mockWorkHoursUtils.getWorkHoursStatus.mockReturnValue('Currently within work hours');
+    mockWorkHoursUtils.isWithinWorkHours.mockReturnValue(true);
+    mockWorkHoursUtils.getFormattedDays.mockReturnValue('Mon-Fri');
+
+    // Mock window methods using delete and reassign approach
+    delete (window as any).location;
+    (window as any).location = {
+      hostname: 'example.com',
+      pathname: '/test',
+      href: 'https://example.com/test',
+      replace: jest.fn()
+    };
+
+    delete (window as any).history;
+    (window as any).history = {
+      length: 2,
+      back: jest.fn()
+    };
+
+    global.confirm = jest.fn().mockReturnValue(true);
+    
+    blockedPageUI = new BlockedPageUI(mockSettings);
+  });
+
+  afterEach(() => {
+    // Clean up DOM
+    const overlay = document.getElementById('pomoblock-blocked-overlay');
+    if (overlay) {
+      overlay.remove();
+    }
+    
+    const styles = document.getElementById('pomoblock-blocked-page-styles');
+    if (styles) {
+      styles.remove();
+    }
+    
+    // Clean up timers if blockedPageUI exists
+    if (blockedPageUI) {
+      blockedPageUI.cleanup();
+    }
+  });
+
+  describe('Constructor', () => {
+    test('should create BlockedPageUI with settings', () => {
+      expect(blockedPageUI).toBeInstanceOf(BlockedPageUI);
+      expect(blockedPageUI.isPageBlocked()).toBe(false);
+    });
+  });
+
+  describe('Settings Management', () => {
+    test('should update settings', () => {
+      const newSettings = { ...mockSettings, redirectUrl: 'https://newsite.com' };
+      
+      blockedPageUI.updateSettings(newSettings);
+      
+      // We can't directly test the internal settings, but we can test behavior
+      expect(() => blockedPageUI.updateSettings(newSettings)).not.toThrow();
+    });
+
+    test('should set timer state', () => {
+      blockedPageUI.setTimerState('WORK');
+      
+      // Timer state affects the blocked page content
+      blockedPageUI.createBlockedPage();
+      
+      expect(document.title).toBe('🍅 BLOCKED - Focus Time ');
+      expect(blockedPageUI.isPageBlocked()).toBe(true);
+    });
+  });
+
+  describe('Page Blocking', () => {
+    test('should create blocked page overlay', () => {
+      blockedPageUI.createBlockedPage();
+      
+      const overlay = document.getElementById('pomoblock-blocked-overlay');
+      expect(overlay).toBeTruthy();
+      expect(blockedPageUI.isPageBlocked()).toBe(true);
+      expect(document.body.style.overflow).toBe('hidden');
+      expect(document.title).toBe('🚫 BLOCKED - PomoBlock');
+    });
+
+    test('should not create duplicate overlay when already blocked', () => {
+      blockedPageUI.createBlockedPage();
+      const firstOverlay = document.getElementById('pomoblock-blocked-overlay');
+      
+      blockedPageUI.createBlockedPage();
+      const secondOverlay = document.getElementById('pomoblock-blocked-overlay');
+      
+      expect(firstOverlay).toBe(secondOverlay);
+    });
+
+    test('should inject CSS only once', () => {
+      blockedPageUI.createBlockedPage();
+      const firstStylesheet = document.getElementById('pomoblock-blocked-page-styles');
+      
+      blockedPageUI.createBlockedPage();
+      const stylesheets = document.querySelectorAll('#pomoblock-blocked-page-styles');
+      
+      expect(stylesheets).toHaveLength(1);
+      expect(firstStylesheet).toBeTruthy();
+    });
+
+    test('should remove blocked page overlay', () => {
+      blockedPageUI.createBlockedPage();
+      expect(blockedPageUI.isPageBlocked()).toBe(true);
+      
+      blockedPageUI.removeBlockedPage();
+      
+      const overlay = document.getElementById('pomoblock-blocked-overlay');
+      expect(overlay).toBeNull();
+      expect(blockedPageUI.isPageBlocked()).toBe(false);
+      expect(document.body.style.overflow).toBe('');
+      expect(document.title).toBe('Original Title');
+    });
+
+    test('should dispatch custom events when blocking/unblocking', () => {
+      const blockEventSpy = jest.spyOn(window, 'dispatchEvent');
+      
+      blockedPageUI.createBlockedPage();
+      blockedPageUI.removeBlockedPage();
+      
+      // Check that unblock event was dispatched
+      expect(blockEventSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'pomoblock-page-unblocked',
+          detail: { blocked: false }
+        })
+      );
+    });
+  });
+
+  describe('Timer State Handling', () => {
+    test('should update page title for WORK state', () => {
+      blockedPageUI.setTimerState('WORK');
+      blockedPageUI.createBlockedPage();
+      
+      expect(document.title).toBe('🍅 BLOCKED - Focus Time ');
+    });
+
+    test('should update page title for PAUSED state', () => {
+      blockedPageUI.setTimerState('PAUSED');
+      blockedPageUI.createBlockedPage();
+      
+      expect(document.title).toBe('⏸️ BLOCKED - Timer Paused');
+    });
+
+    test('should generate appropriate content for WORK state', () => {
+      blockedPageUI.setTimerState('WORK');
+      blockedPageUI.createBlockedPage();
+      
+      const content = document.querySelector('.blocked-content');
+      expect(content?.innerHTML).toContain('Focus Time - Site Blocked');
+      expect(content?.innerHTML).toContain('work session');
+      expect(content?.innerHTML).toContain('🍅');
+    });
+
+    test('should generate appropriate content for PAUSED state', () => {
+      blockedPageUI.setTimerState('PAUSED');
+      blockedPageUI.createBlockedPage();
+      
+      const content = document.querySelector('.blocked-content');
+      expect(content?.innerHTML).toContain('Timer Paused - Site Blocked');
+      expect(content?.innerHTML).toContain('timer is currently paused');
+      expect(content?.innerHTML).toContain('⏸️');
+    });
+  });
+
+  describe('Work Hours Information', () => {
+    test('should display work hours info when enabled', () => {
+      blockedPageUI.createBlockedPage();
+      
+      const workHoursInfo = document.querySelector('.work-hours-info');
+      expect(workHoursInfo).toBeTruthy();
+      expect(workHoursInfo?.innerHTML).toContain('Work Hours Status');
+      expect(workHoursInfo?.innerHTML).toContain('09:00 - 17:00');
+      expect(workHoursInfo?.innerHTML).toContain('Mon-Fri');
+    });
+
+    test('should not display work hours info when disabled', () => {
+      const settingsWithoutWorkHours = {
+        ...mockSettings,
+        workHours: { ...mockSettings.workHours, enabled: false }
+      };
+      
+      blockedPageUI.updateSettings(settingsWithoutWorkHours);
+      blockedPageUI.createBlockedPage();
+      
+      const workHoursInfo = document.querySelector('.work-hours-info');
+      expect(workHoursInfo).toBeNull();
+    });
+
+    test('should show active status when within work hours', () => {
+      mockWorkHoursUtils.isWithinWorkHours.mockReturnValue(true);
+      
+      blockedPageUI.createBlockedPage();
+      
+      const workHoursInfo = document.querySelector('.work-hours-info');
+      expect(workHoursInfo?.classList.contains('work-hours-active')).toBe(true);
+      expect(workHoursInfo?.innerHTML).toContain('🟢');
+    });
+
+    test('should show inactive status when outside work hours', () => {
+      mockWorkHoursUtils.isWithinWorkHours.mockReturnValue(false);
+      
+      blockedPageUI.createBlockedPage();
+      
+      const workHoursInfo = document.querySelector('.work-hours-info');
+      expect(workHoursInfo?.classList.contains('work-hours-inactive')).toBe(true);
+      expect(workHoursInfo?.innerHTML).toContain('🔴');
+      expect(workHoursInfo?.innerHTML).toContain('only blocked during your work hours');
+    });
+  });
+
+  describe('Redirect Mode', () => {
+    test('should handle immediate redirect when delay is 0', () => {
+      const immediateSettings = { ...mockSettings, redirectDelay: 0 };
+      blockedPageUI.updateSettings(immediateSettings);
+      
+      blockedPageUI.createBlockedPage(true);
+      
+      expect(window.location.replace).toHaveBeenCalledWith('https://example.com');
+    });
+
+    test('should start countdown when redirect delay > 0', (done) => {
+      blockedPageUI.createBlockedPage(true);
+      
+      const countdownElement = document.getElementById('countdown-seconds');
+      const progressBar = document.getElementById('progress-bar');
+      const cancelButton = document.getElementById('cancel-redirect');
+      
+      expect(countdownElement?.textContent).toBe('3');
+      expect(progressBar?.classList.contains('running')).toBe(true);
+      expect(cancelButton).toBeTruthy();
+      
+      done();
+    });
+
+    test('should cancel redirect when cancel button clicked', () => {
+      blockedPageUI.createBlockedPage(true);
+      
+      const cancelButton = document.getElementById('cancel-redirect') as HTMLButtonElement;
+      expect(cancelButton).toBeTruthy();
+      
+      cancelButton.click();
+      
+      const redirectInfo = document.querySelector('.redirect-info');
+      expect(redirectInfo?.innerHTML).toContain('Redirect Cancelled');
+    });
+
+    test('should handle invalid redirect URL', () => {
+      const invalidSettings = { ...mockSettings, redirectUrl: 'invalid-url' };
+      blockedPageUI.updateSettings(invalidSettings);
+      
+      // This should not throw an error
+      expect(() => {
+        (blockedPageUI as any).handleRedirect();
+      }).not.toThrow();
+    });
+  });
+
+  describe('Navigation Actions', () => {
+    test('should go back in history when go back button clicked', () => {
+      blockedPageUI.createBlockedPage();
+      
+      const goBackBtn = document.getElementById('go-back-btn') as HTMLButtonElement;
+      expect(goBackBtn).toBeTruthy();
+      
+      goBackBtn.click();
+      
+      expect(window.history.back).toHaveBeenCalled();
+      expect(blockedPageUI.isPageBlocked()).toBe(false);
+    });
+
+    test('should redirect to safe page when safe page button clicked', () => {
+      blockedPageUI.createBlockedPage();
+      
+      const redirectSafeBtn = document.getElementById('redirect-safe-btn') as HTMLButtonElement;
+      expect(redirectSafeBtn).toBeTruthy();
+      
+      redirectSafeBtn.click();
+      
+      expect(window.location.replace).toHaveBeenCalledWith('https://example.com');
+    });
+
+    test('should attempt to close tab when close button clicked', () => {
+      const closeSpy = jest.spyOn(window, 'close').mockImplementation();
+      
+      blockedPageUI.createBlockedPage();
+      
+      const closeTabBtn = document.getElementById('close-tab-btn') as HTMLButtonElement;
+      expect(closeTabBtn).toBeTruthy();
+      
+      closeTabBtn.click();
+      
+      expect(closeSpy).toHaveBeenCalled();
+    });
+
+    test('should handle escape key press', () => {
+      blockedPageUI.createBlockedPage();
+      
+      const escapeEvent = new KeyboardEvent('keydown', { key: 'Escape' });
+      document.dispatchEvent(escapeEvent);
+      
+      expect(window.history.back).toHaveBeenCalled();
+    });
+
+    test('should handle case with no history', () => {
+      // Mock window.history with no history
+      (window as any).history = { length: 1, back: jest.fn() };
+      
+      blockedPageUI.createBlockedPage();
+      
+      const goBackBtn = document.getElementById('go-back-btn') as HTMLButtonElement;
+      goBackBtn.click();
+      
+      expect(window.location.replace).toHaveBeenCalledWith('https://example.com');
+    });
+  });
+
+  describe('Error Handling', () => {
+    test('should handle chrome.runtime.sendMessage errors', () => {
+      mockChrome.runtime.sendMessage.mockImplementation(() => {
+        throw new Error('Runtime error');
+      });
+      
+      // Should not throw error
+      expect(() => {
+        blockedPageUI.createBlockedPage();
+      }).not.toThrow();
+    });
+
+    test('should handle window.history.back errors', () => {
+      // Mock window.history with error-throwing back method
+      (window as any).history = {
+        length: 2,
+        back: jest.fn().mockImplementation(() => {
+          throw new Error('History error');
+        })
+      };
+      
+      blockedPageUI.createBlockedPage();
+      const goBackBtn = document.getElementById('go-back-btn') as HTMLButtonElement;
+      
+      // Should not throw error and should fallback to safe page
+      expect(() => goBackBtn.click()).not.toThrow();
+      expect(window.location.replace).toHaveBeenCalledWith('https://example.com');
+    });
+
+    test('should use fallback URL when redirect URL is invalid', () => {
+      const settingsWithEmptyUrl = { ...mockSettings, redirectUrl: '' };
+      blockedPageUI.updateSettings(settingsWithEmptyUrl);
+      
+      blockedPageUI.createBlockedPage();
+      const redirectSafeBtn = document.getElementById('redirect-safe-btn') as HTMLButtonElement;
+      redirectSafeBtn.click();
+      
+      expect(window.location.replace).toHaveBeenCalledWith('https://www.google.com');
+    });
+  });
+
+  describe('Cleanup', () => {
+    test('should cleanup properly', () => {
+      blockedPageUI.createBlockedPage(true);
+      expect(blockedPageUI.isPageBlocked()).toBe(true);
+      
+      blockedPageUI.cleanup();
+      
+      const overlay = document.getElementById('pomoblock-blocked-overlay');
+      expect(overlay).toBeNull();
+      expect(blockedPageUI.isPageBlocked()).toBe(false);
+    });
+
+    test('should clear intervals on cleanup', (done) => {
+      const clearIntervalSpy = jest.spyOn(global, 'clearInterval');
+      
+      blockedPageUI.createBlockedPage(true);
+      
+      // Give time for interval to be created
+      setTimeout(() => {
+        blockedPageUI.cleanup();
+        expect(clearIntervalSpy).toHaveBeenCalled();
+        done();
+      }, 100);
+    });
+
+    test('should remove event listeners on cleanup', () => {
+      const removeEventListenerSpy = jest.spyOn(document, 'removeEventListener');
+      
+      blockedPageUI.createBlockedPage();
+      blockedPageUI.cleanup();
+      
+      expect(removeEventListenerSpy).toHaveBeenCalledWith('keydown', expect.any(Function));
+    });
+  });
+
+  describe('Content Generation', () => {
+    test('should include current URL in blocked content', () => {
+      blockedPageUI.createBlockedPage();
+      
+      const blockedSite = document.querySelector('.blocked-site');
+      expect(blockedSite?.textContent).toContain('example.com/test');
+    });
+
+    test('should include timestamp in footer', () => {
+      blockedPageUI.createBlockedPage();
+      
+      const footer = document.querySelector('.blocked-footer');
+      expect(footer?.textContent).toContain('Blocked at:');
+    });
+
+    test('should include navigation buttons', () => {
+      blockedPageUI.createBlockedPage();
+      
+      expect(document.getElementById('go-back-btn')).toBeTruthy();
+      expect(document.getElementById('redirect-safe-btn')).toBeTruthy();
+      expect(document.getElementById('close-tab-btn')).toBeTruthy();
+    });
+  });
+
+  describe('Timer Integration', () => {
+    test('should show timer info for WORK state', () => {
+      blockedPageUI.setTimerState('WORK');
+      blockedPageUI.createBlockedPage();
+      
+      const timerInfo = document.querySelector('.blocked-timer-info');
+      expect(timerInfo).toBeTruthy();
+      expect(timerInfo?.innerHTML).toContain('Pomodoro Timer Active');
+      expect(timerInfo?.innerHTML).toContain('work session');
+    });
+
+    test('should show different timer info for PAUSED state', () => {
+      blockedPageUI.setTimerState('PAUSED');
+      blockedPageUI.createBlockedPage();
+      
+      const timerInfo = document.querySelector('.blocked-timer-info');
+      expect(timerInfo).toBeTruthy();
+      expect(timerInfo?.innerHTML).toContain('Timer Paused');
+      expect((timerInfo as HTMLElement)?.style.background).toContain('rgba(255, 152, 0, 0.2)');
+    });
+
+    test('should not show timer info for STOPPED state', () => {
+      blockedPageUI.setTimerState('STOPPED');
+      blockedPageUI.createBlockedPage();
+      
+      const timerInfo = document.querySelector('.blocked-timer-info');
+      expect(timerInfo).toBeNull();
+    });
+  });
+});
