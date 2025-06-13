@@ -91,6 +91,9 @@ export class PomodoroTimer {
         };
       }
       
+      // Check and handle daily reset during initialization
+      await this.checkAndHandleDailyReset();
+      
       // Update session count with today's completed work sessions
       try {
         const dailyStats = await getDailyStats();
@@ -223,6 +226,47 @@ export class PomodoroTimer {
       duration: this.status.nextSessionDuration,
       sessionCount: this.status.sessionCount
     });
+  }
+
+  /**
+   * Check if we need to reset session count due to 5 AM daily reset
+   */
+  private async checkAndHandleDailyReset(): Promise<void> {
+    const now = new Date();
+    const today5AM = new Date(now);
+    today5AM.setHours(5, 0, 0, 0);
+    
+    // If it's before 5 AM today, the reset time was yesterday at 5 AM
+    if (now.getHours() < 5) {
+      today5AM.setDate(today5AM.getDate() - 1);
+    }
+    
+    // Check if we have a last session time stored
+    try {
+      const currentSession = await getCurrentSession();
+      if (currentSession && currentSession.startTime) {
+        const lastSessionTime = new Date(currentSession.startTime);
+        
+        // If the last session was before the most recent 5 AM reset point
+        if (lastSessionTime < today5AM) {
+          logger.log('Daily reset triggered: resetting session count to 0');
+          this.status.sessionCount = 0;
+          this.status.nextSessionType = 'WORK';
+          this.status.nextSessionDuration = this.settings.workDuration * 60;
+          await this.saveStatus();
+        }
+      }
+    } catch (error) {
+      // If no current session exists, check if we need to sync with today's daily stats
+      try {
+        const dailyStats = await getDailyStats();
+        this.status.sessionCount = dailyStats.completedWorkSessions;
+        logger.log('Synced session count with daily stats:', this.status.sessionCount);
+      } catch (statsError) {
+        // If no daily stats either, keep current session count
+        logger.log('No session or daily stats found, keeping current session count');
+      }
+    }
   }
 
   /**
@@ -583,6 +627,9 @@ export class PomodoroTimer {
     if (this.status.state !== 'STOPPED') {
       await this.stop();
     }
+    
+    // Check and handle daily reset before advancing to next session
+    await this.checkAndHandleDailyReset();
     
     // Determine next session type and update session count
     const currentNextType = this.status.nextSessionType || 'WORK';
