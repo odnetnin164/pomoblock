@@ -185,14 +185,96 @@ describe('SiteManager - Block Type Selection', () => {
       expect(matchingEntry).toBeNull();
     });
 
-    test('should check if current page is whitelisted', () => {
+    test('should find matching domain-only whitelist entry', () => {
+      const testUrl = 'https://subdomain.example.com/path';
+      siteManager.setCurrentTab(testUrl);
+      
+      const whitelistedPaths = ['example.com'];
+      const matchingEntry = siteManager.findMatchingWhitelistEntry(whitelistedPaths);
+      
+      expect(matchingEntry).toBe('example.com');
+    });
+
+    test('should match domain exactly for domain-only whitelist', () => {
+      const testUrl = 'https://example.com/path';
+      siteManager.setCurrentTab(testUrl);
+      
+      const whitelistedPaths = ['example.com'];
+      const matchingEntry = siteManager.findMatchingWhitelistEntry(whitelistedPaths);
+      
+      expect(matchingEntry).toBe('example.com');
+    });
+  });
+
+  describe('removeFromWhitelist', () => {
+    test('should remove matching whitelist entry', async () => {
+      const { removeWhitelistedPath } = require('../src/shared/storage');
+      
       const testUrl = 'https://music.youtube.com/watch';
       siteManager.setCurrentTab(testUrl);
       
-      const whitelistedPaths = ['music.youtube.com/watch'];
-      const isWhitelisted = siteManager.checkIfWhitelisted(whitelistedPaths);
+      const whitelistedPaths = ['music.youtube.com/watch', 'facebook.com'];
       
-      expect(isWhitelisted).toBe(true);
+      await siteManager.removeFromWhitelist(whitelistedPaths);
+      
+      expect(removeWhitelistedPath).toHaveBeenCalledWith('music.youtube.com/watch');
+    });
+
+    test('should throw error when no matching entry found', async () => {
+      const testUrl = 'https://music.youtube.com/playlist';
+      siteManager.setCurrentTab(testUrl);
+      
+      const whitelistedPaths = ['music.youtube.com/watch'];
+      
+      await expect(siteManager.removeFromWhitelist(whitelistedPaths))
+        .rejects.toThrow('No matching whitelist entry found');
+    });
+  });
+
+  describe('checkIfWouldBeBlocked', () => {
+    test('should return true if site would be blocked', () => {
+      const testUrl = 'https://youtube.com/watch?v=123';
+      siteManager.setCurrentTab(testUrl);
+      
+      const blockedWebsites = ['youtube.com', 'facebook.com'];
+      const wouldBeBlocked = siteManager.checkIfWouldBeBlocked(blockedWebsites);
+      
+      expect(wouldBeBlocked).toBe(true);
+    });
+
+    test('should return false if site would not be blocked', () => {
+      const testUrl = 'https://example.com/';
+      siteManager.setCurrentTab(testUrl);
+      
+      const blockedWebsites = ['youtube.com', 'facebook.com'];
+      const wouldBeBlocked = siteManager.checkIfWouldBeBlocked(blockedWebsites);
+      
+      expect(wouldBeBlocked).toBe(false);
+    });
+
+    test('should return false for invalid URL', () => {
+      siteManager.setCurrentTab('invalid-url');
+      
+      const blockedWebsites = ['youtube.com'];
+      const wouldBeBlocked = siteManager.checkIfWouldBeBlocked(blockedWebsites);
+      
+      expect(wouldBeBlocked).toBe(false);
+    });
+  });
+
+  describe('error handling', () => {
+    test('should throw error when trying to block with no target', async () => {
+      siteManager.setCurrentTab('invalid-url');
+      
+      await expect(siteManager.addToBlockedList())
+        .rejects.toThrow('No target to block');
+    });
+
+    test('should throw error when trying to whitelist with no target', async () => {
+      siteManager.setCurrentTab('invalid-url');
+      
+      await expect(siteManager.addToWhitelist())
+        .rejects.toThrow('No target to whitelist');
     });
   });
 });

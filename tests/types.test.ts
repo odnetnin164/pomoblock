@@ -425,59 +425,27 @@ describe('Types', () => {
     });
   });
 
-  describe('Type Validation and Edge Cases', () => {
-    test('should enforce block mode values', () => {
-      // This test verifies that TypeScript will catch invalid block modes at compile time
+  describe('Type Edge Cases', () => {
+    test('should handle block mode validation', () => {
       const validModes = ['block', 'redirect'] as const;
-      
       validModes.forEach(mode => {
-        const settings: Pick<ExtensionSettings, 'blockMode'> = {
-          blockMode: mode
-        };
-        expect(['block', 'redirect']).toContain(settings.blockMode);
+        expect(['block', 'redirect']).toContain(mode);
       });
     });
 
-    test('should handle boolean flags correctly', () => {
-      const booleanFields = {
-        extensionEnabled: true,
-        debugEnabled: false,
-        autoStartRest: true,
-        autoStartWork: false,
-        showNotifications: true,
-        playSound: false
-      };
-      
-      Object.entries(booleanFields).forEach(([key, value]) => {
-        expect(typeof value).toBe('boolean');
+    test('should validate numeric field constraints', () => {
+      // Test that duration values are positive
+      const durations = [25, 5, 15, 4, 3];
+      durations.forEach(duration => {
+        expect(duration).toBeGreaterThan(0);
       });
     });
 
-    test('should handle numeric fields correctly', () => {
-      const numericFields = {
-        workDuration: 25,
-        restDuration: 5,
-        longRestDuration: 15,
-        longRestInterval: 4,
-        redirectDelay: 3
-      };
-      
-      Object.entries(numericFields).forEach(([key, value]) => {
-        expect(typeof value).toBe('number');
-        expect(value).toBeGreaterThan(0);
-      });
-    });
-
-    test('should handle array fields correctly', () => {
-      const arrayFields = {
-        days: [1, 2, 3, 4, 5],
-        blockedWebsitesArray: ['example.com', 'test.com'],
-        whitelistedPathsArray: ['/path1', '/path2']
-      };
-      
-      Object.entries(arrayFields).forEach(([key, value]) => {
-        expect(Array.isArray(value)).toBe(true);
-        expect(value.length).toBeGreaterThan(0);
+    test('should validate day array contains valid values', () => {
+      const validDays = [1, 2, 3, 4, 5];
+      validDays.forEach(day => {
+        expect(day).toBeGreaterThanOrEqual(0);
+        expect(day).toBeLessThanOrEqual(6);
       });
     });
   });

@@ -3,7 +3,9 @@ import {
   generateSubdomainWhitelistOptions,
   normalizeURL,
   cleanURL,
-  isValidDomain
+  isValidDomain,
+  determineBlockTarget,
+  getTargetLabel
 } from '../src/shared/urlUtils';
 import { BlockOption, BlockType } from '../src/shared/types';
 
@@ -169,6 +171,23 @@ describe('URL Utils - Block Options', () => {
       expect(cleanURL('example.com')).toBe('example.com');
     });
 
+    test('cleanURL should handle Reddit URLs', () => {
+      expect(cleanURL('https://www.reddit.com/r/programming/')).toBe('reddit.com/r/programming');
+      expect(cleanURL('Reddit.com/r/javascript/?sort=hot')).toBe('reddit.com/r/javascript');
+    });
+
+    test('cleanURL should handle YouTube URLs', () => {
+      expect(cleanURL('https://youtube.com/c/channelname')).toBe('youtube.com/c/channelname');
+      expect(cleanURL('YouTube.com/channel/UC123456789')).toBe('youtube.com/channel/uc123456789');
+      expect(cleanURL('youtube.com/user/username')).toBe('youtube.com/user/username');
+    });
+
+    test('cleanURL should handle Twitter/X URLs', () => {
+      expect(cleanURL('https://twitter.com/username')).toBe('twitter.com/username');
+      expect(cleanURL('x.com/username')).toBe('x.com/username');
+      expect(cleanURL('twitter.com/settings')).toBe('twitter.com/settings'); // cleanURL preserves system pages
+    });
+
     test('isValidDomain should validate domain formats', () => {
       expect(isValidDomain('example.com')).toBe(true);
       expect(isValidDomain('sub.example.com')).toBe(true);
@@ -176,6 +195,77 @@ describe('URL Utils - Block Options', () => {
       expect(isValidDomain('invalid')).toBe(false);
       expect(isValidDomain('')).toBe(false);
       expect(isValidDomain('just-text')).toBe(false);
+    });
+  });
+
+  describe('determineBlockTarget', () => {
+    test('should return null for chrome and extension pages', () => {
+      expect(determineBlockTarget('chrome-extension://abc123', '/popup.html')).toBeNull();
+      expect(determineBlockTarget('chrome://settings', '/privacy')).toBeNull();
+    });
+
+    test('should handle Reddit subreddits', () => {
+      expect(determineBlockTarget('reddit.com', '/r/programming')).toBe('reddit.com/r/programming');
+      expect(determineBlockTarget('reddit.com', '/r/JavaScript/hot')).toBe('reddit.com/r/javascript');
+      expect(determineBlockTarget('reddit.com', '/popular')).toBe('reddit.com');
+      //CLAUDE, DO NOT REMOVE THIS TEST
+      expect(determineBlockTarget('reddit.com', '/r/programming/comments/1la5u5j/when_google_sneezes_the_whole_world_catches_a')).toBe('reddit.com/r/programming');
+    });
+
+    test('should handle YouTube channels', () => {
+      expect(determineBlockTarget('youtube.com', '/c/channelname')).toBe('youtube.com/c/channelname');
+      expect(determineBlockTarget('youtube.com', '/channel/UC123456789')).toBe('youtube.com/channel/uc123456789');
+      expect(determineBlockTarget('youtube.com', '/user/username')).toBe('youtube.com/user/username');
+      expect(determineBlockTarget('youtube.com', '/watch?v=abc123')).toBe('youtube.com');
+    });
+
+    test('should handle Twitter/X profiles', () => {
+      expect(determineBlockTarget('twitter.com', '/username')).toBe('twitter.com/username');
+      expect(determineBlockTarget('x.com', '/username')).toBe('x.com/username');
+      expect(determineBlockTarget('twitter.com', '/settings')).toBe('twitter.com');
+    });
+
+    test('should handle subdomains', () => {
+      expect(determineBlockTarget('music.youtube.com', '/')).toBe('youtube.com');
+      expect(determineBlockTarget('api.example.com', '/')).toBe('example.com');
+      expect(determineBlockTarget('subdomain.domain.com', '/')).toBe('domain.com');
+    });
+
+    test('should handle regular domains', () => {
+      expect(determineBlockTarget('example.com', '/')).toBe('example.com');
+      expect(determineBlockTarget('Google.Com', '/search')).toBe('google.com');
+    });
+  });
+
+  describe('getTargetLabel', () => {
+    test('should return correct labels for Reddit', () => {
+      expect(getTargetLabel('reddit.com/r/programming')).toBe('r/programming subreddit');
+      expect(getTargetLabel('reddit.com/r/javascript')).toBe('r/javascript subreddit');
+    });
+
+    test('should return correct labels for YouTube', () => {
+      expect(getTargetLabel('youtube.com/channel/UC123')).toBe('this YouTube channel');
+      expect(getTargetLabel('youtube.com/c/channelname')).toBe('this YouTube channel');
+      expect(getTargetLabel('youtube.com/user/username')).toBe('this YouTube user');
+    });
+
+    test('should return correct labels for Twitter/X', () => {
+      expect(getTargetLabel('twitter.com/username')).toBe('@username profile');
+      expect(getTargetLabel('x.com/username')).toBe('@username profile');
+    });
+
+    test('should return correct labels for paths', () => {
+      expect(getTargetLabel('example.com/api/v1')).toBe('example.com/api/v1 section');
+    });
+
+    test('should return correct labels for subdomains', () => {
+      expect(getTargetLabel('api.example.com')).toBe('api subdomain');
+      expect(getTargetLabel('music.youtube.com')).toBe('music subdomain');
+    });
+
+    test('should return correct labels for domains', () => {
+      expect(getTargetLabel('example.com')).toBe('example.com domain');
+      expect(getTargetLabel('google.com')).toBe('google.com domain');
     });
   });
 });

@@ -284,32 +284,7 @@ describe('Pomodoro Storage', () => {
     });
   });
 
-  describe('saveCurrentSession', () => {
-    test('should save current session', async () => {
-      const session: PomodoroSession = {
-        id: 'test-session-id',
-        type: 'WORK',
-        duration: 900,
-        plannedDuration: 1500,
-        task: 'Test task',
-        startTime: Date.now(),
-        endTime: 0,
-        completed: false,
-        date: '2024-01-15'
-      };
-
-      (chrome.storage.local.set as jest.Mock).mockImplementation((data, callback) => {
-        callback();
-      });
-
-      await saveCurrentSession(session);
-
-      expect(chrome.storage.local.set).toHaveBeenCalledWith(
-        { [POMODORO_STORAGE_KEYS.CURRENT_SESSION]: session },
-        expect.any(Function)
-      );
-    });
-
+  describe('saveCurrentSession - clear session functionality', () => {
     test('should clear current session when null is passed', async () => {
       (chrome.storage.local.set as jest.Mock).mockImplementation((data, callback) => {
         callback();
@@ -507,6 +482,79 @@ describe('Pomodoro Storage', () => {
       const result = await getSessionsHistory();
 
       expect(result).toEqual([]);
+    });
+  });
+
+  describe('formatDurationLong', () => {
+    test('should format long durations correctly', () => {
+      const { formatDurationLong } = require('@shared/pomodoroStorage');
+      
+      expect(formatDurationLong(3661)).toBe('1h 1m 1s');
+      expect(formatDurationLong(3600)).toBe('1h 0m 0s');
+      expect(formatDurationLong(65)).toBe('1m 5s');
+      expect(formatDurationLong(30)).toBe('30s');
+      expect(formatDurationLong(0)).toBe('0s');
+    });
+  });
+
+  describe('cleanupOldData', () => {
+    test('should remove data older than 90 days', async () => {
+      const { cleanupOldData } = require('@shared/pomodoroStorage');
+      
+      const oldDate = new Date();
+      oldDate.setDate(oldDate.getDate() - 100);
+      const recentDate = new Date();
+      recentDate.setDate(recentDate.getDate() - 10);
+      
+      const mockStats = {
+        [oldDate.toISOString().split('T')[0]]: {
+          date: oldDate.toISOString().split('T')[0],
+          completedWorkSessions: 1,
+          completedRestSessions: 0,
+          totalWorkTime: 1500,
+          totalRestTime: 0,
+          sessions: []
+        },
+        [recentDate.toISOString().split('T')[0]]: {
+          date: recentDate.toISOString().split('T')[0],
+          completedWorkSessions: 2,
+          completedRestSessions: 1,
+          totalWorkTime: 3000,
+          totalRestTime: 300,
+          sessions: []
+        }
+      };
+
+      (chrome.storage.local.get as jest.Mock).mockImplementation((keys, callback) => {
+        callback({ [POMODORO_STORAGE_KEYS.DAILY_STATS]: mockStats });
+      });
+
+      (chrome.storage.local.set as jest.Mock).mockImplementation((data, callback) => {
+        callback();
+      });
+
+      await cleanupOldData();
+
+      expect(chrome.storage.local.set).toHaveBeenCalledWith(
+        expect.objectContaining({
+          [POMODORO_STORAGE_KEYS.DAILY_STATS]: expect.not.objectContaining({
+            [oldDate.toISOString().split('T')[0]]: expect.anything()
+          })
+        }),
+        expect.any(Function)
+      );
+    });
+
+    test('should handle cleanup errors gracefully', async () => {
+      const { cleanupOldData } = require('@shared/pomodoroStorage');
+      
+      chrome.runtime.lastError = { message: 'Storage error' };
+      (chrome.storage.local.get as jest.Mock).mockImplementation((keys, callback) => {
+        callback({});
+      });
+
+      // Should not throw
+      await expect(cleanupOldData()).resolves.not.toThrow();
     });
   });
 

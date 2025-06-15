@@ -15,7 +15,8 @@ module.exports = {
     '^@contentScript/(.*)$': '<rootDir>/src/contentScript/$1',
     '^@background/(.*)$': '<rootDir>/src/background/$1',
     '^@options/(.*)$': '<rootDir>/src/options/$1',
-    '^@history/(.*)$': '<rootDir>/src/history/$1'
+    '^@history/(.*)$': '<rootDir>/src/history/$1',
+    '\\.(css|less|scss)$': 'identity-obj-proxy'
   },
   setupFilesAfterEnv: ['<rootDir>/tests/setup.ts'],
   collectCoverageFrom: [
