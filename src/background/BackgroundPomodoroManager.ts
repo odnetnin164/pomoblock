@@ -370,12 +370,22 @@ export class BackgroundPomodoroManager {
    */
   private showNotification(notification: TimerNotification): void {
     try {
-      chrome.notifications.create({
+      // Generate unique notification ID to avoid conflicts
+      const notificationId = `pomoblock_${Date.now()}`;
+      
+      chrome.notifications.create(notificationId, {
         type: 'basic',
         iconUrl: chrome.runtime.getURL('icons/icon48.png'),
         title: notification.title,
         message: notification.message,
-        priority: 2
+        priority: 2,
+        requireInteraction: false
+      }, (notificationId) => {
+        if (chrome.runtime.lastError) {
+          console.error('Error creating notification:', chrome.runtime.lastError);
+        } else {
+          logger.log('Notification created successfully:', notificationId);
+        }
       });
     } catch (error) {
       console.error('Error showing notification:', error);
