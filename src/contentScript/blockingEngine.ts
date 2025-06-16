@@ -127,6 +127,86 @@ export class BlockingEngine {
   }
 
   /**
+   * Pause all media elements on the page
+   */
+  private pauseAllMedia(): void {
+    try {
+      // Pause HTML5 video and audio elements
+      const mediaElements = document.querySelectorAll('video, audio') as NodeListOf<HTMLMediaElement>;
+      mediaElements.forEach(element => {
+        if (!element.paused) {
+          element.pause();
+          logger.log('Paused media element:', { tagName: element.tagName, src: element.src || element.currentSrc });
+        }
+      });
+
+      // Handle YouTube-specific elements
+      if (window.location.hostname.includes('youtube.com')) {
+        // Try to pause YouTube player via postMessage API
+        const ytIframes = document.querySelectorAll('iframe[src*="youtube.com"]') as NodeListOf<HTMLIFrameElement>;
+        ytIframes.forEach(iframe => {
+          try {
+            iframe.contentWindow?.postMessage('{"event":"command","func":"pauseVideo","args":""}', '*');
+            logger.log('Sent pause command to YouTube iframe');
+          } catch (e) {
+            logger.log('Could not pause YouTube iframe:', e);
+          }
+        });
+
+        // Try to pause main YouTube player
+        try {
+          // Look for YouTube's video player
+          const ytPlayer = document.querySelector('#movie_player, .html5-video-player') as any;
+          if (ytPlayer && typeof ytPlayer.pauseVideo === 'function') {
+            ytPlayer.pauseVideo();
+            logger.log('Paused YouTube player via API');
+          }
+        } catch (e) {
+          logger.log('Could not pause YouTube player via API:', e);
+        }
+      }
+
+      // Handle common video players
+      const videoPlayers = document.querySelectorAll('[data-testid*="player"], .video-player, .player, .video-container video');
+      videoPlayers.forEach(player => {
+        const video = player.tagName === 'VIDEO' ? player as HTMLVideoElement : player.querySelector('video') as HTMLVideoElement;
+        if (video && !video.paused) {
+          video.pause();
+          logger.log('Paused video in player container');
+        }
+      });
+
+      // Try to click pause buttons as a fallback
+      const pauseButtons = document.querySelectorAll(
+        '[aria-label*="pause" i], [aria-label*="Play" i], [title*="pause" i], [title*="Play" i], ' +
+        '.pause-button, .play-button, .video-pause, .video-play, ' +
+        'button[data-testid*="pause"], button[data-testid*="play"]'
+      );
+      
+      pauseButtons.forEach(button => {
+        const btn = button as HTMLElement;
+        // Only click if it looks like a pause button (not play)
+        const isPauseButton = btn.getAttribute('aria-label')?.toLowerCase().includes('pause') ||
+                             btn.getAttribute('title')?.toLowerCase().includes('pause') ||
+                             btn.className.includes('pause');
+        
+        if (isPauseButton && btn.offsetParent !== null) { // Check if button is visible
+          try {
+            btn.click();
+            logger.log('Clicked pause button:', btn);
+          } catch (e) {
+            logger.log('Could not click pause button:', e);
+          }
+        }
+      });
+
+      logger.log('Media pause attempt completed');
+    } catch (error) {
+      logger.log('Error pausing media:', error);
+    }
+  }
+
+  /**
    * Check if the current website should be blocked
    */
   shouldBlockWebsite(): boolean {
@@ -145,6 +225,8 @@ export class BlockingEngine {
       return false;
     }
     
+    let shouldBlock = false;
+    
     // Check each blocked site
     for (const site of this.restrictedSites) {
       logger.log('Comparing with', site);
@@ -161,7 +243,8 @@ export class BlockingEngine {
         if (currentHostname === normalizedSiteDomain && currentPathname.startsWith(sitePath)) {
           if (this.isBlockedSiteEnabled(site)) {
             logger.log('PATH MATCH FOUND (ENABLED)', { site, currentHostname, currentPathname });
-            return true;
+            shouldBlock = true;
+            break;
           } else {
             logger.log('PATH MATCH FOUND BUT DISABLED', { site, currentHostname, currentPathname });
           }
@@ -174,7 +257,8 @@ export class BlockingEngine {
         if (currentHostname === normalizedSite) {
           if (this.isBlockedSiteEnabled(site)) {
             logger.log('EXACT DOMAIN MATCH FOUND (ENABLED)', { currentHostname, matchedSite: normalizedSite });
-            return true;
+            shouldBlock = true;
+            break;
           } else {
             logger.log('EXACT DOMAIN MATCH FOUND BUT DISABLED', { currentHostname, matchedSite: normalizedSite });
           }
@@ -187,7 +271,8 @@ export class BlockingEngine {
           if (!this.isSubdomainWhitelisted(currentHostname)) {
             if (this.isBlockedSiteEnabled(site)) {
               logger.log('SUBDOMAIN MATCH FOUND (ENABLED)', { currentHostname, matchedSite: normalizedSite });
-              return true;
+              shouldBlock = true;
+              break;
             } else {
               logger.log('SUBDOMAIN MATCH FOUND BUT DISABLED', { currentHostname, matchedSite: normalizedSite });
             }
@@ -200,7 +285,8 @@ export class BlockingEngine {
         if (currentHostname.includes(normalizedSite)) {
           if (this.isBlockedSiteEnabled(site)) {
             logger.log('PARTIAL MATCH FOUND (ENABLED)', { currentHostname, matchedSite: normalizedSite });
-            return true;
+            shouldBlock = true;
+            break;
           } else {
             logger.log('PARTIAL MATCH FOUND BUT DISABLED', { currentHostname, matchedSite: normalizedSite });
           }
@@ -208,8 +294,16 @@ export class BlockingEngine {
       }
     }
     
-    logger.log('No match found');
-    return false;
+    // If we're blocking this site, pause any playing media
+    if (shouldBlock) {
+      this.pauseAllMedia();
+    }
+    
+    if (!shouldBlock) {
+      logger.log('No match found');
+    }
+    
+    return shouldBlock;
   }
 
   /**

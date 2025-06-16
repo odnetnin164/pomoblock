@@ -152,3 +152,110 @@ describe.skip('BlockingEngine - Subdomain Whitelisting', () => {
     });
   });
 });
+
+describe('BlockingEngine - Media Pausing', () => {
+  let blockingEngine: BlockingEngine;
+  let mockVideoElement: Partial<HTMLVideoElement>;
+  let mockAudioElement: Partial<HTMLAudioElement>;
+
+  beforeEach(() => {
+    blockingEngine = new BlockingEngine();
+
+    // Create mock media elements
+    mockVideoElement = {
+      paused: false,
+      pause: jest.fn(),
+      tagName: 'VIDEO',
+      src: 'https://youtube.com/video.mp4'
+    };
+
+    mockAudioElement = {
+      paused: false,
+      pause: jest.fn(),
+      tagName: 'AUDIO',
+      src: 'https://youtube.com/audio.mp3'
+    };
+
+    // Mock document.querySelectorAll
+    jest.spyOn(document, 'querySelectorAll').mockImplementation((selector: string) => {
+      if (selector === 'video, audio') {
+        return [mockVideoElement, mockAudioElement] as any;
+      }
+      return [] as any;
+    });
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  test('should pause media when site is blocked via spy', () => {
+    // Spy on shouldBlockWebsite to force it to return true and trigger media pausing
+    const shouldBlockSpy = jest.spyOn(blockingEngine, 'shouldBlockWebsite').mockImplementation(() => {
+      // Call the private pauseAllMedia method directly by accessing it
+      (blockingEngine as any).pauseAllMedia();
+      return true;
+    });
+
+    // Call shouldBlockWebsite which will trigger media pausing
+    const shouldBlock = blockingEngine.shouldBlockWebsite();
+
+    expect(shouldBlock).toBe(true);
+    expect(mockVideoElement.pause).toHaveBeenCalled();
+    expect(mockAudioElement.pause).toHaveBeenCalled();
+    
+    shouldBlockSpy.mockRestore();
+  });
+
+  test('should not pause already paused media', () => {
+    // Create new mock elements that are already paused
+    const pausedVideoElement = {
+      paused: true,
+      pause: jest.fn(),
+      tagName: 'VIDEO',
+      src: 'https://youtube.com/video.mp4'
+    };
+
+    const pausedAudioElement = {
+      paused: true,
+      pause: jest.fn(),
+      tagName: 'AUDIO',
+      src: 'https://youtube.com/audio.mp3'
+    };
+
+    // Mock document.querySelectorAll to return already paused elements
+    jest.spyOn(document, 'querySelectorAll').mockImplementation((selector: string) => {
+      if (selector === 'video, audio') {
+        return [pausedVideoElement, pausedAudioElement] as any;
+      }
+      return [] as any;
+    });
+
+    // Mock shouldBlockWebsite to trigger media pausing
+    const shouldBlockSpy = jest.spyOn(blockingEngine, 'shouldBlockWebsite').mockImplementation(() => {
+      (blockingEngine as any).pauseAllMedia();
+      return true;
+    });
+
+    const shouldBlock = blockingEngine.shouldBlockWebsite();
+
+    expect(shouldBlock).toBe(true);
+    expect(pausedVideoElement.pause).not.toHaveBeenCalled();
+    expect(pausedAudioElement.pause).not.toHaveBeenCalled();
+    
+    shouldBlockSpy.mockRestore();
+  });
+
+  test('should not pause media when site is not blocked', () => {
+    // Mock shouldBlockWebsite to return false without triggering media pausing
+    const shouldBlockSpy = jest.spyOn(blockingEngine, 'shouldBlockWebsite').mockReturnValue(false);
+
+    const shouldBlock = blockingEngine.shouldBlockWebsite();
+
+    expect(shouldBlock).toBe(false);
+    expect(mockVideoElement.pause).not.toHaveBeenCalled();
+    expect(mockAudioElement.pause).not.toHaveBeenCalled();
+    
+    shouldBlockSpy.mockRestore();
+  });
+});
