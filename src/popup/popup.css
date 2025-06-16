@@ -425,6 +425,7 @@ body {
   opacity: 0.8;
   font-family: 'Courier New', monospace;
   margin-bottom: 2px;
+  word-break: break-all;
 }
 
 .block-option-description {

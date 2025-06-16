@@ -276,8 +276,48 @@ export function generateBlockOptions(url: string): BlockOption[] {
       });
     }
     
-    // Option 3: Block specific path (if not root)
-    if (pathname && pathname !== '/' && pathname.length > 1) {
+    // Special handling for Reddit subreddits
+    if (hostname === 'reddit.com' && pathname.includes('/r/')) {
+      const subredditMatch = pathname.match(/^\/r\/([^\/]+)/);
+      if (subredditMatch) {
+        const subreddit = subredditMatch[1];
+        options.push({
+          type: 'path',
+          label: `r/${subreddit} subreddit`,
+          target: `reddit.com/r/${subreddit}`,
+          description: `Blocks only the r/${subreddit} subreddit`
+        });
+      }
+    }
+    // Special handling for YouTube channels
+    else if (hostname === 'youtube.com' && pathname.match(/^\/(c|channel|user)\//)) {
+      const channelMatch = pathname.match(/^\/(c|channel|user)\/([^\/]+)/);
+      if (channelMatch) {
+        const channelType = channelMatch[1];
+        const channelName = channelMatch[2];
+        options.push({
+          type: 'path',
+          label: `This YouTube ${channelType === 'c' ? 'channel' : channelType}`,
+          target: `youtube.com/${channelType}/${channelName}`,
+          description: `Blocks only this YouTube ${channelType === 'c' ? 'channel' : channelType}`
+        });
+      }
+    }
+    // Special handling for Twitter/X profiles
+    else if ((hostname === 'twitter.com' || hostname === 'x.com') && pathname.match(/^\/[^\/]+$/)) {
+      const userMatch = pathname.match(/^\/([^\/]+)$/);
+      if (userMatch && !SOCIAL_SYSTEM_PAGES.includes(userMatch[1].toLowerCase())) {
+        const username = userMatch[1];
+        options.push({
+          type: 'path',
+          label: `@${username} profile`,
+          target: `${hostname}/${username}`,
+          description: `Blocks only @${username}'s profile`
+        });
+      }
+    }
+    // Generic path handling for other sites
+    else if (pathname && pathname !== '/' && pathname.length > 1) {
       // Clean up pathname for display
       const cleanPath = pathname.endsWith('/') ? pathname.slice(0, -1) : pathname;
       
