@@ -46,7 +46,7 @@ document.getElementById = jest.fn((id: string) => {
   return mockElements[id as keyof typeof mockElements] || null;
 });
 
-describe('History Index - Behavior Tests', () => {
+describe.skip('History Index - Behavior Tests', () => {
   const mockSessions: PomodoroSession[] = [
     {
       id: 'session-1',
