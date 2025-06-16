@@ -253,27 +253,45 @@ export function generateBlockOptions(url: string): BlockOption[] {
     
     const options: BlockOption[] = [];
     
-    // Get domain parts
+    // Check if hostname is an IP address
+    const isIPAddress = /^(\d{1,3}\.){3}\d{1,3}$/.test(hostname);
+    
+    // Get domain parts (only for non-IP addresses)
     const domainParts = hostname.split('.');
-    const isSubdomain = domainParts.length > 2;
-    const mainDomain = isSubdomain ? domainParts.slice(-2).join('.') : hostname;
+    const isSubdomain = !isIPAddress && domainParts.length > 2;
+    const mainDomain = isIPAddress ? hostname : (isSubdomain ? domainParts.slice(-2).join('.') : hostname);
     
-    // Option 1: Block entire domain (including all subdomains)
-    options.push({
-      type: 'domain',
-      label: `Entire ${mainDomain} domain`,
-      target: mainDomain,
-      description: `Blocks ${mainDomain} and all its subdomains`
-    });
-    
-    // Option 2: Block specific subdomain (if applicable)
-    if (isSubdomain) {
+    // Option 1: Block entire domain/IP address
+    if (isIPAddress) {
+      // For IP addresses, include port if present
+      let target = hostname;
+      if (urlObj.port) {
+        target = `${hostname}:${urlObj.port}`;
+      }
+      
       options.push({
-        type: 'subdomain',
-        label: `${hostname} subdomain only`,
-        target: hostname,
-        description: `Blocks only ${hostname}, not other subdomains`
+        type: 'domain',
+        label: `Entire ${target} server`,
+        target: target,
+        description: `Blocks all pages on ${target}`
       });
+    } else {
+      options.push({
+        type: 'domain',
+        label: `Entire ${mainDomain} domain`,
+        target: mainDomain,
+        description: `Blocks ${mainDomain} and all its subdomains`
+      });
+      
+      // Option 2: Block specific subdomain (if applicable)
+      if (isSubdomain) {
+        options.push({
+          type: 'subdomain',
+          label: `${hostname} subdomain only`,
+          target: hostname,
+          description: `Blocks only ${hostname}, not other subdomains`
+        });
+      }
     }
     
     // Special handling for Reddit subreddits
@@ -320,19 +338,50 @@ export function generateBlockOptions(url: string): BlockOption[] {
     else if (pathname && pathname !== '/' && pathname.length > 1) {
       // Clean up pathname for display
       const cleanPath = pathname.endsWith('/') ? pathname.slice(0, -1) : pathname;
+      const pathSegments = cleanPath.split('/').filter(segment => segment.length > 0);
       
-      options.push({
-        type: 'path',
-        label: `${hostname}${cleanPath} path`,
-        target: `${hostname}${cleanPath}`,
-        description: `Blocks only this section of the site`
-      });
+      // Generate path options from shortest to longest
+      if (pathSegments.length > 0) {
+        // Option for first path segment (e.g., /browse for /browse/staff-picks/post/123)
+        const shortPath = `/${pathSegments[0]}`;
+        let shortTarget = `${hostname}${shortPath}`;
+        if (isIPAddress && urlObj.port) {
+          shortTarget = `${hostname}:${urlObj.port}${shortPath}`;
+        }
+        
+        options.push({
+          type: 'path',
+          label: `${shortTarget} section`,
+          target: shortTarget,
+          description: `Blocks the ${shortPath} section of the site`
+        });
+        
+        // If there are multiple path segments, also add the full path option
+        if (pathSegments.length > 1) {
+          let fullTarget = `${hostname}${cleanPath}`;
+          if (isIPAddress && urlObj.port) {
+            fullTarget = `${hostname}:${urlObj.port}${cleanPath}`;
+          }
+          
+          options.push({
+            type: 'path',
+            label: `${fullTarget} path`,
+            target: fullTarget,
+            description: `Blocks only this specific path`
+          });
+        }
+      }
     }
     
     // Option 4: Block specific page (full URL path)
     if (pathname && pathname !== '/') {
       const fullUrl = urlObj.href.split('?')[0].split('#')[0]; // Remove query params and fragment
-      const displayPath = fullUrl.replace(/^https?:\/\//, '');
+      let displayPath = fullUrl.replace(/^https?:\/\//, '');
+      
+      // For IP addresses, ensure we include the port if present
+      if (isIPAddress && urlObj.port) {
+        displayPath = `${hostname}:${urlObj.port}${pathname}`;
+      }
       
       options.push({
         type: 'page',
