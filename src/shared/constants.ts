@@ -88,6 +88,8 @@ export const SOCIAL_SYSTEM_PAGES = [
 export const STORAGE_KEYS = {
   BLOCKED_WEBSITES: 'blockedWebsitesArray',
   WHITELISTED_PATHS: 'whitelistedPathsArray',
+  BLOCKED_SITES_TOGGLE_STATE: 'blockedSitesToggleState',
+  WHITELISTED_PATHS_TOGGLE_STATE: 'whitelistedPathsToggleState',
   BLOCK_MODE: 'blockMode',
   REDIRECT_URL: 'redirectUrl',
   REDIRECT_DELAY: 'redirectDelay',

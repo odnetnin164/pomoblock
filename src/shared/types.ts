@@ -33,6 +33,8 @@ export interface ExtensionSettings {
 export interface StorageData {
   blockedWebsitesArray?: string[];
   whitelistedPathsArray?: string[];
+  blockedSitesToggleState?: SiteToggleState;
+  whitelistedPathsToggleState?: SiteToggleState;
   blockMode?: 'block' | 'redirect';
   redirectUrl?: string;
   redirectDelay?: number;
@@ -59,6 +61,16 @@ export interface SiteInfo {
   hostname: string;
   pathname: string;
   normalizedUrl: string;
+}
+
+// Toggleable Site Types
+export interface ToggleableSite {
+  url: string;
+  enabled: boolean;
+}
+
+export interface SiteToggleState {
+  [url: string]: boolean;
 }
 
 // Block Types for user selection

@@ -1,4 +1,4 @@
-import { StatusMessage, SiteType } from '@shared/types';
+import { StatusMessage, SiteType, SiteToggleState } from '@shared/types';
 import { 
   getBlockedWebsites, 
   getWhitelistedPaths, 
@@ -7,7 +7,13 @@ import {
   addWhitelistedPath,
   removeWhitelistedPath,
   clearAllBlockedWebsites,
-  clearAllWhitelistedPaths
+  clearAllWhitelistedPaths,
+  getBlockedSitesToggleState,
+  getWhitelistedPathsToggleState,
+  toggleBlockedSite,
+  toggleWhitelistedPath,
+  isBlockedSiteEnabled,
+  isWhitelistedPathEnabled
 } from '@shared/storage';
 import { cleanURL, isValidDomain, isValidPath, getSiteType } from '@shared/urlUtils';
 
@@ -152,6 +158,58 @@ export class SiteListManager {
   }
 
   /**
+   * Edit a website in blocked list
+   */
+  async editBlockedSite(oldWebsite: string, newWebsite: string): Promise<boolean> {
+    if (!newWebsite.trim()) {
+      this.showStatusMessage({
+        text: 'Please enter a website URL',
+        type: 'error'
+      });
+      return false;
+    }
+
+    const cleanedWebsite = cleanURL(newWebsite);
+    
+    if (!isValidDomain(cleanedWebsite)) {
+      this.showStatusMessage({
+        text: 'Please enter a valid domain or URL',
+        type: 'error'
+      });
+      return false;
+    }
+
+    try {
+      const currentSites = await getBlockedWebsites();
+      
+      if (cleanedWebsite !== oldWebsite && currentSites.includes(cleanedWebsite)) {
+        this.showStatusMessage({
+          text: 'Website is already blocked',
+          type: 'error'
+        });
+        return false;
+      }
+
+      // Remove old and add new
+      await removeBlockedWebsite(oldWebsite);
+      await addBlockedWebsite(cleanedWebsite);
+      
+      this.showStatusMessage({
+        text: 'Website updated successfully!',
+        type: 'success'
+      });
+      this.notifySitesUpdated();
+      return true;
+    } catch (error) {
+      this.showStatusMessage({
+        text: `Error updating website: ${(error as Error).message}`,
+        type: 'error'
+      });
+      return false;
+    }
+  }
+
+  /**
    * Remove a website from blocked list
    */
   async removeBlockedSite(website: string): Promise<boolean> {
@@ -166,6 +224,58 @@ export class SiteListManager {
     } catch (error) {
       this.showStatusMessage({
         text: `Error removing website: ${(error as Error).message}`,
+        type: 'error'
+      });
+      return false;
+    }
+  }
+
+  /**
+   * Edit a path in whitelist
+   */
+  async editWhitelistedPath(oldPath: string, newPath: string): Promise<boolean> {
+    if (!newPath.trim()) {
+      this.showStatusMessage({
+        text: 'Please enter a path to whitelist',
+        type: 'error'
+      });
+      return false;
+    }
+
+    const cleanedPath = cleanURL(newPath);
+    
+    if (!isValidPath(cleanedPath)) {
+      this.showStatusMessage({
+        text: 'Please enter a valid domain/path combination',
+        type: 'error'
+      });
+      return false;
+    }
+
+    try {
+      const currentPaths = await getWhitelistedPaths();
+      
+      if (cleanedPath !== oldPath && currentPaths.includes(cleanedPath)) {
+        this.showStatusMessage({
+          text: 'Path is already whitelisted',
+          type: 'error'
+        });
+        return false;
+      }
+
+      // Remove old and add new
+      await removeWhitelistedPath(oldPath);
+      await addWhitelistedPath(cleanedPath);
+      
+      this.showStatusMessage({
+        text: 'Whitelisted path updated successfully!',
+        type: 'success'
+      });
+      this.notifySitesUpdated();
+      return true;
+    } catch (error) {
+      this.showStatusMessage({
+        text: `Error updating path: ${(error as Error).message}`,
         type: 'error'
       });
       return false;
@@ -295,6 +405,102 @@ export class SiteListManager {
   private showStatusMessage(message: StatusMessage): void {
     if (this.onStatusMessage) {
       this.onStatusMessage(message);
+    }
+  }
+
+  /**
+   * Get blocked sites toggle state
+   */
+  async getBlockedSitesToggleState(): Promise<SiteToggleState> {
+    try {
+      return await getBlockedSitesToggleState();
+    } catch (error) {
+      this.showStatusMessage({
+        text: `Error loading blocked sites toggle state: ${(error as Error).message}`,
+        type: 'error'
+      });
+      return {};
+    }
+  }
+
+  /**
+   * Get whitelisted paths toggle state
+   */
+  async getWhitelistedPathsToggleState(): Promise<SiteToggleState> {
+    try {
+      return await getWhitelistedPathsToggleState();
+    } catch (error) {
+      this.showStatusMessage({
+        text: `Error loading whitelisted paths toggle state: ${(error as Error).message}`,
+        type: 'error'
+      });
+      return {};
+    }
+  }
+
+  /**
+   * Toggle blocked site enabled/disabled
+   */
+  async toggleBlockedSiteEnabled(website: string): Promise<boolean> {
+    try {
+      const newState = await toggleBlockedSite(website);
+      this.showStatusMessage({
+        text: `${website} ${newState ? 'enabled' : 'disabled'}`,
+        type: 'success'
+      });
+      this.notifySitesUpdated();
+      return newState;
+    } catch (error) {
+      this.showStatusMessage({
+        text: `Error toggling website: ${(error as Error).message}`,
+        type: 'error'
+      });
+      return true; // Return default state on error
+    }
+  }
+
+  /**
+   * Toggle whitelisted path enabled/disabled
+   */
+  async toggleWhitelistedPathEnabled(path: string): Promise<boolean> {
+    try {
+      const newState = await toggleWhitelistedPath(path);
+      this.showStatusMessage({
+        text: `${path} ${newState ? 'enabled' : 'disabled'}`,
+        type: 'success'
+      });
+      this.notifySitesUpdated();
+      return newState;
+    } catch (error) {
+      this.showStatusMessage({
+        text: `Error toggling path: ${(error as Error).message}`,
+        type: 'error'
+      });
+      return true; // Return default state on error
+    }
+  }
+
+  /**
+   * Check if blocked site is enabled
+   */
+  async isBlockedSiteEnabled(website: string): Promise<boolean> {
+    try {
+      return await isBlockedSiteEnabled(website);
+    } catch (error) {
+      console.error('Error checking if blocked site is enabled:', error);
+      return true; // Default to enabled
+    }
+  }
+
+  /**
+   * Check if whitelisted path is enabled
+   */
+  async isWhitelistedPathEnabled(path: string): Promise<boolean> {
+    try {
+      return await isWhitelistedPathEnabled(path);
+    } catch (error) {
+      console.error('Error checking if whitelisted path is enabled:', error);
+      return true; // Default to enabled
     }
   }
 

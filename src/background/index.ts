@@ -4,6 +4,7 @@
 import { BackgroundPomodoroManager } from './BackgroundPomodoroManager';
 import { cleanupOldData } from '@shared/pomodoroStorage';
 import { logger } from '@shared/logger';
+import { onStorageChanged } from '@shared/storage';
 
 let pomodoroManager: BackgroundPomodoroManager | undefined;
 
@@ -20,6 +21,9 @@ async function initializePomodoroManager() {
 
 // Initialize immediately when background script loads
 initializePomodoroManager();
+
+// Set up storage listener for immediate broadcast of blocking changes
+setupStorageListener();
 
 // Re-initialize on startup (for when browser restarts)
 chrome.runtime.onStartup.addListener(async () => {
@@ -52,6 +56,40 @@ chrome.runtime.onInstalled.addListener(async () => {
   // Create context menus
   setupContextMenus();
 });
+
+// Setup storage listener for immediate blocking updates
+function setupStorageListener() {
+  onStorageChanged((changes, areaName) => {
+    if (areaName === 'sync') {
+      // Check for blocklist/whitelist changes that need immediate propagation
+      const blockingChanges = changes.blockedWebsitesArray || 
+                            changes.whitelistedPathsArray || 
+                            changes.blockedSitesToggleState || 
+                            changes.whitelistedPathsToggleState;
+      
+      if (blockingChanges) {
+        logger.log('Blocking configuration changed, broadcasting immediate update to all tabs');
+        
+        // Broadcast immediate update message to all tabs
+        chrome.tabs.query({}, (tabs) => {
+          tabs.forEach(tab => {
+            if (tab.id) {
+              chrome.tabs.sendMessage(tab.id, {
+                type: 'BLOCKING_CONFIG_CHANGED',
+                data: {
+                  timestamp: Date.now(),
+                  changes: Object.keys(changes)
+                }
+              }).catch(() => {
+                // Ignore errors for tabs that don't have content script
+              });
+            }
+          });
+        });
+      }
+    }
+  });
+}
 
 // Setup context menus
 function setupContextMenus() {

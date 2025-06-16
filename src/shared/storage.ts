@@ -1,5 +1,5 @@
 // src/shared/storage.ts
-import { ExtensionSettings, StorageData, WorkHours } from './types';
+import { ExtensionSettings, StorageData, WorkHours, SiteToggleState } from './types';
 import { DEFAULT_SETTINGS, DEFAULT_WORK_HOURS, STORAGE_KEYS } from './constants';
 
 /**
@@ -305,6 +305,114 @@ export async function resetSettings(): Promise<void> {
   } catch (error) {
     console.error('Error resetting settings:', error);
     throw error;
+  }
+}
+
+/**
+ * Get blocked sites toggle state
+ */
+export async function getBlockedSitesToggleState(): Promise<SiteToggleState> {
+  try {
+    const data = await getStorageData(STORAGE_KEYS.BLOCKED_SITES_TOGGLE_STATE);
+    return data.blockedSitesToggleState ?? {};
+  } catch (error) {
+    console.error('Error getting blocked sites toggle state:', error);
+    return {};
+  }
+}
+
+/**
+ * Save blocked sites toggle state
+ */
+export async function saveBlockedSitesToggleState(toggleState: SiteToggleState): Promise<void> {
+  try {
+    await setStorageData({ [STORAGE_KEYS.BLOCKED_SITES_TOGGLE_STATE]: toggleState });
+  } catch (error) {
+    console.error('Error saving blocked sites toggle state:', error);
+    throw error;
+  }
+}
+
+/**
+ * Toggle blocked site enabled/disabled state
+ */
+export async function toggleBlockedSite(website: string): Promise<boolean> {
+  try {
+    const toggleState = await getBlockedSitesToggleState();
+    const newState = !(toggleState[website] ?? true); // Default to enabled if not set
+    toggleState[website] = newState;
+    await saveBlockedSitesToggleState(toggleState);
+    return newState;
+  } catch (error) {
+    console.error('Error toggling blocked site:', error);
+    throw error;
+  }
+}
+
+/**
+ * Get whitelisted paths toggle state
+ */
+export async function getWhitelistedPathsToggleState(): Promise<SiteToggleState> {
+  try {
+    const data = await getStorageData(STORAGE_KEYS.WHITELISTED_PATHS_TOGGLE_STATE);
+    return data.whitelistedPathsToggleState ?? {};
+  } catch (error) {
+    console.error('Error getting whitelisted paths toggle state:', error);
+    return {};
+  }
+}
+
+/**
+ * Save whitelisted paths toggle state
+ */
+export async function saveWhitelistedPathsToggleState(toggleState: SiteToggleState): Promise<void> {
+  try {
+    await setStorageData({ [STORAGE_KEYS.WHITELISTED_PATHS_TOGGLE_STATE]: toggleState });
+  } catch (error) {
+    console.error('Error saving whitelisted paths toggle state:', error);
+    throw error;
+  }
+}
+
+/**
+ * Toggle whitelisted path enabled/disabled state
+ */
+export async function toggleWhitelistedPath(path: string): Promise<boolean> {
+  try {
+    const toggleState = await getWhitelistedPathsToggleState();
+    const newState = !(toggleState[path] ?? true); // Default to enabled if not set
+    toggleState[path] = newState;
+    await saveWhitelistedPathsToggleState(toggleState);
+    return newState;
+  } catch (error) {
+    console.error('Error toggling whitelisted path:', error);
+    throw error;
+  }
+}
+
+/**
+ * Check if blocked site is enabled
+ */
+export async function isBlockedSiteEnabled(website: string): Promise<boolean> {
+  try {
+    const toggleState = await getBlockedSitesToggleState();
+    return toggleState[website] ?? true; // Default to enabled if not set
+  } catch (error) {
+    console.error('Error checking if blocked site is enabled:', error);
+    return true; // Default to enabled on error
+  }
+}
+
+/**
+ * Check if whitelisted path is enabled
+ */
+export async function isWhitelistedPathEnabled(path: string): Promise<boolean> {
+  try {
+    const toggleState = await getWhitelistedPathsToggleState();
+    return toggleState[path] ?? true; // Default to enabled if not set
+  } catch (error) {
+    console.error('Error checking if whitelisted path is enabled:', error);
+    return true; // Default to enabled on error
   }
 }
 

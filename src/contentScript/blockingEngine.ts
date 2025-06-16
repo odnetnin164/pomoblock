@@ -1,13 +1,18 @@
 import { normalizeURL } from '@shared/urlUtils';
 import { logger } from '@shared/logger';
+import { SiteToggleState } from '@shared/types';
 
 export class BlockingEngine {
   private restrictedSites = new Set<string>();
   private whitelistedPaths = new Set<string>();
+  private blockedSitesToggleState: SiteToggleState = {};
+  private whitelistedPathsToggleState: SiteToggleState = {};
 
   constructor() {
     this.restrictedSites = new Set();
     this.whitelistedPaths = new Set();
+    this.blockedSitesToggleState = {};
+    this.whitelistedPathsToggleState = {};
   }
 
   /**
@@ -30,6 +35,36 @@ export class BlockingEngine {
       this.whitelistedPaths.add(path.toLowerCase());
     });
     logger.log('Updated whitelisted paths', Array.from(this.whitelistedPaths));
+  }
+
+  /**
+   * Update blocked sites toggle state
+   */
+  updateBlockedSitesToggleState(toggleState: SiteToggleState): void {
+    this.blockedSitesToggleState = { ...toggleState };
+    logger.log('Updated blocked sites toggle state', this.blockedSitesToggleState);
+  }
+
+  /**
+   * Update whitelisted paths toggle state
+   */
+  updateWhitelistedPathsToggleState(toggleState: SiteToggleState): void {
+    this.whitelistedPathsToggleState = { ...toggleState };
+    logger.log('Updated whitelisted paths toggle state', this.whitelistedPathsToggleState);
+  }
+
+  /**
+   * Check if a blocked site is enabled
+   */
+  private isBlockedSiteEnabled(site: string): boolean {
+    return this.blockedSitesToggleState[site] ?? true; // Default to enabled
+  }
+
+  /**
+   * Check if a whitelisted path is enabled
+   */
+  private isWhitelistedPathEnabled(path: string): boolean {
+    return this.whitelistedPathsToggleState[path] ?? true; // Default to enabled
   }
 
   /**
@@ -60,8 +95,12 @@ export class BlockingEngine {
         
         // Check if domain matches and current path starts with whitelisted path
         if (currentHostname === normalizedPathDomain && currentPathname.startsWith(pathPath)) {
-          logger.log('WHITELIST PATH MATCH FOUND', { whitelistedPath, currentHostname, currentPathname });
-          return true;
+          if (this.isWhitelistedPathEnabled(whitelistedPath)) {
+            logger.log('WHITELIST PATH MATCH FOUND (ENABLED)', { whitelistedPath, currentHostname, currentPathname });
+            return true;
+          } else {
+            logger.log('WHITELIST PATH MATCH FOUND BUT DISABLED', { whitelistedPath, currentHostname, currentPathname });
+          }
         }
       } else {
         // This is a domain-only whitelist entry
@@ -69,8 +108,12 @@ export class BlockingEngine {
         
         // Exact domain match (for subdomains in whitelist)
         if (currentHostname === normalizedDomain) {
-          logger.log('WHITELIST EXACT DOMAIN MATCH FOUND', { currentHostname, whitelistedPath: normalizedDomain });
-          return true;
+          if (this.isWhitelistedPathEnabled(whitelistedPath)) {
+            logger.log('WHITELIST EXACT DOMAIN MATCH FOUND (ENABLED)', { currentHostname, whitelistedPath: normalizedDomain });
+            return true;
+          } else {
+            logger.log('WHITELIST EXACT DOMAIN MATCH FOUND BUT DISABLED', { currentHostname, whitelistedPath: normalizedDomain });
+          }
         }
         
         // NOTE: We DO NOT do subdomain matching for whitelisted entries
@@ -116,8 +159,12 @@ export class BlockingEngine {
         
         // Check if domain matches and path starts with the blocked path
         if (currentHostname === normalizedSiteDomain && currentPathname.startsWith(sitePath)) {
-          logger.log('PATH MATCH FOUND', { site, currentHostname, currentPathname });
-          return true;
+          if (this.isBlockedSiteEnabled(site)) {
+            logger.log('PATH MATCH FOUND (ENABLED)', { site, currentHostname, currentPathname });
+            return true;
+          } else {
+            logger.log('PATH MATCH FOUND BUT DISABLED', { site, currentHostname, currentPathname });
+          }
         }
       } else {
         // Handle domain-based blocking
@@ -125,8 +172,12 @@ export class BlockingEngine {
         
         // Exact domain match
         if (currentHostname === normalizedSite) {
-          logger.log('EXACT DOMAIN MATCH FOUND', { currentHostname, matchedSite: normalizedSite });
-          return true;
+          if (this.isBlockedSiteEnabled(site)) {
+            logger.log('EXACT DOMAIN MATCH FOUND (ENABLED)', { currentHostname, matchedSite: normalizedSite });
+            return true;
+          } else {
+            logger.log('EXACT DOMAIN MATCH FOUND BUT DISABLED', { currentHostname, matchedSite: normalizedSite });
+          }
         }
         
         // Subdomain match (e.g., blocking "google.com" should block "mail.google.com")
@@ -134,8 +185,12 @@ export class BlockingEngine {
         if (currentHostname.endsWith('.' + normalizedSite)) {
           // Check if this specific subdomain is whitelisted
           if (!this.isSubdomainWhitelisted(currentHostname)) {
-            logger.log('SUBDOMAIN MATCH FOUND', { currentHostname, matchedSite: normalizedSite });
-            return true;
+            if (this.isBlockedSiteEnabled(site)) {
+              logger.log('SUBDOMAIN MATCH FOUND (ENABLED)', { currentHostname, matchedSite: normalizedSite });
+              return true;
+            } else {
+              logger.log('SUBDOMAIN MATCH FOUND BUT DISABLED', { currentHostname, matchedSite: normalizedSite });
+            }
           } else {
             logger.log('SUBDOMAIN BLOCKED BUT WHITELISTED', { currentHostname, matchedSite: normalizedSite });
           }
@@ -143,8 +198,12 @@ export class BlockingEngine {
         
         // Partial match for complex domains
         if (currentHostname.includes(normalizedSite)) {
-          logger.log('PARTIAL MATCH FOUND', { currentHostname, matchedSite: normalizedSite });
-          return true;
+          if (this.isBlockedSiteEnabled(site)) {
+            logger.log('PARTIAL MATCH FOUND (ENABLED)', { currentHostname, matchedSite: normalizedSite });
+            return true;
+          } else {
+            logger.log('PARTIAL MATCH FOUND BUT DISABLED', { currentHostname, matchedSite: normalizedSite });
+          }
         }
       }
     }

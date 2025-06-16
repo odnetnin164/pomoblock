@@ -1,6 +1,6 @@
 // src/options/index.ts
 import './options.css';
-import { ExtensionSettings, StatusMessage, WorkHours } from '@shared/types';
+import { ExtensionSettings, StatusMessage, WorkHours, SiteToggleState } from '@shared/types';
 import { UI_CONFIG, WORK_HOURS_CONFIG } from '@shared/constants';
 import { SettingsManager } from './SettingsManager';
 import { SiteListManager } from './SiteListManager';
@@ -581,20 +581,22 @@ class OptionsPageManager {
    * Refresh site lists display
    */
   private async refreshSiteLists(): Promise<void> {
-    const [blockedSites, whitelistedPaths] = await Promise.all([
+    const [blockedSites, whitelistedPaths, blockedToggleState, whitelistToggleState] = await Promise.all([
       this.siteListManager.loadBlockedWebsites(),
-      this.siteListManager.loadWhitelistedPaths()
+      this.siteListManager.loadWhitelistedPaths(),
+      this.siteListManager.getBlockedSitesToggleState(),
+      this.siteListManager.getWhitelistedPathsToggleState()
     ]);
 
-    this.displayBlockedSites(blockedSites);
-    this.displayWhitelistedPaths(whitelistedPaths);
+    this.displayBlockedSites(blockedSites, blockedToggleState);
+    this.displayWhitelistedPaths(whitelistedPaths, whitelistToggleState);
     this.updateSiteCounts(blockedSites.length, whitelistedPaths.length);
   }
 
   /**
    * Display blocked sites list
    */
-  private displayBlockedSites(sites: string[]): void {
+  private displayBlockedSites(sites: string[], toggleState: SiteToggleState = {}): void {
     if (sites.length === 0) {
       this.blockedSitesList.innerHTML = `
         <div class="empty-state">
@@ -610,34 +612,39 @@ class OptionsPageManager {
 
     const sitesHTML = sites.map((site, index) => {
       const siteType = this.siteListManager.getSiteTypeLabel(site);
+      const isEnabled = toggleState[site] ?? true;
       return `
-        <div class="site-item" data-index="${index}">
-          <div style="display: flex; align-items: center; flex: 1;">
-            <span class="site-url">${site}</span>
-            ${siteType ? `<span class="site-type">${siteType}</span>` : ''}
+        <div class="site-item ${isEnabled ? 'enabled' : 'disabled'}" data-index="${index}">
+          <div class="site-main-content">
+            <div class="site-toggle">
+              <label class="toggle-switch">
+                <input type="checkbox" class="site-toggle-input" data-site="${site}" ${isEnabled ? 'checked' : ''}>
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+            <div class="site-info">
+              <span class="site-url" data-site="${site}">${site}</span>
+              ${siteType ? `<span class="site-type">${siteType}</span>` : ''}
+            </div>
           </div>
-          <button class="remove-site-btn" data-site="${site}">Remove</button>
+          <div class="site-actions">
+            <button class="edit-site-btn" data-site="${site}" title="Edit">✏️</button>
+            <button class="remove-site-btn" data-site="${site}" title="Remove">🗑️</button>
+          </div>
         </div>
       `;
     }).join('');
 
     this.blockedSitesList.innerHTML = sitesHTML;
 
-    // Add remove button listeners
-    this.blockedSitesList.querySelectorAll('.remove-site-btn').forEach(button => {
-      button.addEventListener('click', async () => {
-        const site = button.getAttribute('data-site');
-        if (site) {
-          await this.siteListManager.removeBlockedSite(site);
-        }
-      });
-    });
+    // Add event listeners
+    this.setupBlockedSiteEventListeners();
   }
 
   /**
    * Display whitelisted paths list
    */
-  private displayWhitelistedPaths(paths: string[]): void {
+  private displayWhitelistedPaths(paths: string[], toggleState: SiteToggleState = {}): void {
     if (paths.length === 0) {
       this.whitelistedPathsList.innerHTML = `
         <div class="empty-state">
@@ -653,21 +660,104 @@ class OptionsPageManager {
 
     const pathsHTML = paths.map((path, index) => {
       const pathType = this.siteListManager.getSiteTypeLabel(path);
+      const isEnabled = toggleState[path] ?? true;
       return `
-        <div class="site-item" data-index="${index}">
-          <div style="display: flex; align-items: center; flex: 1;">
-            <span class="site-url">${path}</span>
-            ${pathType ? `<span class="site-type whitelist-type">${pathType}</span>` : ''}
+        <div class="site-item ${isEnabled ? 'enabled' : 'disabled'}" data-index="${index}">
+          <div class="site-main-content">
+            <div class="site-toggle">
+              <label class="toggle-switch">
+                <input type="checkbox" class="path-toggle-input" data-path="${path}" ${isEnabled ? 'checked' : ''}>
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+            <div class="site-info">
+              <span class="site-url" data-path="${path}">${path}</span>
+              ${pathType ? `<span class="site-type whitelist-type">${pathType}</span>` : ''}
+            </div>
           </div>
-          <button class="remove-site-btn" data-path="${path}">Remove</button>
+          <div class="site-actions">
+            <button class="edit-path-btn" data-path="${path}" title="Edit">✏️</button>
+            <button class="remove-path-btn" data-path="${path}" title="Remove">🗑️</button>
+          </div>
         </div>
       `;
     }).join('');
 
     this.whitelistedPathsList.innerHTML = pathsHTML;
 
-    // Add remove button listeners
-    this.whitelistedPathsList.querySelectorAll('.remove-site-btn').forEach(button => {
+    // Add event listeners
+    this.setupWhitelistEventListeners();
+  }
+
+  /**
+   * Update site counts display
+   */
+  private updateSiteCounts(blockedCount: number, whitelistedCount: number): void {
+    this.sitesCount.textContent = `${blockedCount} site${blockedCount !== 1 ? 's' : ''} blocked`;
+    this.whitelistCount.textContent = `${whitelistedCount} path${whitelistedCount !== 1 ? 's' : ''} whitelisted`;
+  }
+
+  /**
+   * Setup event listeners for blocked sites
+   */
+  private setupBlockedSiteEventListeners(): void {
+    // Toggle listeners
+    this.blockedSitesList.querySelectorAll('.site-toggle-input').forEach(toggle => {
+      toggle.addEventListener('change', async () => {
+        const site = toggle.getAttribute('data-site');
+        if (site) {
+          await this.siteListManager.toggleBlockedSiteEnabled(site);
+        }
+      });
+    });
+
+    // Edit listeners
+    this.blockedSitesList.querySelectorAll('.edit-site-btn').forEach(button => {
+      button.addEventListener('click', async () => {
+        const site = button.getAttribute('data-site');
+        if (site) {
+          await this.editBlockedSite(site);
+        }
+      });
+    });
+
+    // Remove listeners
+    this.blockedSitesList.querySelectorAll('.remove-site-btn').forEach(button => {
+      button.addEventListener('click', async () => {
+        const site = button.getAttribute('data-site');
+        if (site) {
+          await this.siteListManager.removeBlockedSite(site);
+        }
+      });
+    });
+  }
+
+  /**
+   * Setup event listeners for whitelisted paths
+   */
+  private setupWhitelistEventListeners(): void {
+    // Toggle listeners
+    this.whitelistedPathsList.querySelectorAll('.path-toggle-input').forEach(toggle => {
+      toggle.addEventListener('change', async () => {
+        const path = toggle.getAttribute('data-path');
+        if (path) {
+          await this.siteListManager.toggleWhitelistedPathEnabled(path);
+        }
+      });
+    });
+
+    // Edit listeners
+    this.whitelistedPathsList.querySelectorAll('.edit-path-btn').forEach(button => {
+      button.addEventListener('click', async () => {
+        const path = button.getAttribute('data-path');
+        if (path) {
+          await this.editWhitelistedPath(path);
+        }
+      });
+    });
+
+    // Remove listeners
+    this.whitelistedPathsList.querySelectorAll('.remove-path-btn').forEach(button => {
       button.addEventListener('click', async () => {
         const path = button.getAttribute('data-path');
         if (path) {
@@ -678,11 +768,23 @@ class OptionsPageManager {
   }
 
   /**
-   * Update site counts display
+   * Edit blocked site
    */
-  private updateSiteCounts(blockedCount: number, whitelistedCount: number): void {
-    this.sitesCount.textContent = `${blockedCount} site${blockedCount !== 1 ? 's' : ''} blocked`;
-    this.whitelistCount.textContent = `${whitelistedCount} path${whitelistedCount !== 1 ? 's' : ''} whitelisted`;
+  private async editBlockedSite(oldSite: string): Promise<void> {
+    const newSite = prompt('Edit blocked site:', oldSite);
+    if (newSite && newSite.trim() && newSite !== oldSite) {
+      await this.siteListManager.editBlockedSite(oldSite, newSite.trim());
+    }
+  }
+
+  /**
+   * Edit whitelisted path
+   */
+  private async editWhitelistedPath(oldPath: string): Promise<void> {
+    const newPath = prompt('Edit whitelisted path:', oldPath);
+    if (newPath && newPath.trim() && newPath !== oldPath) {
+      await this.siteListManager.editWhitelistedPath(oldPath, newPath.trim());
+    }
   }
 
   /**

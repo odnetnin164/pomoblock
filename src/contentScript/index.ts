@@ -1,6 +1,13 @@
 // src/contentScript/index.ts
 import { ExtensionSettings } from '@shared/types';
-import { getSettings, getBlockedWebsites, getWhitelistedPaths, onStorageChanged } from '@shared/storage';
+import { 
+  getSettings, 
+  getBlockedWebsites, 
+  getWhitelistedPaths, 
+  getBlockedSitesToggleState,
+  getWhitelistedPathsToggleState,
+  onStorageChanged 
+} from '@shared/storage';
 import { logger } from '@shared/logger';
 import { DEFAULT_SETTINGS } from '@shared/constants';
 import { shouldBlockBasedOnWorkHours } from '@shared/workHoursUtils';
@@ -90,15 +97,25 @@ class ContentScriptManager {
         return;
       }
 
-      // Load blocked websites
-      const blockedWebsites = await getBlockedWebsites();
+      // Load blocked websites and their toggle states
+      const [blockedWebsites, blockedToggleState] = await Promise.all([
+        getBlockedWebsites(),
+        getBlockedSitesToggleState()
+      ]);
       logger.log('Loaded blocked websites', blockedWebsites);
+      logger.log('Loaded blocked sites toggle state', blockedToggleState);
       this.blockingEngine.updateBlockedSites(blockedWebsites);
+      this.blockingEngine.updateBlockedSitesToggleState(blockedToggleState);
 
-      // Load whitelisted paths
-      const whitelistedPaths = await getWhitelistedPaths();
+      // Load whitelisted paths and their toggle states
+      const [whitelistedPaths, whitelistToggleState] = await Promise.all([
+        getWhitelistedPaths(),
+        getWhitelistedPathsToggleState()
+      ]);
       logger.log('Loaded whitelisted paths', whitelistedPaths);
+      logger.log('Loaded whitelisted paths toggle state', whitelistToggleState);
       this.blockingEngine.updateWhitelistedPaths(whitelistedPaths);
+      this.blockingEngine.updateWhitelistedPathsToggleState(whitelistToggleState);
 
     } catch (error) {
       logger.log('Error loading configuration', (error as Error).message);
@@ -131,12 +148,15 @@ class ContentScriptManager {
       if (areaName === 'sync') {
         logger.log('Storage changed', changes);
 
-        // Handle blocked websites or whitelisted paths changes
-        if (changes.blockedWebsitesArray || changes.whitelistedPathsArray) {
-          logger.log('Blocked websites or whitelisted paths changed, reloading configuration');
+        // Handle blocked websites, whitelisted paths, or toggle states changes
+        if (changes.blockedWebsitesArray || 
+            changes.whitelistedPathsArray || 
+            changes.blockedSitesToggleState || 
+            changes.whitelistedPathsToggleState) {
+          logger.log('Blocked websites, whitelisted paths, or toggle states changed, reloading configuration');
           this.loadConfiguration().then(() => {
-            // Re-check current page after configuration update
-            this.checkAndBlock();
+            // Force re-check current page after configuration update
+            this.forceRecheck();
           });
           return;
         }
@@ -148,8 +168,8 @@ class ContentScriptManager {
             changes.workHoursDays !== undefined) {
           logger.log('Work hours settings changed, reloading configuration');
           this.loadConfiguration().then(() => {
-            // Re-check current page after work hours update
-            this.checkAndBlock();
+            // Force re-check current page after work hours update
+            this.forceRecheck();
           });
           return;
         }
@@ -208,8 +228,8 @@ class ContentScriptManager {
           this.blockedPageUI.updateSettings(this.settings);
           logger.log('Settings updated', this.settings);
           
-          // Re-check blocking status with new settings
-          this.checkAndBlock();
+          // Force re-check blocking status with new settings
+          this.forceRecheck();
         }
       }
     });
@@ -320,6 +340,12 @@ class ContentScriptManager {
       } else if (message.type === 'UPDATE_FLOATING_TIMER') {
         // Handle floating timer settings updates
         this.floatingTimer.setAlwaysShow(message.alwaysShow);
+      } else if (message.type === 'BLOCKING_CONFIG_CHANGED') {
+        logger.log('Received immediate blocking config change notification');
+        // Immediately reload configuration and re-check blocking
+        this.loadConfiguration().then(() => {
+          this.forceRecheck();
+        });
       }
     });
   }
@@ -402,6 +428,19 @@ class ContentScriptManager {
   }
 
   /**
+   * Force a re-check of blocking rules regardless of current state
+   */
+  private forceRecheck(): void {
+    logger.log('Force re-check triggered for URL:', window.location.href);
+    
+    // Update current URL to ensure navigation detection works properly
+    this.currentUrl = window.location.href;
+    
+    // Perform the check and block action
+    this.checkAndBlock();
+  }
+
+  /**
    * Check if current site should be blocked and take action
    */
   private checkAndBlock(): void {
@@ -415,18 +454,58 @@ class ContentScriptManager {
       return;
     }
 
-    // Don't block if already blocked (avoid duplicate overlays)
-    if (this.blockedPageUI.isPageBlocked()) {
-      logger.log('Page already blocked, skipping duplicate block');
+    // Check if page is currently blocked
+    const isCurrentlyBlocked = this.blockedPageUI.isPageBlocked();
+    
+    // Determine if page should be blocked based on current rules
+    const shouldBlock = this.shouldCurrentPageBeBlocked();
+    
+    // If page is blocked but shouldn't be, unblock it immediately
+    if (isCurrentlyBlocked && !shouldBlock) {
+      logger.log('Page currently blocked but should no longer be blocked, removing block');
+      this.blockedPageUI.removeBlockedPage();
       return;
+    }
+    
+    // If page is already blocked and should remain blocked, skip duplicate overlay
+    if (isCurrentlyBlocked && shouldBlock) {
+      logger.log('Page already blocked and should remain blocked, skipping duplicate block');
+      return;
+    }
+
+    // If page should be blocked and isn't currently blocked, block it
+    if (shouldBlock) {
+      logger.log('Site should be blocked by current rules!');
+      logger.log('Block mode is', this.settings.blockMode);
+
+      if (this.settings.blockMode === 'redirect') {
+        logger.log('Redirect mode - showing blocked page with countdown');
+        this.blockedPageUI.createBlockedPage(true);
+      } else {
+        logger.log('Block mode - showing blocked page');
+        this.blockedPageUI.createBlockedPage(false);
+      }
+    } else {
+      logger.log('Site should NOT be blocked by current rules');
+      // Make sure any existing block overlay is removed
+      this.blockedPageUI.removeBlockedPage();
+    }
+  }
+
+  /**
+   * Determine if the current page should be blocked based on all rules
+   */
+  private shouldCurrentPageBeBlocked(): boolean {
+    // Don't block if extension is disabled
+    if (!this.settings.extensionEnabled) {
+      return false;
     }
 
     // INTEGRATED POMODORO BLOCKING LOGIC:
     // 1. If timer is in REST period, never block any websites
     if (this.currentTimerState === 'REST') {
       logger.log('Timer is in REST period, not blocking any websites');
-      this.blockedPageUI.removeBlockedPage();
-      return;
+      return false;
     }
 
     // 2. If timer is in WORK period, always apply normal blocking rules
@@ -437,30 +516,11 @@ class ContentScriptManager {
     // (unless timer is in WORK period, which overrides work hours)
     if (this.currentTimerState !== 'WORK' && !shouldBlockBasedOnWorkHours(this.settings.workHours)) {
       logger.log('Outside work hours and timer not in work period, not blocking');
-      this.blockedPageUI.removeBlockedPage();
-      return;
+      return false;
     }
 
     // Apply normal blocking rules
-    if (this.blockingEngine.shouldBlockWebsite()) {
-      logger.log('Site should be blocked by blocking rules!');
-      logger.log('Block mode is', this.settings.blockMode);
-
-      // Show appropriate blocking message based on timer state
-      // const blockMessage = this.getBlockMessage();
-      
-      if (this.settings.blockMode === 'redirect') {
-        logger.log('Redirect mode - showing blocked page with countdown');
-        this.blockedPageUI.createBlockedPage(true);
-      } else {
-        logger.log('Block mode - showing blocked page');
-        this.blockedPageUI.createBlockedPage(false);
-      }
-    } else {
-      logger.log('Site should NOT be blocked');
-      // Make sure any existing block overlay is removed
-      this.blockedPageUI.removeBlockedPage();
-    }
+    return this.blockingEngine.shouldBlockWebsite();
   }
 
   /**

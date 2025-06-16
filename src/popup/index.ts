@@ -1,6 +1,14 @@
 // src/popup/index.ts
 import './popup.css';
-import { getBlockedWebsites, getWhitelistedPaths, addWhitelistedPath } from '@shared/storage';
+import { 
+  getBlockedWebsites, 
+  getWhitelistedPaths, 
+  addWhitelistedPath,
+  getBlockedSitesToggleState,
+  getWhitelistedPathsToggleState,
+  isBlockedSiteEnabled,
+  isWhitelistedPathEnabled
+} from '@shared/storage';
 import { StatusDisplay } from './components/StatusDisplay';
 import { SiteManager } from './components/SiteManager';
 import { PomodoroControl } from './components/PomodoroControl';
@@ -121,14 +129,17 @@ class PopupManager {
     
     // Get current blocking status to determine if site would actually be blocked
     try {
-      const [blockedWebsites, whitelistedPaths] = await Promise.all([
+      const [blockedWebsites, whitelistedPaths, blockedToggleState, whitelistToggleState] = await Promise.all([
         getBlockedWebsites(),
-        getWhitelistedPaths()
+        getWhitelistedPaths(),
+        getBlockedSitesToggleState(),
+        getWhitelistedPathsToggleState()
       ]);
 
-      const isBlocked = blockedWebsites.includes(blockTarget.target);
+      const isInBlocklist = blockedWebsites.includes(blockTarget.target);
+      const isBlockEnabled = isInBlocklist && (blockedToggleState[blockTarget.target] ?? true);
       const isWhitelisted = this.siteManager.checkIfWhitelisted(whitelistedPaths);
-      const wouldBeBlocked = isBlocked && !isWhitelisted;
+      const wouldBeBlocked = isBlockEnabled && !isWhitelisted;
 
       if (timerState === 'WORK' && wouldBeBlocked) {
         // Timer is in work period AND site would actually be blocked
@@ -207,7 +218,8 @@ class PopupManager {
     const elementsToRemove = [
       '.whitelist-notice',
       '.whitelist-option',
-      '.timer-blocking-notice'
+      '.timer-blocking-notice',
+      '.disabled-block-notice'
     ];
     
     elementsToRemove.forEach(selector => {
@@ -216,6 +228,9 @@ class PopupManager {
         element.remove();
       }
     });
+    
+    // Reset button classes
+    this.blockCurrentButton.classList.remove('already-blocked', 'timer-blocked', 'timer-rest', 'disabled-block');
   }
 
   /**
@@ -323,22 +338,25 @@ class PopupManager {
     if (!blockTarget) return;
 
     try {
-      const [blockedWebsites, whitelistedPaths] = await Promise.all([
+      const [blockedWebsites, whitelistedPaths, blockedToggleState, whitelistToggleState] = await Promise.all([
         getBlockedWebsites(),
-        getWhitelistedPaths()
+        getWhitelistedPaths(),
+        getBlockedSitesToggleState(),
+        getWhitelistedPathsToggleState()
       ]);
 
       // Check if the currently selected target is blocked
       const selectedTarget = this.siteManager.getSelectedBlockTarget();
-      const isBlocked = blockedWebsites.includes(selectedTarget);
+      const isInBlocklist = blockedWebsites.includes(selectedTarget);
+      const isBlockEnabled = isInBlocklist && (blockedToggleState[selectedTarget] ?? true);
       const isWhitelisted = this.siteManager.checkIfWhitelisted(whitelistedPaths);
       const wouldBeBlocked = this.siteManager.checkIfWouldBeBlocked(blockedWebsites);
 
       // Update site manager status
-      this.siteManager.updateBlockTargetStatus(isBlocked, isWhitelisted);
+      this.siteManager.updateBlockTargetStatus(isInBlocklist, isWhitelisted);
 
-      // Update UI based on status
-      this.updateButtonState(isBlocked, isWhitelisted, wouldBeBlocked, whitelistedPaths, blockedWebsites);
+      // Update UI based on status - pass both blocked status and enabled status
+      this.updateButtonState(isInBlocklist, isBlockEnabled, isWhitelisted, wouldBeBlocked, whitelistedPaths, blockedWebsites, blockedToggleState);
       
     } catch (error) {
       console.error('Error checking site status:', error);
@@ -349,17 +367,21 @@ class PopupManager {
    * Update button state based on current site status
    */
   private updateButtonState(
-    isBlocked: boolean, 
+    isInBlocklist: boolean,
+    isBlockEnabled: boolean, 
     isWhitelisted: boolean, 
     wouldBeBlocked: boolean,
     whitelistedPaths: string[],
-    blockedWebsites: string[]
+    blockedWebsites: string[],
+    blockedToggleState: any
   ): void {
     // Show subdomain whitelist options if applicable
     this.updateSubdomainWhitelistOptions(blockedWebsites);
     if (isWhitelisted) {
       this.showWhitelistedState(whitelistedPaths);
-    } else if (isBlocked) {
+    } else if (isInBlocklist && !isBlockEnabled) {
+      this.showDisabledBlockState();
+    } else if (isInBlocklist && isBlockEnabled) {
       this.showBlockedState();
     } else if (wouldBeBlocked && this.siteManager.getBlockTarget()?.target.includes('/')) {
       this.showWhitelistOption();
@@ -416,6 +438,37 @@ class PopupManager {
       <span class="btn-text">Already Blocked</span>
     `;
     this.blockCurrentButton.disabled = true;
+  }
+
+  /**
+   * Show disabled block state
+   */
+  private showDisabledBlockState(): void {
+    // Clean up any existing dynamic elements
+    this.cleanupDynamicElements();
+    
+    this.blockCurrentButton.classList.add('disabled-block');
+    this.blockCurrentButton.innerHTML = `
+      <span class="btn-icon">⏸️</span>
+      <span class="btn-text">Block Disabled</span>
+    `;
+    this.blockCurrentButton.disabled = true;
+    
+    // Add info about disabled status
+    const disabledInfo = document.createElement('div');
+    disabledInfo.className = 'disabled-block-notice';
+    disabledInfo.innerHTML = `
+      <small style="color: #ff9800; margin-bottom: 15px; display: block;">
+        This site is in your blocklist but currently disabled. 
+        Enable it in the options page to activate blocking.
+      </small>
+    `;
+    
+    // Insert after the button
+    const container = this.blockCurrentButton.parentElement;
+    if (container) {
+      container.insertBefore(disabledInfo, this.blockCurrentButton.nextSibling);
+    }
   }
 
   /**
