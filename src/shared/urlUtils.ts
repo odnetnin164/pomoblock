@@ -41,8 +41,6 @@ export function cleanURL(url: string): string {
   let cleanUrl = url;
   cleanUrl = cleanUrl.replace(/^https?:\/\//, '');
   cleanUrl = cleanUrl.replace(/^www\./, '');
-  cleanUrl = cleanUrl.split(':')[0];
-  cleanUrl = cleanUrl.split('?')[0];
   cleanUrl = cleanUrl.split('#')[0];
   
   return cleanUrl;
@@ -375,7 +373,7 @@ export function generateBlockOptions(url: string): BlockOption[] {
     
     // Option 4: Block specific page (full URL path)
     if (pathname && pathname !== '/') {
-      const fullUrl = urlObj.href.split('?')[0].split('#')[0]; // Remove query params and fragment
+      const fullUrl = urlObj.href.split('#')[0]; // Remove fragment but keep query params
       let displayPath = fullUrl.replace(/^https?:\/\//, '');
       
       // For IP addresses, ensure we include the port if present

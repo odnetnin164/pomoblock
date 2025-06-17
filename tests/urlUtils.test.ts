@@ -45,7 +45,7 @@ describe('URL Utils - Block Options', () => {
       expect(options[3]).toEqual({
         type: 'page',
         label: 'This specific page',
-        target: 'music.youtube.com/watch',
+        target: 'music.youtube.com/watch?v=abc123',
         description: 'Blocks only this exact page'
       });
     });
@@ -397,8 +397,8 @@ describe('URL Utils - Block Options', () => {
     });
 
     test('cleanURL should clean various URL formats', () => {
-      expect(cleanURL('https://www.example.com/path?query=1#hash')).toBe('example.com/path');
-      expect(cleanURL('http://example.com:8080/path')).toBe('example.com');
+      expect(cleanURL('https://www.example.com/path?query=1#hash')).toBe('example.com/path?query=1');
+      expect(cleanURL('http://example.com:8080/path')).toBe('example.com:8080/path');
       expect(cleanURL('example.com')).toBe('example.com');
     });
 

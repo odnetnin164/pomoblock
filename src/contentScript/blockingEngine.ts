@@ -92,7 +92,15 @@ export class BlockingEngine {
     // Use provided values or fall back to current window location
     const targetUrl = url || window.location.href;
     const targetHostname = hostname ? normalizeURL(hostname.toLowerCase()) : normalizeURL(window.location.hostname.toLowerCase());
-    const targetPathname = pathname ? pathname.toLowerCase() : window.location.pathname.toLowerCase();
+    
+    // For whitelist matching, include search parameters if they exist in the whitelist entry
+    let targetPathname: string;
+    if (pathname !== undefined) {
+      targetPathname = pathname.toLowerCase();
+    } else {
+      // Use pathname + search for more complete matching
+      targetPathname = (window.location.pathname + window.location.search).toLowerCase();
+    }
     
     logger.log('Checking whitelisted paths for', { hostname: targetHostname, pathname: targetPathname });
     
