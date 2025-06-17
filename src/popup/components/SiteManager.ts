@@ -2,12 +2,20 @@ import { BlockTarget, WhitelistTarget, BlockOption, BlockType } from '@shared/ty
 import { determineBlockTarget, getTargetLabel, parseSiteInfo, generateBlockOptions, generateSubdomainWhitelistOptions } from '@shared/urlUtils';
 import { addBlockedWebsite, addWhitelistedPath, removeWhitelistedPath } from '@shared/storage';
 import { SPECIAL_SITES } from '@shared/constants';
+import { BlockingEngine } from '@contentScript/blockingEngine';
+import { logger } from '@shared/logger';
 
 export class SiteManager {
   private currentTabUrl: string = '';
   private blockTarget: BlockTarget | null = null;
   private blockOptions: BlockOption[] = [];
   private selectedBlockType: BlockType = 'domain';
+  private selectedBlockIndex: number = 0;
+  private blockingEngine: BlockingEngine;
+
+  constructor() {
+    this.blockingEngine = new BlockingEngine();
+  }
 
   /**
    * Set current tab URL and analyze it
@@ -61,14 +69,36 @@ export class SiteManager {
    */
   setSelectedBlockType(blockType: BlockType): void {
     this.selectedBlockType = blockType;
+    // Update the selected index to match the new type
+    const optionIndex = this.blockOptions.findIndex(opt => opt.type === blockType);
+    if (optionIndex !== -1) {
+      this.selectedBlockIndex = optionIndex;
+    }
   }
 
   /**
-   * Get the target string for the currently selected block type
+   * Set selected block option by index
+   */
+  setSelectedBlockIndex(index: number): void {
+    if (index >= 0 && index < this.blockOptions.length) {
+      this.selectedBlockIndex = index;
+      this.selectedBlockType = this.blockOptions[index].type;
+    }
+  }
+
+  /**
+   * Get the target string for the currently selected block option
    */
   getSelectedBlockTarget(): string {
-    const option = this.blockOptions.find(opt => opt.type === this.selectedBlockType);
+    const option = this.blockOptions[this.selectedBlockIndex];
     return option ? option.target : this.blockTarget?.target || '';
+  }
+
+  /**
+   * Get the currently selected block option
+   */
+  getSelectedBlockOption(): BlockOption | null {
+    return this.blockOptions[this.selectedBlockIndex] || null;
   }
 
   /**
@@ -87,6 +117,7 @@ export class SiteManager {
     
     // Set default selection to domain block
     this.selectedBlockType = 'domain';
+    this.selectedBlockIndex = 0;
     
     // Keep legacy block target for backward compatibility
     const target = determineBlockTarget(siteInfo.hostname, siteInfo.pathname);
@@ -162,65 +193,47 @@ export class SiteManager {
    * Find matching whitelist entry for current page
    */
   findMatchingWhitelistEntry(whitelistedPaths: string[]): string | null {
-    const siteInfo = this.getCurrentSiteInfo();
-    if (!siteInfo) return null;
-
-    const currentHostname = siteInfo.hostname.replace(/^www\./, '').toLowerCase();
-    const currentPathname = siteInfo.pathname.toLowerCase();
-    
-    for (const whitelistedPath of whitelistedPaths) {
-      const pathLower = whitelistedPath.toLowerCase();
-      
-      if (pathLower.includes('/')) {
-        // Path-specific whitelist
-        const [pathDomain, ...pathParts] = pathLower.split('/');
-        const pathPath = '/' + pathParts.join('/');
-        
-        if (currentHostname === pathDomain && currentPathname.startsWith(pathPath)) {
-          return whitelistedPath; // Return original case version
-        }
-      } else {
-        // Domain-only whitelist
-        if (currentHostname === pathLower || currentHostname.endsWith('.' + pathLower)) {
-          return whitelistedPath; // Return original case version
-        }
-      }
-    }
-    
-    return null;
+    return this.blockingEngine.findMatchingWhitelistEntry(whitelistedPaths, this.currentTabUrl);
   }
 
   /**
    * Check if current page would be blocked by existing rules
    */
   checkIfWouldBeBlocked(blockedWebsites: string[]): boolean {
-    const siteInfo = this.getCurrentSiteInfo();
-    if (!siteInfo) return false;
+    return this.blockingEngine.checkIfUrlWouldBeBlocked(blockedWebsites, this.currentTabUrl);
+  }
 
-    const currentHostname = siteInfo.hostname.replace(/^www\./, '').toLowerCase();
-    
-    for (const site of blockedWebsites) {
-      const siteLower = site.toLowerCase();
-      
-      if (siteLower.includes('/')) {
-        // Path-based block - skip for now
-        continue;
-      } else {
-        // Domain-based block - check if current page would be blocked
-        if (currentHostname === siteLower || currentHostname.endsWith('.' + siteLower)) {
-          return true;
-        }
-      }
+  /**
+   * Check if a specific target would be blocked by existing rules
+   */
+  checkIfTargetWouldBeBlocked(target: string, blockedWebsites: string[]): boolean {
+    // Convert the target to a URL format for testing
+    let testUrl: string;
+    if (target.includes('/')) {
+      // Target is a path (e.g., "github.com/user/repo")
+      testUrl = `https://${target}`;
+    } else {
+      // Target is a domain (e.g., "github.com")
+      testUrl = `https://${target}/`;
     }
     
-    return false;
+    logger.log('checkIfTargetWouldBeBlocked:', {
+      target,
+      testUrl,
+      blockedWebsites
+    });
+    
+    const result = this.blockingEngine.checkIfUrlWouldBeBlocked(blockedWebsites, testUrl);
+    logger.log('checkIfTargetWouldBeBlocked result:', result);
+    
+    return result;
   }
 
   /**
    * Check if current page is whitelisted
    */
   checkIfWhitelisted(whitelistedPaths: string[]): boolean {
-    return this.findMatchingWhitelistEntry(whitelistedPaths) !== null;
+    return this.blockingEngine.checkIfUrlIsWhitelisted(whitelistedPaths, this.currentTabUrl);
   }
 
   /**
@@ -231,5 +244,29 @@ export class SiteManager {
       this.blockTarget.isBlocked = isBlocked;
       this.blockTarget.isWhitelisted = isWhitelisted;
     }
+  }
+
+  /**
+   * Initialize blocking engine with current state
+   */
+  initializeBlockingEngine(blockedWebsites: string[], whitelistedPaths: string[], blockedToggleState: any, whitelistToggleState: any): void {
+    this.blockingEngine.updateBlockedSites(blockedWebsites);
+    this.blockingEngine.updateWhitelistedPaths(whitelistedPaths);
+    this.blockingEngine.updateBlockedSitesToggleState(blockedToggleState);
+    this.blockingEngine.updateWhitelistedPathsToggleState(whitelistToggleState);
+  }
+
+  /**
+   * Check if a site is enabled in the blocklist
+   */
+  isSiteEnabled(site: string): boolean {
+    return this.blockingEngine.isBlockedSiteEnabled(site);
+  }
+
+  /**
+   * Check if a path is enabled in the whitelist
+   */
+  isPathEnabled(path: string): boolean {
+    return this.blockingEngine.isWhitelistedPathEnabled(path);
   }
 }

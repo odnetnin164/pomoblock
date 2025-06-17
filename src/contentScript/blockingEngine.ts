@@ -2,6 +2,10 @@ import { normalizeURL } from '@shared/urlUtils';
 import { logger } from '@shared/logger';
 import { SiteToggleState } from '@shared/types';
 
+/**
+ * Central blocking engine that handles all site blocking logic.
+ * This is the single source of truth for blocking decisions.
+ */
 export class BlockingEngine {
   private restrictedSites = new Set<string>();
   private whitelistedPaths = new Set<string>();
@@ -56,26 +60,41 @@ export class BlockingEngine {
   /**
    * Check if a blocked site is enabled
    */
-  private isBlockedSiteEnabled(site: string): boolean {
+  isBlockedSiteEnabled(site: string): boolean {
     return this.blockedSitesToggleState[site] ?? true; // Default to enabled
   }
 
   /**
    * Check if a whitelisted path is enabled
    */
-  private isWhitelistedPathEnabled(path: string): boolean {
+  isWhitelistedPathEnabled(path: string): boolean {
     return this.whitelistedPathsToggleState[path] ?? true; // Default to enabled
   }
 
   /**
-   * Check if current URL matches any whitelisted path
+   * Check if a site is in the blocked list (regardless of enabled state)
    */
-  isWhitelistedPath(): boolean {
-    const currentUrl = window.location.href;
-    const currentHostname = normalizeURL(window.location.hostname.toLowerCase());
-    const currentPathname = window.location.pathname.toLowerCase();
+  isSiteInBlocklist(site: string): boolean {
+    return this.restrictedSites.has(site.toLowerCase());
+  }
+
+  /**
+   * Check if a path is in the whitelist (regardless of enabled state)
+   */
+  isPathInWhitelist(path: string): boolean {
+    return this.whitelistedPaths.has(path.toLowerCase());
+  }
+
+  /**
+   * Check if a given URL matches any whitelisted path
+   */
+  isUrlWhitelisted(url?: string, hostname?: string, pathname?: string): boolean {
+    // Use provided values or fall back to current window location
+    const targetUrl = url || window.location.href;
+    const targetHostname = hostname ? normalizeURL(hostname.toLowerCase()) : normalizeURL(window.location.hostname.toLowerCase());
+    const targetPathname = pathname ? pathname.toLowerCase() : window.location.pathname.toLowerCase();
     
-    logger.log('Checking whitelisted paths for', { currentHostname, currentPathname });
+    logger.log('Checking whitelisted paths for', { hostname: targetHostname, pathname: targetPathname });
     
     for (const whitelistedPath of this.whitelistedPaths) {
       logger.log('Checking against whitelisted path', whitelistedPath);
@@ -89,17 +108,17 @@ export class BlockingEngine {
         logger.log('Path-based whitelist check', { 
           pathDomain: normalizedPathDomain, 
           pathPath, 
-          currentHostname, 
-          currentPathname 
+          hostname: targetHostname, 
+          pathname: targetPathname 
         });
         
         // Check if domain matches and current path starts with whitelisted path
-        if (currentHostname === normalizedPathDomain && currentPathname.startsWith(pathPath)) {
+        if (targetHostname === normalizedPathDomain && targetPathname.startsWith(pathPath)) {
           if (this.isWhitelistedPathEnabled(whitelistedPath)) {
-            logger.log('WHITELIST PATH MATCH FOUND (ENABLED)', { whitelistedPath, currentHostname, currentPathname });
+            logger.log('WHITELIST PATH MATCH FOUND (ENABLED)', { whitelistedPath, targetHostname, targetPathname });
             return true;
           } else {
-            logger.log('WHITELIST PATH MATCH FOUND BUT DISABLED', { whitelistedPath, currentHostname, currentPathname });
+            logger.log('WHITELIST PATH MATCH FOUND BUT DISABLED', { whitelistedPath, targetHostname, targetPathname });
           }
         }
       } else {
@@ -107,12 +126,12 @@ export class BlockingEngine {
         const normalizedDomain = normalizeURL(whitelistedPath.toLowerCase());
         
         // Exact domain match (for subdomains in whitelist)
-        if (currentHostname === normalizedDomain) {
+        if (targetHostname === normalizedDomain) {
           if (this.isWhitelistedPathEnabled(whitelistedPath)) {
-            logger.log('WHITELIST EXACT DOMAIN MATCH FOUND (ENABLED)', { currentHostname, whitelistedPath: normalizedDomain });
+            logger.log('WHITELIST EXACT DOMAIN MATCH FOUND (ENABLED)', { targetHostname, whitelistedPath: normalizedDomain });
             return true;
           } else {
-            logger.log('WHITELIST EXACT DOMAIN MATCH FOUND BUT DISABLED', { currentHostname, whitelistedPath: normalizedDomain });
+            logger.log('WHITELIST EXACT DOMAIN MATCH FOUND BUT DISABLED', { targetHostname, whitelistedPath: normalizedDomain });
           }
         }
         
@@ -127,100 +146,29 @@ export class BlockingEngine {
   }
 
   /**
-   * Pause all media elements on the page
+   * Check if current URL matches any whitelisted path (legacy method)
    */
-  private pauseAllMedia(): void {
-    try {
-      // Pause HTML5 video and audio elements
-      const mediaElements = document.querySelectorAll('video, audio') as NodeListOf<HTMLMediaElement>;
-      mediaElements.forEach(element => {
-        if (!element.paused) {
-          element.pause();
-          logger.log('Paused media element:', { tagName: element.tagName, src: element.src || element.currentSrc });
-        }
-      });
-
-      // Handle YouTube-specific elements
-      if (window.location.hostname.includes('youtube.com')) {
-        // Try to pause YouTube player via postMessage API
-        const ytIframes = document.querySelectorAll('iframe[src*="youtube.com"]') as NodeListOf<HTMLIFrameElement>;
-        ytIframes.forEach(iframe => {
-          try {
-            iframe.contentWindow?.postMessage('{"event":"command","func":"pauseVideo","args":""}', '*');
-            logger.log('Sent pause command to YouTube iframe');
-          } catch (e) {
-            logger.log('Could not pause YouTube iframe:', e);
-          }
-        });
-
-        // Try to pause main YouTube player
-        try {
-          // Look for YouTube's video player
-          const ytPlayer = document.querySelector('#movie_player, .html5-video-player') as any;
-          if (ytPlayer && typeof ytPlayer.pauseVideo === 'function') {
-            ytPlayer.pauseVideo();
-            logger.log('Paused YouTube player via API');
-          }
-        } catch (e) {
-          logger.log('Could not pause YouTube player via API:', e);
-        }
-      }
-
-      // Handle common video players
-      const videoPlayers = document.querySelectorAll('[data-testid*="player"], .video-player, .player, .video-container video');
-      videoPlayers.forEach(player => {
-        const video = player.tagName === 'VIDEO' ? player as HTMLVideoElement : player.querySelector('video') as HTMLVideoElement;
-        if (video && !video.paused) {
-          video.pause();
-          logger.log('Paused video in player container');
-        }
-      });
-
-      // Try to click pause buttons as a fallback
-      const pauseButtons = document.querySelectorAll(
-        '[aria-label*="pause" i], [aria-label*="Play" i], [title*="pause" i], [title*="Play" i], ' +
-        '.pause-button, .play-button, .video-pause, .video-play, ' +
-        'button[data-testid*="pause"], button[data-testid*="play"]'
-      );
-      
-      pauseButtons.forEach(button => {
-        const btn = button as HTMLElement;
-        // Only click if it looks like a pause button (not play)
-        const isPauseButton = btn.getAttribute('aria-label')?.toLowerCase().includes('pause') ||
-                             btn.getAttribute('title')?.toLowerCase().includes('pause') ||
-                             btn.className.includes('pause');
-        
-        if (isPauseButton && btn.offsetParent !== null) { // Check if button is visible
-          try {
-            btn.click();
-            logger.log('Clicked pause button:', btn);
-          } catch (e) {
-            logger.log('Could not click pause button:', e);
-          }
-        }
-      });
-
-      logger.log('Media pause attempt completed');
-    } catch (error) {
-      logger.log('Error pausing media:', error);
-    }
+  isWhitelistedPath(): boolean {
+    return this.isUrlWhitelisted();
   }
 
+
   /**
-   * Check if the current website should be blocked
+   * Check if a given URL should be blocked based on current rules
    */
-  shouldBlockWebsite(): boolean {
-    const currentUrl = window.location.href;
-    const currentHostname = normalizeURL(window.location.hostname.toLowerCase());
-    const currentPathname = window.location.pathname.toLowerCase();
+  shouldUrlBeBlocked(url?: string, hostname?: string, pathname?: string): boolean {
+    // Use provided values or fall back to current window location
+    const targetUrl = url || window.location.href;
+    const targetHostname = hostname ? normalizeURL(hostname.toLowerCase()) : normalizeURL(window.location.hostname.toLowerCase());
+    const targetPathname = pathname ? pathname.toLowerCase() : window.location.pathname.toLowerCase();
     
-    logger.log('Checking URL', currentUrl);
-    logger.log('Hostname', currentHostname);
-    logger.log('Pathname', currentPathname);
+    logger.log('Checking URL', targetUrl);
+    logger.log('Hostname', targetHostname);
+    logger.log('Pathname', targetPathname);
     logger.log('Against restricted sites', Array.from(this.restrictedSites));
     
     // First check if this path is whitelisted
-    if (this.isWhitelistedPath()) {
+    if (this.isUrlWhitelisted(targetUrl, hostname, pathname)) {
       logger.log('Site is whitelisted, not blocking');
       return false;
     }
@@ -237,16 +185,16 @@ export class BlockingEngine {
         const sitePath = ('/' + pathParts.join('/')).toLowerCase();
         const normalizedSiteDomain = normalizeURL(siteDomain.toLowerCase());
         
-        logger.log('Path-based check', { siteDomain: normalizedSiteDomain, sitePath, currentHostname, currentPathname });
+        logger.log('Path-based check', { siteDomain: normalizedSiteDomain, sitePath, hostname: targetHostname, pathname: targetPathname });
         
         // Check if domain matches and path starts with the blocked path
-        if (currentHostname === normalizedSiteDomain && currentPathname.startsWith(sitePath)) {
+        if (targetHostname === normalizedSiteDomain && targetPathname.startsWith(sitePath)) {
           if (this.isBlockedSiteEnabled(site)) {
-            logger.log('PATH MATCH FOUND (ENABLED)', { site, currentHostname, currentPathname });
+            logger.log('PATH MATCH FOUND (ENABLED)', { site, targetHostname, targetPathname });
             shouldBlock = true;
             break;
           } else {
-            logger.log('PATH MATCH FOUND BUT DISABLED', { site, currentHostname, currentPathname });
+            logger.log('PATH MATCH FOUND BUT DISABLED', { site, targetHostname, targetPathname });
           }
         }
       } else {
@@ -254,49 +202,44 @@ export class BlockingEngine {
         const normalizedSite = normalizeURL(site.toLowerCase());
         
         // Exact domain match
-        if (currentHostname === normalizedSite) {
+        if (targetHostname === normalizedSite) {
           if (this.isBlockedSiteEnabled(site)) {
-            logger.log('EXACT DOMAIN MATCH FOUND (ENABLED)', { currentHostname, matchedSite: normalizedSite });
+            logger.log('EXACT DOMAIN MATCH FOUND (ENABLED)', { targetHostname, matchedSite: normalizedSite });
             shouldBlock = true;
             break;
           } else {
-            logger.log('EXACT DOMAIN MATCH FOUND BUT DISABLED', { currentHostname, matchedSite: normalizedSite });
+            logger.log('EXACT DOMAIN MATCH FOUND BUT DISABLED', { targetHostname, matchedSite: normalizedSite });
           }
         }
         
         // Subdomain match (e.g., blocking "google.com" should block "mail.google.com")
         // BUT NOT if the specific subdomain is whitelisted
-        if (currentHostname.endsWith('.' + normalizedSite)) {
+        if (targetHostname.endsWith('.' + normalizedSite)) {
           // Check if this specific subdomain is whitelisted
-          if (!this.isSubdomainWhitelisted(currentHostname)) {
+          if (!this.isSubdomainWhitelisted(targetHostname)) {
             if (this.isBlockedSiteEnabled(site)) {
-              logger.log('SUBDOMAIN MATCH FOUND (ENABLED)', { currentHostname, matchedSite: normalizedSite });
+              logger.log('SUBDOMAIN MATCH FOUND (ENABLED)', { targetHostname, matchedSite: normalizedSite });
               shouldBlock = true;
               break;
             } else {
-              logger.log('SUBDOMAIN MATCH FOUND BUT DISABLED', { currentHostname, matchedSite: normalizedSite });
+              logger.log('SUBDOMAIN MATCH FOUND BUT DISABLED', { targetHostname, matchedSite: normalizedSite });
             }
           } else {
-            logger.log('SUBDOMAIN BLOCKED BUT WHITELISTED', { currentHostname, matchedSite: normalizedSite });
+            logger.log('SUBDOMAIN BLOCKED BUT WHITELISTED', { targetHostname, matchedSite: normalizedSite });
           }
         }
         
         // Partial match for complex domains
-        if (currentHostname.includes(normalizedSite)) {
+        if (targetHostname.includes(normalizedSite)) {
           if (this.isBlockedSiteEnabled(site)) {
-            logger.log('PARTIAL MATCH FOUND (ENABLED)', { currentHostname, matchedSite: normalizedSite });
+            logger.log('PARTIAL MATCH FOUND (ENABLED)', { targetHostname, matchedSite: normalizedSite });
             shouldBlock = true;
             break;
           } else {
-            logger.log('PARTIAL MATCH FOUND BUT DISABLED', { currentHostname, matchedSite: normalizedSite });
+            logger.log('PARTIAL MATCH FOUND BUT DISABLED', { targetHostname, matchedSite: normalizedSite });
           }
         }
       }
-    }
-    
-    // If we're blocking this site, pause any playing media
-    if (shouldBlock) {
-      this.pauseAllMedia();
     }
     
     if (!shouldBlock) {
@@ -304,6 +247,13 @@ export class BlockingEngine {
     }
     
     return shouldBlock;
+  }
+
+  /**
+   * Check if the current website should be blocked (legacy method)
+   */
+  shouldBlockWebsite(): boolean {
+    return this.shouldUrlBeBlocked();
   }
 
   /**
@@ -325,13 +275,143 @@ export class BlockingEngine {
   }
 
   /**
-   * Get current site information for display
+   * Get site information for a given URL or current location
+   */
+  getSiteInfo(url?: string): { hostname: string; pathname: string; url: string } | null {
+    try {
+      if (url) {
+        const urlObj = new URL(url);
+        return {
+          hostname: normalizeURL(urlObj.hostname.toLowerCase()),
+          pathname: urlObj.pathname.toLowerCase(),
+          url: url
+        };
+      } else {
+        return {
+          hostname: normalizeURL(window.location.hostname.toLowerCase()),
+          pathname: window.location.pathname.toLowerCase(),
+          url: window.location.href
+        };
+      }
+    } catch (error) {
+      logger.log('Error parsing URL and error:', { url, error });
+      return null;
+    }
+  }
+
+  /**
+   * Get current site information for display (legacy method)
    */
   getCurrentSiteInfo(): { hostname: string; pathname: string; url: string } {
-    return {
-      hostname: normalizeURL(window.location.hostname.toLowerCase()),
-      pathname: window.location.pathname.toLowerCase(),
-      url: window.location.href
-    };
+    const siteInfo = this.getSiteInfo();
+    if (!siteInfo) {
+      throw new Error('Unable to get current site info');
+    }
+    return siteInfo;
+  }
+
+  /**
+   * Find a matching whitelist entry for a given URL
+   */
+  findMatchingWhitelistEntry(whitelistedPaths: string[], url?: string, hostname?: string, pathname?: string): string | null {
+    let targetHostname: string;
+    let targetPathname: string;
+    
+    if (url) {
+      const siteInfo = this.getSiteInfo(url);
+      if (!siteInfo) return null;
+      targetHostname = siteInfo.hostname;
+      targetPathname = siteInfo.pathname;
+    } else if (hostname && pathname !== undefined) {
+      targetHostname = normalizeURL(hostname.toLowerCase());
+      targetPathname = pathname.toLowerCase();
+    } else {
+      const siteInfo = this.getSiteInfo();
+      if (!siteInfo) return null;
+      targetHostname = siteInfo.hostname;
+      targetPathname = siteInfo.pathname;
+    }
+    
+    // Remove www prefix for matching
+    const cleanHostname = targetHostname.replace(/^www\./, '');
+    
+    for (const whitelistedPath of whitelistedPaths) {
+      const pathLower = whitelistedPath.toLowerCase();
+      
+      if (pathLower.includes('/')) {
+        // Path-specific whitelist
+        const [pathDomain, ...pathParts] = pathLower.split('/');
+        const pathPath = '/' + pathParts.join('/');
+        const cleanPathDomain = pathDomain.replace(/^www\./, '');
+        
+        if (cleanHostname === cleanPathDomain && targetPathname.startsWith(pathPath)) {
+          return whitelistedPath; // Return original case version
+        }
+      } else {
+        // Domain-only whitelist
+        const cleanPathLower = pathLower.replace(/^www\./, '');
+        if (cleanHostname === cleanPathLower || cleanHostname.endsWith('.' + cleanPathLower)) {
+          return whitelistedPath; // Return original case version
+        }
+      }
+    }
+    
+    return null;
+  }
+
+  /**
+   * Check if a URL would be blocked by existing rules (includes both domain and path matching)
+   */
+  checkIfUrlWouldBeBlocked(blockedWebsites: string[], url?: string, hostname?: string): boolean {
+    let targetHostname: string;
+    let targetPathname: string;
+    
+    if (url) {
+      const siteInfo = this.getSiteInfo(url);
+      if (!siteInfo) return false;
+      targetHostname = siteInfo.hostname;
+      targetPathname = siteInfo.pathname;
+    } else if (hostname) {
+      targetHostname = normalizeURL(hostname.toLowerCase());
+      targetPathname = window.location.pathname.toLowerCase();
+    } else {
+      const siteInfo = this.getSiteInfo();
+      if (!siteInfo) return false;
+      targetHostname = siteInfo.hostname;
+      targetPathname = siteInfo.pathname;
+    }
+    
+    // Remove www prefix for matching
+    const cleanHostname = targetHostname.replace(/^www\./, '');
+    
+    for (const site of blockedWebsites) {
+      const siteLower = site.toLowerCase();
+      
+      if (siteLower.includes('/')) {
+        // Path-based block - check if target would be blocked by this rule
+        const [siteDomain, ...pathParts] = siteLower.split('/');
+        const sitePath = '/' + pathParts.join('/');
+        const cleanSiteDomain = siteDomain.replace(/^www\./, '');
+        
+        if (cleanHostname === cleanSiteDomain && targetPathname.startsWith(sitePath)) {
+          return true;
+        }
+      } else {
+        // Domain-based block - check if current page would be blocked
+        const cleanSite = siteLower.replace(/^www\./, '');
+        if (cleanHostname === cleanSite || cleanHostname.endsWith('.' + cleanSite)) {
+          return true;
+        }
+      }
+    }
+    
+    return false;
+  }
+
+  /**
+   * Check if a URL is whitelisted
+   */
+  checkIfUrlIsWhitelisted(whitelistedPaths: string[], url?: string, hostname?: string, pathname?: string): boolean {
+    return this.findMatchingWhitelistEntry(whitelistedPaths, url, hostname, pathname) !== null;
   }
 }

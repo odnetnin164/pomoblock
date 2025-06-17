@@ -13,6 +13,13 @@ describe('SiteManager - Block Type Selection', () => {
 
   beforeEach(() => {
     siteManager = new SiteManager();
+    // Initialize with test data
+    siteManager.initializeBlockingEngine(
+      ['youtube.com', 'facebook.com'],
+      ['music.youtube.com/watch'],
+      { 'youtube.com': true, 'facebook.com': false },
+      { 'music.youtube.com/watch': true }
+    );
   });
 
   describe('block options generation', () => {
@@ -168,6 +175,9 @@ describe('SiteManager - Block Type Selection', () => {
         'reddit.com/r/programming'
       ];
       
+      // Initialize blocking engine with the whitelist data
+      siteManager.initializeBlockingEngine([], whitelistedPaths, {}, {});
+      
       const matchingEntry = siteManager.findMatchingWhitelistEntry(whitelistedPaths);
       expect(matchingEntry).toBe('music.youtube.com/watch');
     });
@@ -181,6 +191,9 @@ describe('SiteManager - Block Type Selection', () => {
         'facebook.com'
       ];
       
+      // Initialize blocking engine with the whitelist data
+      siteManager.initializeBlockingEngine([], whitelistedPaths, {}, {});
+      
       const matchingEntry = siteManager.findMatchingWhitelistEntry(whitelistedPaths);
       expect(matchingEntry).toBeNull();
     });
@@ -190,6 +203,9 @@ describe('SiteManager - Block Type Selection', () => {
       siteManager.setCurrentTab(testUrl);
       
       const whitelistedPaths = ['example.com'];
+      // Initialize blocking engine with the whitelist data
+      siteManager.initializeBlockingEngine([], whitelistedPaths, {}, {});
+      
       const matchingEntry = siteManager.findMatchingWhitelistEntry(whitelistedPaths);
       
       expect(matchingEntry).toBe('example.com');
@@ -200,6 +216,9 @@ describe('SiteManager - Block Type Selection', () => {
       siteManager.setCurrentTab(testUrl);
       
       const whitelistedPaths = ['example.com'];
+      // Initialize blocking engine with the whitelist data
+      siteManager.initializeBlockingEngine([], whitelistedPaths, {}, {});
+      
       const matchingEntry = siteManager.findMatchingWhitelistEntry(whitelistedPaths);
       
       expect(matchingEntry).toBe('example.com');
@@ -214,6 +233,8 @@ describe('SiteManager - Block Type Selection', () => {
       siteManager.setCurrentTab(testUrl);
       
       const whitelistedPaths = ['music.youtube.com/watch', 'facebook.com'];
+      // Initialize blocking engine with the whitelist data
+      siteManager.initializeBlockingEngine([], whitelistedPaths, {}, {});
       
       await siteManager.removeFromWhitelist(whitelistedPaths);
       
@@ -225,6 +246,8 @@ describe('SiteManager - Block Type Selection', () => {
       siteManager.setCurrentTab(testUrl);
       
       const whitelistedPaths = ['music.youtube.com/watch'];
+      // Initialize blocking engine with the whitelist data
+      siteManager.initializeBlockingEngine([], whitelistedPaths, {}, {});
       
       await expect(siteManager.removeFromWhitelist(whitelistedPaths))
         .rejects.toThrow('No matching whitelist entry found');
@@ -237,6 +260,9 @@ describe('SiteManager - Block Type Selection', () => {
       siteManager.setCurrentTab(testUrl);
       
       const blockedWebsites = ['youtube.com', 'facebook.com'];
+      // Initialize blocking engine with the blocked sites data
+      siteManager.initializeBlockingEngine(blockedWebsites, [], {}, {});
+      
       const wouldBeBlocked = siteManager.checkIfWouldBeBlocked(blockedWebsites);
       
       expect(wouldBeBlocked).toBe(true);
@@ -247,6 +273,9 @@ describe('SiteManager - Block Type Selection', () => {
       siteManager.setCurrentTab(testUrl);
       
       const blockedWebsites = ['youtube.com', 'facebook.com'];
+      // Initialize blocking engine with the blocked sites data
+      siteManager.initializeBlockingEngine(blockedWebsites, [], {}, {});
+      
       const wouldBeBlocked = siteManager.checkIfWouldBeBlocked(blockedWebsites);
       
       expect(wouldBeBlocked).toBe(false);
@@ -256,9 +285,44 @@ describe('SiteManager - Block Type Selection', () => {
       siteManager.setCurrentTab('invalid-url');
       
       const blockedWebsites = ['youtube.com'];
+      // Initialize blocking engine with the blocked sites data
+      siteManager.initializeBlockingEngine(blockedWebsites, [], {}, {});
+      
       const wouldBeBlocked = siteManager.checkIfWouldBeBlocked(blockedWebsites);
       
       expect(wouldBeBlocked).toBe(false);
+    });
+  });
+
+  describe('blocking engine integration', () => {
+    test('should check if site is enabled correctly', () => {
+      const testUrl = 'https://youtube.com/watch?v=123';
+      siteManager.setCurrentTab(testUrl);
+      
+      // YouTube is enabled, Facebook is disabled in the beforeEach setup
+      expect(siteManager.isSiteEnabled('youtube.com')).toBe(true);
+      expect(siteManager.isSiteEnabled('facebook.com')).toBe(false);
+      expect(siteManager.isSiteEnabled('nonexistent.com')).toBe(true); // Default
+    });
+
+    test('should check if path is enabled correctly', () => {
+      const testUrl = 'https://music.youtube.com/watch';
+      siteManager.setCurrentTab(testUrl);
+      
+      // music.youtube.com/watch is enabled in the beforeEach setup
+      expect(siteManager.isPathEnabled('music.youtube.com/watch')).toBe(true);
+      expect(siteManager.isPathEnabled('nonexistent.com/path')).toBe(true); // Default
+    });
+
+    test('should integrate with blocking engine for whitelist check', () => {
+      const testUrl = 'https://music.youtube.com/watch';
+      siteManager.setCurrentTab(testUrl);
+      
+      const whitelistedPaths = ['music.youtube.com/watch', 'facebook.com'];
+      siteManager.initializeBlockingEngine([], whitelistedPaths, {}, {});
+      
+      const isWhitelisted = siteManager.checkIfWhitelisted(whitelistedPaths);
+      expect(isWhitelisted).toBe(true);
     });
   });
 

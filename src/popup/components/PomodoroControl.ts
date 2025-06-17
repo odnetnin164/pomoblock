@@ -1,6 +1,7 @@
 import { TimerStatus, TimerState, PomodoroMessage } from '@shared/pomodoroTypes';
 import { formatDuration } from '@shared/pomodoroStorage';
 import { PomodoroTimer } from '@shared/pomodoroTimer';
+import { logger } from '@shared/logger';
 
 export class PomodoroControl {
   private container: HTMLElement;
@@ -188,7 +189,7 @@ export class PomodoroControl {
         this.loadCurrentStatus();
       } else if (message.type === 'TIMER_INITIALIZATION_COMPLETE' && message.data.timerStatus) {
         // Background script finished initializing with real session data
-        console.log('Timer initialization complete, updating with real session data');
+        logger.log('Timer initialization complete, updating with real session data');
         this.updateStatus(message.data.timerStatus);
       }
       return false; // Don't send response

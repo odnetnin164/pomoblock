@@ -13,6 +13,7 @@ import { StatusDisplay } from './components/StatusDisplay';
 import { SiteManager } from './components/SiteManager';
 import { PomodoroControl } from './components/PomodoroControl';
 import { UI_CONFIG } from '@shared/constants';
+import { logger } from '@shared/logger';
 
 class PopupManager {
   private statusDisplay: StatusDisplay;
@@ -345,18 +346,43 @@ class PopupManager {
         getWhitelistedPathsToggleState()
       ]);
 
-      // Check if the currently selected target is blocked
+      // Initialize the SiteManager's blocking engine with current state
+      this.siteManager.initializeBlockingEngine(blockedWebsites, whitelistedPaths, blockedToggleState, whitelistToggleState);
+
+      // Check blocking status for the currently selected target
       const selectedTarget = this.siteManager.getSelectedBlockTarget();
       const isInBlocklist = blockedWebsites.includes(selectedTarget);
-      const isBlockEnabled = isInBlocklist && (blockedToggleState[selectedTarget] ?? true);
       const isWhitelisted = this.siteManager.checkIfWhitelisted(whitelistedPaths);
-      const wouldBeBlocked = this.siteManager.checkIfWouldBeBlocked(blockedWebsites);
+      
+      // Check if the selected target would be blocked by existing rules
+      // This handles cases where a path would be blocked by a broader domain rule
+      const wouldSelectedTargetBeBlocked = this.siteManager.checkIfTargetWouldBeBlocked(selectedTarget, blockedWebsites);
+      
+      // Check if the specific target is enabled (only relevant if it's directly in the blocklist)
+      const isBlockEnabled = isInBlocklist && this.siteManager.isSiteEnabled(selectedTarget);
+
+      logger.log('Status check for selected target:', {
+        selectedTarget,
+        isInBlocklist,
+        isWhitelisted,
+        wouldSelectedTargetBeBlocked,
+        isBlockEnabled,
+        blockedWebsites
+      });
+
+      // Debug the whitelist button condition specifically
+      logger.log('Whitelist button condition check:', {
+        'wouldBeBlocked': wouldSelectedTargetBeBlocked,
+        '!isInBlocklist': !isInBlocklist,
+        'condition (wouldBeBlocked && !isInBlocklist)': wouldSelectedTargetBeBlocked && !isInBlocklist,
+        'will show whitelist button': wouldSelectedTargetBeBlocked && !isInBlocklist
+      });
 
       // Update site manager status
       this.siteManager.updateBlockTargetStatus(isInBlocklist, isWhitelisted);
 
-      // Update UI based on status - pass both blocked status and enabled status
-      this.updateButtonState(isInBlocklist, isBlockEnabled, isWhitelisted, wouldBeBlocked, whitelistedPaths, blockedWebsites, blockedToggleState);
+      // Update UI based on status - use the consolidated blocking logic
+      this.updateButtonState(isInBlocklist, isBlockEnabled, isWhitelisted, wouldSelectedTargetBeBlocked, whitelistedPaths, blockedWebsites, blockedToggleState);
       
     } catch (error) {
       console.error('Error checking site status:', error);
@@ -375,17 +401,30 @@ class PopupManager {
     blockedWebsites: string[],
     blockedToggleState: any
   ): void {
+    logger.log('updateButtonState called with:', {
+      isInBlocklist,
+      isBlockEnabled,
+      isWhitelisted,
+      wouldBeBlocked
+    });
+
     // Show subdomain whitelist options if applicable
     this.updateSubdomainWhitelistOptions(blockedWebsites);
     if (isWhitelisted) {
+      logger.log('Showing whitelisted state');
       this.showWhitelistedState(whitelistedPaths);
     } else if (isInBlocklist && !isBlockEnabled) {
+      logger.log('Showing disabled block state');
       this.showDisabledBlockState();
     } else if (isInBlocklist && isBlockEnabled) {
+      logger.log('Showing blocked state');
       this.showBlockedState();
-    } else if (wouldBeBlocked && this.siteManager.getBlockTarget()?.target.includes('/')) {
+    } else if (wouldBeBlocked && !isInBlocklist) {
+      logger.log('Showing whitelist option (would be blocked by broader rule)');
+      // Target would be blocked by a broader rule but isn't directly in the blocklist
       this.showWhitelistOption();
     } else {
+      logger.log('Showing normal state');
       this.showNormalState();
     }
   }
@@ -705,6 +744,9 @@ class PopupManager {
     blockOptions.forEach((option, index) => {
       const optionElement = document.createElement('div');
       optionElement.className = `block-option ${index === 0 ? 'selected' : ''}`;
+      optionElement.id = `block-option-${option.type}-${index}`;
+      optionElement.setAttribute('data-type', option.type);
+      optionElement.setAttribute('data-target', option.target);
       optionElement.innerHTML = `
         <div class="block-option-label">${option.label}</div>
         <div class="block-option-target">${option.target}</div>
@@ -712,7 +754,8 @@ class PopupManager {
       `;
       
       optionElement.addEventListener('click', () => {
-        this.selectBlockOption(option.type, optionElement);
+        logger.log('Block option clicked:', { index, type: option.type, target: option.target, label: option.label });
+        this.selectBlockOption(index, option.type, optionElement);
       });
       
       this.blockOptionsContainer.appendChild(optionElement);
@@ -743,7 +786,9 @@ class PopupManager {
   /**
    * Select a block option
    */
-  private selectBlockOption(blockType: string, optionElement: HTMLElement): void {
+  private selectBlockOption(index: number, blockType: string, optionElement: HTMLElement): void {
+    logger.log('Selecting block option:', { index, blockType, target: optionElement.getAttribute('data-target') });
+    
     // Remove selected class from all options
     this.blockOptionsContainer.querySelectorAll('.block-option').forEach(el => {
       el.classList.remove('selected');
@@ -752,8 +797,11 @@ class PopupManager {
     // Add selected class to clicked option
     optionElement.classList.add('selected');
     
-    // Update site manager
-    this.siteManager.setSelectedBlockType(blockType as any);
+    // Update site manager with the specific index
+    this.siteManager.setSelectedBlockIndex(index);
+    
+    const selectedTarget = this.siteManager.getSelectedBlockTarget();
+    logger.log('After setting block index, selected target is:', selectedTarget);
     
     // Update display
     this.updateBlockTargetDisplay();
@@ -766,13 +814,11 @@ class PopupManager {
    * Update block target display
    */
   private updateBlockTargetDisplay(): void {
-    const selectedTarget = this.siteManager.getSelectedBlockTarget();
-    const selectedOption = this.siteManager.getBlockOptions().find(
-      opt => opt.type === this.siteManager.getSelectedBlockType()
-    );
+    const selectedOption = this.siteManager.getSelectedBlockOption();
     
     if (selectedOption) {
       this.blockTargetElement.textContent = `Will block: ${selectedOption.target}`;
+      logger.log('Updated block target display:', selectedOption.target);
     }
   }
 
@@ -902,7 +948,7 @@ class PopupManager {
         }
       });
       
-      console.log('Floating timer setting updated:', alwaysShow ? 'enabled' : 'disabled');
+      logger.log('Floating timer setting updated:', alwaysShow ? 'enabled' : 'disabled');
     } catch (error) {
       console.error('Error updating floating timer setting:', error);
       // Revert toggle on error

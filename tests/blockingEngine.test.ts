@@ -153,109 +153,152 @@ describe.skip('BlockingEngine - Subdomain Whitelisting', () => {
   });
 });
 
-describe('BlockingEngine - Media Pausing', () => {
+describe('BlockingEngine - Consolidated Methods', () => {
   let blockingEngine: BlockingEngine;
-  let mockVideoElement: Partial<HTMLVideoElement>;
-  let mockAudioElement: Partial<HTMLAudioElement>;
 
   beforeEach(() => {
     blockingEngine = new BlockingEngine();
-
-    // Create mock media elements
-    mockVideoElement = {
-      paused: false,
-      pause: jest.fn(),
-      tagName: 'VIDEO',
-      src: 'https://youtube.com/video.mp4'
-    };
-
-    mockAudioElement = {
-      paused: false,
-      pause: jest.fn(),
-      tagName: 'AUDIO',
-      src: 'https://youtube.com/audio.mp3'
-    };
-
-    // Mock document.querySelectorAll
-    jest.spyOn(document, 'querySelectorAll').mockImplementation((selector: string) => {
-      if (selector === 'video, audio') {
-        return [mockVideoElement, mockAudioElement] as any;
-      }
-      return [] as any;
-    });
-  });
-
-  afterEach(() => {
-    jest.restoreAllMocks();
-  });
-
-  test('should pause media when site is blocked via spy', () => {
-    // Spy on shouldBlockWebsite to force it to return true and trigger media pausing
-    const shouldBlockSpy = jest.spyOn(blockingEngine, 'shouldBlockWebsite').mockImplementation(() => {
-      // Call the private pauseAllMedia method directly by accessing it
-      (blockingEngine as any).pauseAllMedia();
-      return true;
-    });
-
-    // Call shouldBlockWebsite which will trigger media pausing
-    const shouldBlock = blockingEngine.shouldBlockWebsite();
-
-    expect(shouldBlock).toBe(true);
-    expect(mockVideoElement.pause).toHaveBeenCalled();
-    expect(mockAudioElement.pause).toHaveBeenCalled();
     
-    shouldBlockSpy.mockRestore();
+    // Set up test data
+    blockingEngine.updateBlockedSites(['youtube.com', 'facebook.com', 'reddit.com/r/gaming']);
+    blockingEngine.updateWhitelistedPaths(['music.youtube.com', 'facebook.com/pages']);
+    blockingEngine.updateBlockedSitesToggleState({
+      'youtube.com': true,
+      'facebook.com': false, // Disabled
+      'reddit.com/r/gaming': true
+    });
+    blockingEngine.updateWhitelistedPathsToggleState({
+      'music.youtube.com': true,
+      'facebook.com/pages': false // Disabled
+    });
   });
 
-  test('should not pause already paused media', () => {
-    // Create new mock elements that are already paused
-    const pausedVideoElement = {
-      paused: true,
-      pause: jest.fn(),
-      tagName: 'VIDEO',
-      src: 'https://youtube.com/video.mp4'
-    };
-
-    const pausedAudioElement = {
-      paused: true,
-      pause: jest.fn(),
-      tagName: 'AUDIO',
-      src: 'https://youtube.com/audio.mp3'
-    };
-
-    // Mock document.querySelectorAll to return already paused elements
-    jest.spyOn(document, 'querySelectorAll').mockImplementation((selector: string) => {
-      if (selector === 'video, audio') {
-        return [pausedVideoElement, pausedAudioElement] as any;
-      }
-      return [] as any;
+  describe('toggle state methods', () => {
+    test('isBlockedSiteEnabled should return correct state', () => {
+      expect(blockingEngine.isBlockedSiteEnabled('youtube.com')).toBe(true);
+      expect(blockingEngine.isBlockedSiteEnabled('facebook.com')).toBe(false);
+      expect(blockingEngine.isBlockedSiteEnabled('nonexistent.com')).toBe(true); // Default
     });
 
-    // Mock shouldBlockWebsite to trigger media pausing
-    const shouldBlockSpy = jest.spyOn(blockingEngine, 'shouldBlockWebsite').mockImplementation(() => {
-      (blockingEngine as any).pauseAllMedia();
-      return true;
+    test('isWhitelistedPathEnabled should return correct state', () => {
+      expect(blockingEngine.isWhitelistedPathEnabled('music.youtube.com')).toBe(true);
+      expect(blockingEngine.isWhitelistedPathEnabled('facebook.com/pages')).toBe(false);
+      expect(blockingEngine.isWhitelistedPathEnabled('nonexistent.com')).toBe(true); // Default
     });
 
-    const shouldBlock = blockingEngine.shouldBlockWebsite();
+    test('isSiteInBlocklist should check presence in blocklist', () => {
+      expect(blockingEngine.isSiteInBlocklist('youtube.com')).toBe(true);
+      expect(blockingEngine.isSiteInBlocklist('YOUTUBE.COM')).toBe(true); // Case insensitive
+      expect(blockingEngine.isSiteInBlocklist('twitter.com')).toBe(false);
+    });
 
-    expect(shouldBlock).toBe(true);
-    expect(pausedVideoElement.pause).not.toHaveBeenCalled();
-    expect(pausedAudioElement.pause).not.toHaveBeenCalled();
-    
-    shouldBlockSpy.mockRestore();
+    test('isPathInWhitelist should check presence in whitelist', () => {
+      expect(blockingEngine.isPathInWhitelist('music.youtube.com')).toBe(true);
+      expect(blockingEngine.isPathInWhitelist('MUSIC.YOUTUBE.COM')).toBe(true); // Case insensitive
+      expect(blockingEngine.isPathInWhitelist('gaming.youtube.com')).toBe(false);
+    });
   });
 
-  test('should not pause media when site is not blocked', () => {
-    // Mock shouldBlockWebsite to return false without triggering media pausing
-    const shouldBlockSpy = jest.spyOn(blockingEngine, 'shouldBlockWebsite').mockReturnValue(false);
+  describe('getSiteInfo', () => {
+    test('should parse URL correctly', () => {
+      const siteInfo = blockingEngine.getSiteInfo('https://music.youtube.com/watch?v=abc123');
+      expect(siteInfo).toEqual({
+        hostname: 'music.youtube.com',
+        pathname: '/watch',
+        url: 'https://music.youtube.com/watch?v=abc123'
+      });
+    });
 
-    const shouldBlock = blockingEngine.shouldBlockWebsite();
+    test('should return null for invalid URL', () => {
+      const siteInfo = blockingEngine.getSiteInfo('invalid-url');
+      expect(siteInfo).toBeNull();
+    });
+  });
 
-    expect(shouldBlock).toBe(false);
-    expect(mockVideoElement.pause).not.toHaveBeenCalled();
-    expect(mockAudioElement.pause).not.toHaveBeenCalled();
-    
-    shouldBlockSpy.mockRestore();
+  describe('findMatchingWhitelistEntry', () => {
+    test('should find path-specific match', () => {
+      const match = blockingEngine.findMatchingWhitelistEntry(
+        ['music.youtube.com/watch', 'facebook.com'],
+        'https://music.youtube.com/watch?v=123'
+      );
+      expect(match).toBe('music.youtube.com/watch');
+    });
+
+    test('should find domain-only match', () => {
+      const match = blockingEngine.findMatchingWhitelistEntry(
+        ['music.youtube.com', 'facebook.com'],
+        'https://music.youtube.com/playlist'
+      );
+      expect(match).toBe('music.youtube.com');
+    });
+
+    test('should return null when no match', () => {
+      const match = blockingEngine.findMatchingWhitelistEntry(
+        ['facebook.com'],
+        'https://music.youtube.com/watch'
+      );
+      expect(match).toBeNull();
+    });
+  });
+
+  describe('checkIfUrlWouldBeBlocked', () => {
+    test('should return true for blocked domain', () => {
+      const wouldBeBlocked = blockingEngine.checkIfUrlWouldBeBlocked(
+        ['youtube.com', 'facebook.com'],
+        'https://www.youtube.com/watch?v=123'
+      );
+      expect(wouldBeBlocked).toBe(true);
+    });
+
+    test('should return false for non-blocked domain', () => {
+      const wouldBeBlocked = blockingEngine.checkIfUrlWouldBeBlocked(
+        ['facebook.com'],
+        'https://www.youtube.com/watch?v=123'
+      );
+      expect(wouldBeBlocked).toBe(false);
+    });
+
+    test('should handle subdomain matching', () => {
+      const wouldBeBlocked = blockingEngine.checkIfUrlWouldBeBlocked(
+        ['youtube.com'],
+        'https://music.youtube.com/watch'
+      );
+      expect(wouldBeBlocked).toBe(true);
+    });
+
+    test('should return true for path-based blocks', () => {
+      const wouldBeBlocked = blockingEngine.checkIfUrlWouldBeBlocked(
+        ['github.com/odnetnin164'],
+        'https://github.com/odnetnin164/pomoblock'
+      );
+      expect(wouldBeBlocked).toBe(true);
+    });
+
+    test('should return false for non-matching path-based blocks', () => {
+      const wouldBeBlocked = blockingEngine.checkIfUrlWouldBeBlocked(
+        ['github.com/someotheruser'],
+        'https://github.com/odnetnin164/pomoblock'
+      );
+      expect(wouldBeBlocked).toBe(false);
+    });
+  });
+
+  describe('checkIfUrlIsWhitelisted', () => {
+    test('should return true for whitelisted URL', () => {
+      const isWhitelisted = blockingEngine.checkIfUrlIsWhitelisted(
+        ['music.youtube.com/watch'],
+        'https://music.youtube.com/watch?v=123'
+      );
+      expect(isWhitelisted).toBe(true);
+    });
+
+    test('should return false for non-whitelisted URL', () => {
+      const isWhitelisted = blockingEngine.checkIfUrlIsWhitelisted(
+        ['facebook.com'],
+        'https://music.youtube.com/watch'
+      );
+      expect(isWhitelisted).toBe(false);
+    });
   });
 });
+
