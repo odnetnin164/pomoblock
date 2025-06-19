@@ -7,6 +7,9 @@ export class BlockedPageUI {
   private isBlocked: boolean = false;
   private originalTitle: string = '';
   private blockOverlay: HTMLElement | null = null;
+  private shadowRoot: ShadowRoot | null = null;
+  // For testing access to closed shadow DOM
+  private _testShadowRoot: ShadowRoot | null = null;
   private redirectCountdownInterval: number | null = null;
   private currentTimerState: string = 'STOPPED';
 
@@ -15,18 +18,17 @@ export class BlockedPageUI {
   }
 
   /**
-   * Inject CSS for blocked page if not already present
+   * Load CSS content for Shadow DOM
    */
-  private injectCSS(): void {
-    if (document.getElementById('pomoblock-blocked-page-styles')) {
-      return; // CSS already injected
+  private async loadCSS(): Promise<string> {
+    try {
+      const cssUrl = chrome.runtime.getURL('shared/blocked-page.css');
+      const response = await fetch(cssUrl);
+      return await response.text();
+    } catch (error) {
+      logger.log('Error loading blocked page CSS:', error);
+      return '';
     }
-
-    const link = document.createElement('link');
-    link.id = 'pomoblock-blocked-page-styles';
-    link.rel = 'stylesheet';
-    link.href = chrome.runtime.getURL('shared/blocked-page.css');
-    document.head.appendChild(link);
   }
 
   /**
@@ -133,7 +135,7 @@ export class BlockedPageUI {
   /**
    * Create blocked page with overlay approach (preserves history)
    */
-  createBlockedPage(isRedirectMode: boolean = false): void {
+  async createBlockedPage(isRedirectMode: boolean = false): Promise<void> {
     logger.log('Creating blocked page overlay', { isRedirectMode, timerState: this.currentTimerState });
     
     // Don't block if already blocked
@@ -153,7 +155,7 @@ export class BlockedPageUI {
       return;
     }
     
-    this.createBlockOverlay(isRedirectMode);
+    await this.createBlockOverlay(isRedirectMode);
     this.isBlocked = true;
     
     // Update page title based on timer state
@@ -231,20 +233,44 @@ export class BlockedPageUI {
   }
 
   /**
-   * Create the block overlay (doesn't replace entire document)
+   * Create the block overlay with Shadow DOM encapsulation
    */
-  private createBlockOverlay(isRedirectMode: boolean = false): void {
+  private async createBlockOverlay(isRedirectMode: boolean = false): Promise<void> {
     // Remove any existing overlay
     this.removeBlockedPage();
 
-    // Inject CSS if not already present
-    this.injectCSS();
+    // Load CSS content
+    const cssContent = await this.loadCSS();
 
+    // Create the host element
     const overlay = document.createElement('div');
-    overlay.id = 'pomoblock-blocked-overlay';
+    overlay.id = 'pomoblock-blocked-overlay-host';
+    overlay.style.cssText = `
+      position: fixed !important;
+      top: 0 !important;
+      left: 0 !important;
+      width: 100vw !important;
+      height: 100vh !important;
+      z-index: 2147483647 !important;
+      pointer-events: auto !important;
+    `;
 
-    const content = this.generateBlockedContent(isRedirectMode);
-    overlay.innerHTML = content;
+    // Create shadow root for complete CSS isolation
+    this.shadowRoot = overlay.attachShadow({ mode: 'closed' });
+    // Store reference for testing
+    this._testShadowRoot = this.shadowRoot;
+
+    // Create style element with CSS
+    const style = document.createElement('style');
+    style.textContent = cssContent;
+    this.shadowRoot.appendChild(style);
+
+    // Create the actual overlay content
+    const overlayContent = document.createElement('div');
+    overlayContent.className = 'blocked-overlay';
+    overlayContent.innerHTML = this.generateBlockedContent(isRedirectMode);
+
+    this.shadowRoot.appendChild(overlayContent);
 
     // Prevent scrolling on background page
     document.body.style.overflow = 'hidden';
@@ -259,7 +285,7 @@ export class BlockedPageUI {
     // Ensure floating timer remains visible by sending a message to refresh it
     this.ensureFloatingTimerVisible();
     
-    logger.log('Block overlay created and added to page');
+    logger.log('Block overlay with Shadow DOM created and added to page');
   }
 
   /**
@@ -422,21 +448,23 @@ export class BlockedPageUI {
 
     document.addEventListener('keydown', handleKeyPress);
 
-    // Set up button click handlers
-    const goBackBtn = document.getElementById('go-back-btn');
-    const closeTabBtn = document.getElementById('close-tab-btn');
-    const redirectSafeBtn = document.getElementById('redirect-safe-btn');
+    // Set up button click handlers within Shadow DOM
+    if (this.shadowRoot) {
+      const goBackBtn = this.shadowRoot.getElementById('go-back-btn');
+      const closeTabBtn = this.shadowRoot.getElementById('close-tab-btn');
+      const redirectSafeBtn = this.shadowRoot.getElementById('redirect-safe-btn');
 
-    if (goBackBtn) {
-      goBackBtn.addEventListener('click', () => this.goBack());
-    }
+      if (goBackBtn) {
+        goBackBtn.addEventListener('click', () => this.goBack());
+      }
 
-    if (redirectSafeBtn) {
-      redirectSafeBtn.addEventListener('click', () => this.redirectToSafePage());
-    }
+      if (redirectSafeBtn) {
+        redirectSafeBtn.addEventListener('click', () => this.redirectToSafePage());
+      }
 
-    if (closeTabBtn) {
-      closeTabBtn.addEventListener('click', () => this.attemptCloseTab());
+      if (closeTabBtn) {
+        closeTabBtn.addEventListener('click', () => this.attemptCloseTab());
+      }
     }
 
     // Store handler reference for cleanup
@@ -500,7 +528,7 @@ export class BlockedPageUI {
   private attemptCloseTab(): void {
     logger.log('Attempting to close tab');
     
-    const closeBtn = document.getElementById('close-tab-btn');
+    const closeBtn = this.shadowRoot?.getElementById('close-tab-btn');
     if (closeBtn) {
       // Update button to show we're trying
       closeBtn.innerHTML = `
@@ -529,7 +557,7 @@ export class BlockedPageUI {
    * Show instructions for manually closing the tab
    */
   private showCloseTabInstructions(): void {
-    const navigationHelp = document.querySelector('.navigation-help');
+    const navigationHelp = this.shadowRoot?.querySelector('.navigation-help');
     if (navigationHelp) {
       navigationHelp.innerHTML = `
         <h4>🔄 Close Tab Instructions</h4>
@@ -552,8 +580,8 @@ export class BlockedPageUI {
       `;
 
       // Add event listeners for the new buttons
-      const goBackBtn2 = document.getElementById('go-back-btn-2');
-      const redirectSafeBtn2 = document.getElementById('redirect-safe-btn-2');
+      const goBackBtn2 = this.shadowRoot?.getElementById('go-back-btn-2');
+      const redirectSafeBtn2 = this.shadowRoot?.getElementById('redirect-safe-btn-2');
 
       if (goBackBtn2) {
         goBackBtn2.addEventListener('click', () => this.goBack());
@@ -580,9 +608,9 @@ export class BlockedPageUI {
     this.clearRedirectCountdown();
     
     let secondsLeft = this.settings.redirectDelay;
-    const countdownElement = document.getElementById('countdown-seconds');
-    const progressBar = document.getElementById('progress-bar');
-    const cancelButton = document.getElementById('cancel-redirect');
+    const countdownElement = this.shadowRoot?.getElementById('countdown-seconds');
+    const progressBar = this.shadowRoot?.getElementById('progress-bar');
+    const cancelButton = this.shadowRoot?.getElementById('cancel-redirect');
     
     logger.log('Starting countdown', { redirectUrl: this.settings.redirectUrl, initialSeconds: secondsLeft });
     
@@ -642,7 +670,7 @@ export class BlockedPageUI {
    * Show cancelled message
    */
   private showCancelledMessage(): void {
-    const redirectInfo = document.querySelector('.redirect-info');
+    const redirectInfo = this.shadowRoot?.querySelector('.redirect-info');
     if (redirectInfo) {
       redirectInfo.innerHTML = `
         <div class="redirect-cancelled">
@@ -698,7 +726,7 @@ export class BlockedPageUI {
    * Show redirect failure message
    */
   private showRedirectFailure(redirectUrl: string): void {
-    const redirectInfo = document.querySelector('.redirect-info');
+    const redirectInfo = this.shadowRoot?.querySelector('.redirect-info');
     if (redirectInfo) {
       redirectInfo.innerHTML = `
         <div class="redirect-failed">

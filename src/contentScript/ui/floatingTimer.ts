@@ -7,6 +7,9 @@ import { PomodoroTimer } from '@shared/pomodoroTimer';
 
 export class FloatingTimer {
   private widget: HTMLElement | null = null;
+  private shadowRoot: ShadowRoot | null = null;
+  // For testing access to closed shadow DOM
+  private _testShadowRoot: ShadowRoot | null = null;
   private isDragging = false;
   private dragOffset = { x: 0, y: 0 };
   private currentStatus: TimerStatus | null = null;
@@ -17,7 +20,7 @@ export class FloatingTimer {
   constructor() {
     // Create helper timer instance for UI logic (no callbacks needed)
     this.helperTimer = new PomodoroTimer();
-    this.setupEventListeners();
+    this.setupRuntimeListeners();
     this.setupTabChangeHandling();
     this.setupBlockedPageEventListeners();
     // Load settings and create widget after settings are loaded
@@ -25,18 +28,17 @@ export class FloatingTimer {
   }
 
   /**
-   * Inject CSS for floating timer if not already present
+   * Load CSS content for Shadow DOM
    */
-  private injectCSS(): void {
-    if (document.getElementById('pomoblock-floating-timer-styles')) {
-      return; // CSS already injected
+  private async loadCSS(): Promise<string> {
+    try {
+      const cssUrl = chrome.runtime.getURL('shared/floating-timer.css');
+      const response = await fetch(cssUrl);
+      return await response.text();
+    } catch (error) {
+      logger.log('Error loading floating timer CSS:', error);
+      return '';
     }
-
-    const link = document.createElement('link');
-    link.id = 'pomoblock-floating-timer-styles';
-    link.rel = 'stylesheet';
-    link.href = chrome.runtime.getURL('shared/floating-timer.css');
-    document.head.appendChild(link);
   }
 
   /**
@@ -44,7 +46,7 @@ export class FloatingTimer {
    */
   private async initializeWidget(): Promise<void> {
     await this.loadSettings();
-    this.createWidget();
+    await this.createWidget();
   }
 
   /**
@@ -73,41 +75,52 @@ export class FloatingTimer {
   }
 
   /**
-   * Create the floating timer widget as a rectangular progress bar
+   * Create the floating timer widget with Shadow DOM encapsulation
    */
-  private createWidget(): void {
+  private async createWidget(): Promise<void> {
     // Remove existing widget if any
     this.removeWidget();
 
+    // Load CSS content
+    const cssContent = await this.loadCSS();
+
+    // Create the host element
     this.widget = document.createElement('div');
-    this.widget.id = 'pomoblock-floating-timer';
+    this.widget.id = 'pomoblock-floating-timer-host';
     this.widget.style.cssText = `
       position: fixed !important;
       top: ${this.settings.position.y}px !important;
       left: ${this.settings.position.x}px !important;
       width: 280px !important;
       height: 50px !important;
-      background: rgba(0, 0, 0, 0.9) !important;
-      border: 2px solid rgba(255, 255, 255, 0.3) !important;
-      border-radius: 25px !important;
-      color: white !important;
-      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif !important;
-      font-size: 14px !important;
       z-index: 2147483648 !important;
       cursor: move !important;
       user-select: none !important;
-      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5) !important;
-      transition: all 0.3s ease !important;
       display: ${this.isVisible ? 'flex' : 'none'} !important;
-      overflow: hidden !important;
-      align-items: center !important;
-      backdrop-filter: blur(10px) !important;
+      pointer-events: auto !important;
     `;
 
+    // Create shadow root for complete CSS isolation
+    this.shadowRoot = this.widget.attachShadow({ mode: 'closed' });
+    // Store reference for testing
+    this._testShadowRoot = this.shadowRoot;
+
+    // Create style element with CSS
+    const style = document.createElement('style');
+    style.textContent = cssContent;
+    this.shadowRoot.appendChild(style);
+
+    // Create the actual timer widget
+    const timerWidget = document.createElement('div');
+    timerWidget.className = 'floating-timer';
+    
+    this.shadowRoot.appendChild(timerWidget);
     this.updateWidgetContent();
+    
     document.documentElement.appendChild(this.widget);
 
-    // Setup drag functionality
+    // Setup event listeners and drag functionality
+    this.setupEventListeners();
     this.setupDragHandlers();
     
     // Ensure position is within viewport bounds after creation
@@ -118,12 +131,15 @@ export class FloatingTimer {
    * Update widget content based on current timer status
    */
   private updateWidgetContent(): void {
-    if (!this.widget) return;
+    if (!this.shadowRoot) return;
+
+    const timerWidget = this.shadowRoot.querySelector('.floating-timer');
+    if (!timerWidget) return;
 
     if (!this.currentStatus || this.currentStatus.state === 'STOPPED') {
-      this.widget.innerHTML = this.getStoppedContent();
+      timerWidget.innerHTML = this.getStoppedContent();
     } else {
-      this.widget.innerHTML = this.getActiveContent();
+      timerWidget.innerHTML = this.getActiveContent();
     }
 
     // Update widget styling based on timer state
@@ -165,100 +181,6 @@ export class FloatingTimer {
         </div>
         <button class="timer-close-btn" title="Hide timer">×</button>
       </div>
-      
-      <style>
-        .timer-bar-content {
-          width: 100% !important;
-          height: 100% !important;
-          display: flex !important;
-          align-items: center !important;
-          position: relative !important;
-        }
-        
-        .timer-control-btn {
-          width: 40px !important;
-          height: 40px !important;
-          border-radius: 50% !important;
-          background: rgba(255, 255, 255, 0.2) !important;
-          border: none !important;
-          color: white !important;
-          font-size: 16px !important;
-          cursor: pointer !important;
-          display: flex !important;
-          align-items: center !important;
-          justify-content: center !important;
-          margin-left: 5px !important;
-          margin-right: 8px !important;
-          transition: all 0.2s ease !important;
-          flex-shrink: 0 !important;
-        }
-        
-        .timer-control-btn:hover:not(.disabled) {
-          background: rgba(255, 255, 255, 0.3) !important;
-          transform: scale(1.1) !important;
-        }
-        
-        .timer-control-btn.disabled {
-          opacity: 0.5 !important;
-          cursor: not-allowed !important;
-        }
-        
-        .timer-progress-container {
-          flex: 1 !important;
-          height: 30px !important;
-          position: relative !important;
-          background: rgba(255, 255, 255, 0.1) !important;
-          border-radius: 15px !important;
-          overflow: hidden !important;
-          margin-right: 8px !important;
-        }
-        
-        .timer-progress-bar {
-          height: 100% !important;
-          background: linear-gradient(90deg, #4CAF50 0%, #66BB6A 100%) !important;
-          border-radius: 15px !important;
-          transition: width 1s ease !important;
-          position: absolute !important;
-          left: 0 !important;
-          top: 0 !important;
-        }
-        
-        .timer-text-overlay {
-          position: absolute !important;
-          top: 50% !important;
-          left: 50% !important;
-          transform: translate(-50%, -50%) !important;
-          color: white !important;
-          font-weight: 600 !important;
-          font-size: 14px !important;
-          text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.8) !important;
-          white-space: nowrap !important;
-          z-index: 10 !important;
-        }
-        
-        .timer-close-btn {
-          width: 30px !important;
-          height: 30px !important;
-          border-radius: 50% !important;
-          background: rgba(255, 255, 255, 0.2) !important;
-          border: none !important;
-          color: white !important;
-          font-size: 18px !important;
-          font-weight: bold !important;
-          cursor: pointer !important;
-          display: flex !important;
-          align-items: center !important;
-          justify-content: center !important;
-          margin-right: 5px !important;
-          transition: all 0.2s ease !important;
-          flex-shrink: 0 !important;
-        }
-        
-        .timer-close-btn:hover {
-          background: rgba(255, 255, 255, 0.3) !important;
-          transform: scale(1.1) !important;
-        }
-      </style>
     `;
   }
 
@@ -294,96 +216,6 @@ export class FloatingTimer {
         </div>
         <button class="timer-close-btn" title="Hide timer">×</button>
       </div>
-      
-      <style>
-        .timer-bar-content {
-          width: 100% !important;
-          height: 100% !important;
-          display: flex !important;
-          align-items: center !important;
-          position: relative !important;
-        }
-        
-        .timer-control-btn {
-          width: 40px !important;
-          height: 40px !important;
-          border-radius: 50% !important;
-          background: rgba(255, 255, 255, 0.2) !important;
-          border: none !important;
-          color: white !important;
-          font-size: 16px !important;
-          cursor: pointer !important;
-          display: flex !important;
-          align-items: center !important;
-          justify-content: center !important;
-          margin-left: 5px !important;
-          margin-right: 8px !important;
-          transition: all 0.2s ease !important;
-          flex-shrink: 0 !important;
-        }
-        
-        .timer-control-btn:hover {
-          background: rgba(255, 255, 255, 0.3) !important;
-          transform: scale(1.1) !important;
-        }
-        
-        .timer-progress-container {
-          flex: 1 !important;
-          height: 30px !important;
-          position: relative !important;
-          background: rgba(255, 255, 255, 0.1) !important;
-          border-radius: 15px !important;
-          overflow: hidden !important;
-          margin-right: 8px !important;
-        }
-        
-        .timer-progress-bar {
-          height: 100% !important;
-          background: linear-gradient(90deg, #4CAF50 0%, #66BB6A 100%) !important;
-          border-radius: 15px !important;
-          transition: width 1s ease !important;
-          position: absolute !important;
-          left: 0 !important;
-          top: 0 !important;
-        }
-        
-        .timer-text-overlay {
-          position: absolute !important;
-          top: 50% !important;
-          left: 50% !important;
-          transform: translate(-50%, -50%) !important;
-          color: white !important;
-          font-weight: 600 !important;
-          font-size: 14px !important;
-          text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.8) !important;
-          white-space: nowrap !important;
-          z-index: 10 !important;
-          font-family: 'Courier New', monospace !important;
-        }
-        
-        .timer-close-btn {
-          width: 30px !important;
-          height: 30px !important;
-          border-radius: 50% !important;
-          background: rgba(255, 255, 255, 0.2) !important;
-          border: none !important;
-          color: white !important;
-          font-size: 18px !important;
-          font-weight: bold !important;
-          cursor: pointer !important;
-          display: flex !important;
-          align-items: center !important;
-          justify-content: center !important;
-          margin-right: 5px !important;
-          transition: all 0.2s ease !important;
-          flex-shrink: 0 !important;
-        }
-        
-        .timer-close-btn:hover {
-          background: rgba(255, 255, 255, 0.3) !important;
-          transform: scale(1.1) !important;
-        }
-      </style>
     `;
   }
 
@@ -391,33 +223,39 @@ export class FloatingTimer {
    * Update widget styling based on timer state
    */
   private updateWidgetStyling(): void {
-    if (!this.widget || !this.currentStatus) return;
+    if (!this.shadowRoot || !this.currentStatus) return;
 
-    const progressBar = this.widget.querySelector('.timer-progress-bar') as HTMLElement;
+    const timerWidget = this.shadowRoot.querySelector('.floating-timer') as HTMLElement;
+    const progressBar = this.shadowRoot.querySelector('.timer-progress-bar') as HTMLElement;
     
+    if (!timerWidget) return;
+
+    // Remove existing state classes
+    timerWidget.classList.remove('timer-work', 'timer-rest', 'timer-paused');
+    
+    // Add appropriate state class
     switch (this.currentStatus.state) {
       case 'WORK':
-        this.widget.style.borderColor = 'rgba(244, 67, 54, 0.6)';
+        timerWidget.classList.add('timer-work');
         if (progressBar) {
-          progressBar.style.background = 'linear-gradient(90deg, #f44336 0%, #ff6b6b 100%)';
+          progressBar.className = 'timer-progress-bar work';
         }
         break;
       case 'REST':
-        this.widget.style.borderColor = 'rgba(76, 175, 80, 0.6)';
+        timerWidget.classList.add('timer-rest');
         if (progressBar) {
-          progressBar.style.background = 'linear-gradient(90deg, #4CAF50 0%, #66BB6A 100%)';
+          progressBar.className = 'timer-progress-bar rest';
         }
         break;
       case 'PAUSED':
-        this.widget.style.borderColor = 'rgba(255, 152, 0, 0.6)';
+        timerWidget.classList.add('timer-paused');
         if (progressBar) {
-          progressBar.style.background = 'linear-gradient(90deg, #FF9800 0%, #FFB74D 100%)';
+          progressBar.className = 'timer-progress-bar paused';
         }
         break;
       default:
-        this.widget.style.borderColor = 'rgba(255, 255, 255, 0.3)';
         if (progressBar) {
-          progressBar.style.background = 'linear-gradient(90deg, #9E9E9E 0%, #BDBDBD 100%)';
+          progressBar.className = 'timer-progress-bar stopped';
         }
         break;
     }
@@ -427,7 +265,7 @@ export class FloatingTimer {
    * Setup drag handlers for the widget
    */
   private setupDragHandlers(): void {
-    if (!this.widget) return;
+    if (!this.widget || !this.shadowRoot) return;
 
     const handleMouseDown = (e: Event) => {
       const mouseEvent = e as MouseEvent;
@@ -488,37 +326,43 @@ export class FloatingTimer {
       this.saveSettings();
     };
 
-    this.widget.addEventListener('mousedown', handleMouseDown);
+    // Add mousedown listener to the shadow root to capture drag events
+    this.shadowRoot.addEventListener('mousedown', handleMouseDown);
   }
 
   /**
    * Setup event listeners for widget interactions
    */
   private setupEventListeners(): void {
-    // Listen for clicks on the widget
-    document.addEventListener('click', (e) => {
-      if (!this.widget || !this.widget.contains(e.target as Node)) return;
-      
-      e.preventDefault();
-      e.stopPropagation();
-      
-      const target = e.target as HTMLElement;
-      const button = target.closest('button');
-      
-      if (button?.classList.contains('timer-control-btn') && !button.classList.contains('disabled')) {
-        const action = button.getAttribute('data-action');
-        if (action === 'pause') {
-          this.sendMessage('PAUSE_TIMER');
-        } else if (action === 'resume') {
-          this.sendMessage('RESUME_TIMER');
-        } else if (action === 'start') {
-          this.handleStartAction();
+    // Listen for clicks on the widget (using event delegation through shadow root)
+    if (this.shadowRoot) {
+      this.shadowRoot.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        const target = e.target as HTMLElement;
+        const button = target.closest('button');
+        
+        if (button?.classList.contains('timer-control-btn') && !button.classList.contains('disabled')) {
+          const action = button.getAttribute('data-action');
+          if (action === 'pause') {
+            this.sendMessage('PAUSE_TIMER');
+          } else if (action === 'resume') {
+            this.sendMessage('RESUME_TIMER');
+          } else if (action === 'start') {
+            this.handleStartAction();
+          }
+        } else if (button?.classList.contains('timer-close-btn')) {
+          this.hide();
         }
-      } else if (button?.classList.contains('timer-close-btn')) {
-        this.hide();
-      }
-    });
+      });
+    }
+  }
 
+  /**
+   * Setup Chrome runtime message listeners
+   */
+  private setupRuntimeListeners(): void {
     // Listen for timer updates from background
     chrome.runtime.onMessage.addListener((message) => {
       if (message.type === 'TIMER_UPDATE' && message.data.timerStatus) {
@@ -731,7 +575,19 @@ export class FloatingTimer {
   show(): void {
     this.isVisible = true;
     if (this.widget) {
-      this.widget.style.display = 'flex';
+      // Recreate the cssText with the correct display value
+      this.widget.style.cssText = `
+        position: fixed !important;
+        top: ${this.settings.position.y}px !important;
+        left: ${this.settings.position.x}px !important;
+        width: 280px !important;
+        height: 50px !important;
+        z-index: 2147483648 !important;
+        cursor: move !important;
+        user-select: none !important;
+        display: flex !important;
+        pointer-events: auto !important;
+      `;
     }
   }
 
@@ -741,7 +597,19 @@ export class FloatingTimer {
   hide(): void {
     this.isVisible = false;
     if (this.widget) {
-      this.widget.style.display = 'none';
+      // Recreate the cssText with the correct display value
+      this.widget.style.cssText = `
+        position: fixed !important;
+        top: ${this.settings.position.y}px !important;
+        left: ${this.settings.position.x}px !important;
+        width: 280px !important;
+        height: 50px !important;
+        z-index: 2147483648 !important;
+        cursor: move !important;
+        user-select: none !important;
+        display: none !important;
+        pointer-events: auto !important;
+      `;
     }
   }
 
@@ -774,8 +642,14 @@ export class FloatingTimer {
    * Remove widget from DOM
    */
   private removeWidget(): void {
+    // First remove all existing widgets by ID (in case there are duplicates)
+    let existingWidget;
+    while ((existingWidget = document.getElementById('pomoblock-floating-timer-host'))) {
+      existingWidget.remove();
+    }
+    
+    // Clear internal reference
     if (this.widget) {
-      this.widget.remove();
       this.widget = null;
     }
   }
@@ -882,12 +756,12 @@ export class FloatingTimer {
   /**
    * Ensure timer remains visible when blocked page is shown
    */
-  private ensureVisibilityOnBlockedPage(): void {
+  private async ensureVisibilityOnBlockedPage(): Promise<void> {
     logger.log('Ensuring floating timer visibility on blocked page');
     
     if (!this.widget) {
       logger.log('Widget does not exist, creating it');
-      this.createWidget();
+      await this.createWidget();
     }
 
     // Force the widget to be visible if timer is active
