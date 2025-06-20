@@ -559,10 +559,10 @@ export class FloatingTimer {
   updateStatus(status: TimerStatus): void {
     this.currentStatus = status;
     
-    // Show widget if timer is active or always show is enabled
-    if (status.state !== 'STOPPED' || this.settings.alwaysShow) {
+    // Visibility is controlled by alwaysShow setting only
+    if (this.settings.alwaysShow) {
       this.show();
-    } else if (!this.settings.alwaysShow) {
+    } else {
       this.hide();
     }
     
@@ -631,10 +631,11 @@ export class FloatingTimer {
     this.settings.alwaysShow = alwaysShow;
     this.saveSettings();
     
-    if (!alwaysShow && this.currentStatus?.state === 'STOPPED') {
-      this.hide();
-    } else if (alwaysShow) {
+    // Simple logic: show if enabled, hide if disabled
+    if (alwaysShow) {
       this.show();
+    } else {
+      this.hide();
     }
   }
 

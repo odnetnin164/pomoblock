@@ -294,7 +294,7 @@ describe('FloatingTimer', () => {
       await (floatingTimer as any).initializeWidget();
     });
 
-    test('should update status and show widget when timer is active', () => {
+    test('should update status but not show widget when timer is active and alwaysShow is false', () => {
       const workStatus: TimerStatus = {
         ...defaultTimerStatus,
         state: 'WORK',
@@ -304,7 +304,26 @@ describe('FloatingTimer', () => {
       
       floatingTimer.updateStatus(workStatus);
       
-      // Check the internal widget that the component is controlling
+      // Widget should remain hidden because alwaysShow is false by default
+      const internalWidget = (floatingTimer as any).widget;
+      expect(internalWidget?.style.display).toBe('none');
+      expect(mockTimerInstance.setStatusForUI).toHaveBeenCalledWith(workStatus);
+    });
+
+    test('should show widget when timer is active and alwaysShow is true', () => {
+      // First enable alwaysShow
+      floatingTimer.setAlwaysShow(true);
+      
+      const workStatus: TimerStatus = {
+        ...defaultTimerStatus,
+        state: 'WORK',
+        timeRemaining: 1500,
+        totalTime: 1500
+      };
+      
+      floatingTimer.updateStatus(workStatus);
+      
+      // Widget should be visible because alwaysShow is enabled
       const internalWidget = (floatingTimer as any).widget;
       expect(internalWidget?.style.display).toBe('flex');
       expect(mockTimerInstance.setStatusForUI).toHaveBeenCalledWith(workStatus);
