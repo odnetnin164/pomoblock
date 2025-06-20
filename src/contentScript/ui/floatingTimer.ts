@@ -136,14 +136,74 @@ export class FloatingTimer {
     const timerWidget = this.shadowRoot.querySelector('.floating-timer');
     if (!timerWidget) return;
 
-    if (!this.currentStatus || this.currentStatus.state === 'STOPPED') {
-      timerWidget.innerHTML = this.getStoppedContent();
+    // Check if task input is currently focused - if so, avoid rebuilding DOM
+    const taskInput = this.shadowRoot.querySelector('.timer-task-input') as HTMLInputElement;
+    const isTaskInputFocused = taskInput && this.shadowRoot.activeElement === taskInput;
+
+    if (isTaskInputFocused) {
+      // Just update the text and progress without rebuilding the entire DOM
+      this.updateInPlace();
     } else {
-      timerWidget.innerHTML = this.getActiveContent();
+      // Safe to rebuild DOM since input is not focused
+      if (!this.currentStatus || this.currentStatus.state === 'STOPPED') {
+        timerWidget.innerHTML = this.getStoppedContent();
+      } else {
+        timerWidget.innerHTML = this.getActiveContent();
+      }
     }
 
     // Update widget styling based on timer state
     this.updateWidgetStyling();
+  }
+
+  /**
+   * Update timer display without rebuilding DOM (preserves focus)
+   */
+  private updateInPlace(): void {
+    if (!this.shadowRoot || !this.currentStatus) return;
+
+    // Update helper timer status for UI calculations
+    this.helperTimer.setStatusForUI(this.currentStatus);
+    
+    // Update progress bar
+    const progressBar = this.shadowRoot.querySelector('.timer-progress-bar') as HTMLElement;
+    if (progressBar) {
+      if (this.currentStatus.state === 'STOPPED') {
+        progressBar.style.width = '0%';
+      } else {
+        const progress = this.helperTimer.getProgressPercentage();
+        progressBar.style.width = `${progress}%`;
+      }
+    }
+
+    // Update timer text overlay
+    const textOverlay = this.shadowRoot.querySelector('.timer-text-overlay');
+    if (textOverlay) {
+      const displayInfo = this.helperTimer.getSessionDisplayInfo();
+      const timeDisplay = this.helperTimer.getDisplayTime();
+      const sessionText = displayInfo.sessionText.replace(' - Work', ` - ${timeDisplay}`).replace(' - Break', ` - ${timeDisplay}`);
+      textOverlay.textContent = `${displayInfo.sessionIcon} ${sessionText}`;
+    }
+
+    // Update control button
+    const controlBtn = this.shadowRoot.querySelector('.timer-control-btn') as HTMLButtonElement;
+    if (controlBtn) {
+      const controlIcon = controlBtn.querySelector('.control-icon');
+      if (this.currentStatus.state === 'STOPPED') {
+        const nextType = this.currentStatus.nextSessionType || 'WORK';
+        controlBtn.setAttribute('data-action', 'start');
+        controlBtn.title = `Start ${nextType.toLowerCase()} session`;
+        if (controlIcon) controlIcon.textContent = '▶️';
+      } else if (this.currentStatus.state === 'PAUSED') {
+        controlBtn.setAttribute('data-action', 'resume');
+        controlBtn.title = 'Resume timer';
+        if (controlIcon) controlIcon.textContent = '▶️';
+      } else {
+        controlBtn.setAttribute('data-action', 'pause');
+        controlBtn.title = 'Pause timer';
+        if (controlIcon) controlIcon.textContent = '⏸️';
+      }
+    }
   }
 
   /**
@@ -167,6 +227,9 @@ export class FloatingTimer {
     const timeDisplay = this.helperTimer.getDisplayTime();
     const sessionText = displayInfo.sessionText.replace(' - Work', ` - ${timeDisplay}`).replace(' - Break', ` - ${timeDisplay}`);
     const nextType = statusToUse.nextSessionType || 'WORK';
+    
+    // Get dynamic placeholder text
+    const placeholder = this.getTaskPlaceholder(statusToUse);
 
     return `
       <div class="timer-bar-content">
@@ -177,6 +240,11 @@ export class FloatingTimer {
           <div class="timer-progress-bar" style="width: 0%"></div>
           <div class="timer-text-overlay">
             ${displayInfo.sessionIcon} ${sessionText}
+          </div>
+          <div class="timer-task-overlay">
+            <input type="text" class="timer-task-input" placeholder="${placeholder}" 
+                   value="${statusToUse.currentTask}" 
+                   title="Edit task name">
           </div>
         </div>
         <button class="timer-close-btn" title="Hide timer">×</button>
@@ -202,6 +270,9 @@ export class FloatingTimer {
     // Control button icon
     const controlIcon = this.currentStatus.state === 'PAUSED' ? '▶️' : '⏸️';
     const controlAction = this.currentStatus.state === 'PAUSED' ? 'resume' : 'pause';
+    
+    // Get dynamic placeholder text
+    const placeholder = this.getTaskPlaceholder(this.currentStatus);
 
     return `
       <div class="timer-bar-content">
@@ -213,10 +284,27 @@ export class FloatingTimer {
           <div class="timer-text-overlay">
             ${displayInfo.sessionIcon} ${sessionText}
           </div>
+          <div class="timer-task-overlay">
+            <input type="text" class="timer-task-input" placeholder="${placeholder}" 
+                   value="${this.currentStatus.currentTask}" 
+                   title="Edit task name">
+          </div>
         </div>
         <button class="timer-close-btn" title="Hide timer">×</button>
       </div>
     `;
+  }
+
+  /**
+   * Get task placeholder text based on timer status
+   */
+  private getTaskPlaceholder(status: TimerStatus): string {
+    if (status.state === 'STOPPED') {
+      const nextType = status.nextSessionType || 'WORK';
+      return nextType === 'WORK' ? 'What are you working on?' : 'Break time - no task needed';
+    } else {
+      return 'Task in progress...';
+    }
   }
 
   /**
@@ -270,12 +358,14 @@ export class FloatingTimer {
     const handleMouseDown = (e: Event) => {
       const mouseEvent = e as MouseEvent;
       
-      // Don't start drag if clicking on control buttons
+      // Don't start drag if clicking on control buttons or task input
       const target = mouseEvent.target as HTMLElement;
       if (target.classList.contains('timer-control-btn') || 
           target.classList.contains('timer-close-btn') ||
+          target.classList.contains('timer-task-input') ||
           target.closest('.timer-control-btn') ||
-          target.closest('.timer-close-btn')) {
+          target.closest('.timer-close-btn') ||
+          target.closest('.timer-task-input')) {
         return;
       }
       
@@ -356,6 +446,26 @@ export class FloatingTimer {
           this.hide();
         }
       });
+
+      // Listen for task input Enter key and blur to save changes
+      this.shadowRoot.addEventListener('keydown', (e) => {
+        const target = e.target as HTMLElement;
+        if (target.classList.contains('timer-task-input')) {
+          const keyEvent = e as KeyboardEvent;
+          if (keyEvent.key === 'Enter') {
+            const input = target as HTMLInputElement;
+            input.blur(); // Remove focus which will trigger save
+          }
+        }
+      });
+
+      this.shadowRoot.addEventListener('blur', (e) => {
+        const target = e.target as HTMLElement;
+        if (target.classList.contains('timer-task-input')) {
+          const input = target as HTMLInputElement;
+          this.handleTaskChange(input.value);
+        }
+      }, true); // Use capture to ensure we catch blur events
     }
   }
 
@@ -438,17 +548,35 @@ export class FloatingTimer {
     try {
       const nextType = this.currentStatus.nextSessionType || 'WORK';
       if (nextType === 'WORK') {
+        // Get current task name from input field
+        const taskInput = this.shadowRoot?.querySelector('.timer-task-input') as HTMLInputElement;
+        const taskName = taskInput?.value?.trim() || '';
+        
         // Use centralized session display logic to get consistent session numbering
         this.helperTimer.setStatusForUI(this.currentStatus);
         const displayInfo = this.helperTimer.getSessionDisplayInfo();
+        const defaultTask = `Work Session #${displayInfo.sessionNumber}`;
+        
         await this.sendMessage('START_WORK', { 
-          task: `Work Session #${displayInfo.sessionNumber}`
+          task: taskName || defaultTask
         });
       } else {
         await this.sendMessage('START_REST');
       }
     } catch (error) {
       logger.log('Error starting timer:', error);
+    }
+  }
+
+  /**
+   * Handle task name change
+   */
+  private async handleTaskChange(newTask: string): Promise<void> {
+    try {
+      await this.sendMessage('UPDATE_TASK', { task: newTask });
+      logger.log('Task updated:', newTask);
+    } catch (error) {
+      logger.log('Error updating task:', error);
     }
   }
 
