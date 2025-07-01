@@ -159,36 +159,106 @@ describe('URL Utils - Block Options', () => {
       
       expect(options).toHaveLength(4);
       
-      // Server option (no subdomain option for IP addresses)
+      // 1) The whole IP (without port)
       expect(options[0]).toEqual({
         type: 'domain',
-        label: 'Entire 192.168.0.59:8080 server',
-        target: '192.168.0.59:8080',
-        description: 'Blocks all pages on 192.168.0.59:8080'
+        label: 'Entire 192.168.0.59 server',
+        target: '192.168.0.59',
+        description: 'Blocks all pages and ports on 192.168.0.59'
       });
       
-      // Short path option
+      // 2) The IP with the port
       expect(options[1]).toEqual({
-        type: 'path',
-        label: '192.168.0.59:8080/Settings section',
-        target: '192.168.0.59:8080/Settings',
-        description: 'Blocks the /Settings section of the site'
+        type: 'domain',
+        label: '192.168.0.59:8080 (this port only)',
+        target: '192.168.0.59:8080',
+        description: 'Blocks only 192.168.0.59:8080, other ports remain accessible'
       });
       
-      // Full path option
+      // 3) The IP with port and path (n-1 segments: /Settings/Settings/Tools, excluding /Scheduler)
       expect(options[2]).toEqual({
         type: 'path',
-        label: '192.168.0.59:8080/Settings/Settings/Tools/Scheduler path',
-        target: '192.168.0.59:8080/Settings/Settings/Tools/Scheduler',
-        description: 'Blocks only this specific path'
+        label: '192.168.0.59:8080/Settings/Settings/Tools section',
+        target: '192.168.0.59:8080/Settings/Settings/Tools',
+        description: 'Blocks only the /Settings/Settings/Tools section on 192.168.0.59:8080'
       });
       
-      // Page option
+      // 4) This specific page
       expect(options[3]).toEqual({
         type: 'page',
         label: 'This specific page',
         target: '192.168.0.59:8080/Settings/Settings/Tools/Scheduler',
-        description: 'Blocks only this exact page'
+        description: 'Blocks only this exact page on 192.168.0.59:8080'
+      });
+    });
+
+    test('should generate options for IP address with 2-segment path (n-1 logic)', () => {
+      const url = 'http://192.168.0.59:8085/c/fcf0cc00-e30e-4d89-90ab-e03249d582a6';
+      const options = generateBlockOptions(url);
+      
+      expect(options).toHaveLength(4);
+      
+      // 1) The whole IP (without port)
+      expect(options[0]).toEqual({
+        type: 'domain',
+        label: 'Entire 192.168.0.59 server',
+        target: '192.168.0.59',
+        description: 'Blocks all pages and ports on 192.168.0.59'
+      });
+      
+      // 2) The IP with the port
+      expect(options[1]).toEqual({
+        type: 'domain',
+        label: '192.168.0.59:8085 (this port only)',
+        target: '192.168.0.59:8085',
+        description: 'Blocks only 192.168.0.59:8085, other ports remain accessible'
+      });
+      
+      // 3) The IP with port and path (n-1 segments: /c, excluding the UUID)
+      expect(options[2]).toEqual({
+        type: 'path',
+        label: '192.168.0.59:8085/c section',
+        target: '192.168.0.59:8085/c',
+        description: 'Blocks only the /c section on 192.168.0.59:8085'
+      });
+      
+      // 4) This specific page
+      expect(options[3]).toEqual({
+        type: 'page',
+        label: 'This specific page',
+        target: '192.168.0.59:8085/c/fcf0cc00-e30e-4d89-90ab-e03249d582a6',
+        description: 'Blocks only this exact page on 192.168.0.59:8085'
+      });
+    });
+
+    test('should generate options for HTTPS IP address without port', () => {
+      const url = 'https://192.168.0.143/deck/countries';
+      const options = generateBlockOptions(url);
+      
+      expect(options).toHaveLength(3);
+      
+      // 1) The whole IP (without port)
+      expect(options[0]).toEqual({
+        type: 'domain',
+        label: 'Entire 192.168.0.143 server',
+        target: '192.168.0.143',
+        description: 'Blocks all pages and ports on 192.168.0.143'
+      });
+      
+      // 2) The IP with path (n-1 segments: /deck, excluding /countries)
+      expect(options[1]).toEqual({
+        type: 'path',
+        label: '192.168.0.143/deck section',
+        target: '192.168.0.143/deck',
+        description: 'Blocks only the /deck section on 192.168.0.143'
+      });
+      
+      // 3) This specific page
+      expect(options[2]).toEqual({
+        type: 'page',
+        label: 'This specific page',
+        target: '192.168.0.143/deck/countries',
+        description: 'Blocks only this exact page on 192.168.0.143'
       });
     });
 
@@ -196,37 +266,83 @@ describe('URL Utils - Block Options', () => {
       const url = 'http://10.0.0.1/admin/dashboard';
       const options = generateBlockOptions(url);
       
-      expect(options).toHaveLength(4);
+      expect(options).toHaveLength(3);
       
-      // Server option
+      // 1) The whole IP (without port)
       expect(options[0]).toEqual({
         type: 'domain',
         label: 'Entire 10.0.0.1 server',
         target: '10.0.0.1',
-        description: 'Blocks all pages on 10.0.0.1'
+        description: 'Blocks all pages and ports on 10.0.0.1'
       });
       
-      // Short path option
+      // 2) The IP with path (n-1 segments: /admin, excluding /dashboard)
       expect(options[1]).toEqual({
         type: 'path',
         label: '10.0.0.1/admin section',
         target: '10.0.0.1/admin',
-        description: 'Blocks the /admin section of the site'
+        description: 'Blocks only the /admin section on 10.0.0.1'
       });
       
-      // Full path option
+      // 3) This specific page
       expect(options[2]).toEqual({
-        type: 'path',
-        label: '10.0.0.1/admin/dashboard path',
-        target: '10.0.0.1/admin/dashboard',
-        description: 'Blocks only this specific path'
-      });
-      
-      // Page option
-      expect(options[3]).toEqual({
         type: 'page',
         label: 'This specific page',
         target: '10.0.0.1/admin/dashboard',
+        description: 'Blocks only this exact page on 10.0.0.1'
+      });
+    });
+
+    test('should generate options for IP address with query parameters', () => {
+      const url = 'http://192.168.1.100:8080/api/v1/users?page=2&limit=10&sort=name';
+      const options = generateBlockOptions(url);
+      
+      expect(options).toHaveLength(4);
+      
+      // 1) The whole IP (without port)
+      expect(options[0]).toEqual({
+        type: 'domain',
+        label: 'Entire 192.168.1.100 server',
+        target: '192.168.1.100',
+        description: 'Blocks all pages and ports on 192.168.1.100'
+      });
+      
+      // 2) The IP with the port
+      expect(options[1]).toEqual({
+        type: 'domain',
+        label: '192.168.1.100:8080 (this port only)',
+        target: '192.168.1.100:8080',
+        description: 'Blocks only 192.168.1.100:8080, other ports remain accessible'
+      });
+      
+      // 3) The IP with port and path (n-1 segments: /api/v1, excluding /users)
+      expect(options[2]).toEqual({
+        type: 'path',
+        label: '192.168.1.100:8080/api/v1 section',
+        target: '192.168.1.100:8080/api/v1',
+        description: 'Blocks only the /api/v1 section on 192.168.1.100:8080'
+      });
+      
+      // 4) This specific page (should include query parameters)
+      expect(options[3]).toEqual({
+        type: 'page',
+        label: 'This specific page',
+        target: '192.168.1.100:8080/api/v1/users?page=2&limit=10&sort=name',
+        description: 'Blocks only this exact page on 192.168.1.100:8080'
+      });
+    });
+
+    test('should generate options for HTTPS domain with query parameters', () => {
+      const url = 'https://example.com/search?q=test&category=books&page=3';
+      const options = generateBlockOptions(url);
+      
+      expect(options).toHaveLength(3);
+      
+      // Check that the specific page option includes query parameters
+      expect(options[2]).toEqual({
+        type: 'page',
+        label: 'This specific page',
+        target: 'example.com/search?q=test&category=books&page=3',
         description: 'Blocks only this exact page'
       });
     });
@@ -235,13 +351,22 @@ describe('URL Utils - Block Options', () => {
       const url = 'http://172.16.0.1:8080/';
       const options = generateBlockOptions(url);
       
-      expect(options).toHaveLength(1); // Only server option for root page
+      expect(options).toHaveLength(2); // Whole IP + IP with port for root page
       
+      // 1) The whole IP (without port)
       expect(options[0]).toEqual({
         type: 'domain',
-        label: 'Entire 172.16.0.1:8080 server',
+        label: 'Entire 172.16.0.1 server',
+        target: '172.16.0.1',
+        description: 'Blocks all pages and ports on 172.16.0.1'
+      });
+      
+      // 2) The IP with the port
+      expect(options[1]).toEqual({
+        type: 'domain',
+        label: '172.16.0.1:8080 (this port only)',
         target: '172.16.0.1:8080',
-        description: 'Blocks all pages on 172.16.0.1:8080'
+        description: 'Blocks only 172.16.0.1:8080, other ports remain accessible'
       });
     });
 
@@ -249,13 +374,13 @@ describe('URL Utils - Block Options', () => {
       const url = 'https://172.16.0.1/';
       const options = generateBlockOptions(url);
       
-      expect(options).toHaveLength(1); // Only server option for root page
+      expect(options).toHaveLength(1); // Only whole IP option for default port
       
       expect(options[0]).toEqual({
         type: 'domain',
         label: 'Entire 172.16.0.1 server',
         target: '172.16.0.1',
-        description: 'Blocks all pages on 172.16.0.1'
+        description: 'Blocks all pages and ports on 172.16.0.1'
       });
     });
 
@@ -263,13 +388,22 @@ describe('URL Utils - Block Options', () => {
       const url = 'https://172.16.0.1:8443/';
       const options = generateBlockOptions(url);
       
-      expect(options).toHaveLength(1); // Only server option for root page
+      expect(options).toHaveLength(2); // Whole IP + IP with port for custom port
       
+      // 1) The whole IP (without port)
       expect(options[0]).toEqual({
         type: 'domain',
-        label: 'Entire 172.16.0.1:8443 server',
+        label: 'Entire 172.16.0.1 server',
+        target: '172.16.0.1',
+        description: 'Blocks all pages and ports on 172.16.0.1'
+      });
+      
+      // 2) The IP with the port
+      expect(options[1]).toEqual({
+        type: 'domain',
+        label: '172.16.0.1:8443 (this port only)',
         target: '172.16.0.1:8443',
-        description: 'Blocks all pages on 172.16.0.1:8443'
+        description: 'Blocks only 172.16.0.1:8443, other ports remain accessible'
       });
     });
 

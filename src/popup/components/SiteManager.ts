@@ -33,9 +33,17 @@ export class SiteManager {
 
     try {
       const urlObj = new URL(this.currentTabUrl);
+      let hostname = urlObj.hostname;
+      
+      // For IP addresses, include the port if present
+      const isIPAddress = /^(\d{1,3}\.){3}\d{1,3}$/.test(hostname);
+      if (isIPAddress && urlObj.port) {
+        hostname = `${hostname}:${urlObj.port}`;
+      }
+      
       return {
         url: this.currentTabUrl,
-        hostname: urlObj.hostname,
+        hostname: hostname,
         pathname: urlObj.pathname
       };
     } catch {

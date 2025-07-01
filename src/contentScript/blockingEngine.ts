@@ -91,7 +91,22 @@ export class BlockingEngine {
   isUrlWhitelisted(url?: string, hostname?: string, pathname?: string): boolean {
     // Use provided values or fall back to current window location
     const targetUrl = url || window.location.href;
-    const targetHostname = hostname ? normalizeURL(hostname.toLowerCase()) : normalizeURL(window.location.hostname.toLowerCase());
+    let targetHostname: string;
+    let targetHostnameWithPort: string;
+    
+    // Get hostname and construct hostname with port for IP addresses
+    if (hostname) {
+      targetHostname = normalizeURL(hostname.toLowerCase());
+      targetHostnameWithPort = targetHostname;
+    } else {
+      targetHostname = normalizeURL(window.location.hostname.toLowerCase());
+      targetHostnameWithPort = targetHostname;
+      // For IP addresses, include port if present
+      const isIPAddress = /^(\d{1,3}\.){3}\d{1,3}$/.test(targetHostname);
+      if (isIPAddress && window.location.port) {
+        targetHostnameWithPort = `${targetHostname}:${window.location.port}`;
+      }
+    }
     
     // For whitelist matching, include search parameters if they exist in the whitelist entry
     let targetPathname: string;
@@ -121,7 +136,11 @@ export class BlockingEngine {
         });
         
         // Check if domain matches and current path starts with whitelisted path
-        if (targetHostname === normalizedPathDomain && targetPathname.startsWith(pathPath)) {
+        // For IP addresses with ports in the whitelist, check hostname with port
+        const domainMatch = (targetHostname === normalizedPathDomain) || 
+                           (targetHostnameWithPort === normalizedPathDomain);
+        
+        if (domainMatch && targetPathname.startsWith(pathPath)) {
           if (this.isWhitelistedPathEnabled(whitelistedPath)) {
             logger.log('WHITELIST PATH MATCH FOUND (ENABLED)', { whitelistedPath, targetHostname, targetPathname });
             return true;
@@ -133,13 +152,16 @@ export class BlockingEngine {
         // This is a domain-only whitelist entry
         const normalizedDomain = normalizeURL(whitelistedPath.toLowerCase());
         
-        // Exact domain match (for subdomains in whitelist)
-        if (targetHostname === normalizedDomain) {
+        // Exact domain match (for subdomains in whitelist) - check both hostname and hostname with port
+        const exactMatch = (targetHostname === normalizedDomain) || 
+                          (targetHostnameWithPort === normalizedDomain);
+        
+        if (exactMatch) {
           if (this.isWhitelistedPathEnabled(whitelistedPath)) {
-            logger.log('WHITELIST EXACT DOMAIN MATCH FOUND (ENABLED)', { targetHostname, whitelistedPath: normalizedDomain });
+            logger.log('WHITELIST EXACT DOMAIN MATCH FOUND (ENABLED)', { targetHostname, targetHostnameWithPort, whitelistedPath: normalizedDomain });
             return true;
           } else {
-            logger.log('WHITELIST EXACT DOMAIN MATCH FOUND BUT DISABLED', { targetHostname, whitelistedPath: normalizedDomain });
+            logger.log('WHITELIST EXACT DOMAIN MATCH FOUND BUT DISABLED', { targetHostname, targetHostnameWithPort, whitelistedPath: normalizedDomain });
           }
         }
         
@@ -167,11 +189,27 @@ export class BlockingEngine {
   shouldUrlBeBlocked(url?: string, hostname?: string, pathname?: string): boolean {
     // Use provided values or fall back to current window location
     const targetUrl = url || window.location.href;
-    const targetHostname = hostname ? normalizeURL(hostname.toLowerCase()) : normalizeURL(window.location.hostname.toLowerCase());
+    let targetHostname: string;
+    let targetHostnameWithPort: string;
     const targetPathname = pathname ? pathname.toLowerCase() : window.location.pathname.toLowerCase();
+    
+    // Get hostname and construct hostname with port for IP addresses
+    if (hostname) {
+      targetHostname = normalizeURL(hostname.toLowerCase());
+      targetHostnameWithPort = targetHostname;
+    } else {
+      targetHostname = normalizeURL(window.location.hostname.toLowerCase());
+      targetHostnameWithPort = targetHostname;
+      // For IP addresses, include port if present
+      const isIPAddress = /^(\d{1,3}\.){3}\d{1,3}$/.test(targetHostname);
+      if (isIPAddress && window.location.port) {
+        targetHostnameWithPort = `${targetHostname}:${window.location.port}`;
+      }
+    }
     
     logger.log('Checking URL', targetUrl);
     logger.log('Hostname', targetHostname);
+    logger.log('Hostname with port', targetHostnameWithPort);
     logger.log('Pathname', targetPathname);
     logger.log('Against restricted sites', Array.from(this.restrictedSites));
     
@@ -196,7 +234,11 @@ export class BlockingEngine {
         logger.log('Path-based check', { siteDomain: normalizedSiteDomain, sitePath, hostname: targetHostname, pathname: targetPathname });
         
         // Check if domain matches and path starts with the blocked path
-        if (targetHostname === normalizedSiteDomain && targetPathname.startsWith(sitePath)) {
+        // For IP addresses with ports in the blocked site, check hostname with port
+        const domainMatch = (targetHostname === normalizedSiteDomain) || 
+                           (targetHostnameWithPort === normalizedSiteDomain);
+        
+        if (domainMatch && targetPathname.startsWith(sitePath)) {
           if (this.isBlockedSiteEnabled(site)) {
             logger.log('PATH MATCH FOUND (ENABLED)', { site, targetHostname, targetPathname });
             shouldBlock = true;
@@ -209,14 +251,17 @@ export class BlockingEngine {
         // Handle domain-based blocking
         const normalizedSite = normalizeURL(site.toLowerCase());
         
-        // Exact domain match
-        if (targetHostname === normalizedSite) {
+        // Exact domain match - check both hostname and hostname with port for IP addresses
+        const exactMatch = (targetHostname === normalizedSite) || 
+                          (targetHostnameWithPort === normalizedSite);
+        
+        if (exactMatch) {
           if (this.isBlockedSiteEnabled(site)) {
-            logger.log('EXACT DOMAIN MATCH FOUND (ENABLED)', { targetHostname, matchedSite: normalizedSite });
+            logger.log('EXACT DOMAIN MATCH FOUND (ENABLED)', { targetHostname, targetHostnameWithPort, matchedSite: normalizedSite });
             shouldBlock = true;
             break;
           } else {
-            logger.log('EXACT DOMAIN MATCH FOUND BUT DISABLED', { targetHostname, matchedSite: normalizedSite });
+            logger.log('EXACT DOMAIN MATCH FOUND BUT DISABLED', { targetHostname, targetHostnameWithPort, matchedSite: normalizedSite });
           }
         }
         

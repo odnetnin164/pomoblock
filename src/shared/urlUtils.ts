@@ -261,18 +261,55 @@ export function generateBlockOptions(url: string): BlockOption[] {
     
     // Option 1: Block entire domain/IP address
     if (isIPAddress) {
-      // For IP addresses, include port if present
-      let target = hostname;
-      if (urlObj.port) {
-        target = `${hostname}:${urlObj.port}`;
-      }
+      // For IP addresses, provide 4 specific options:
       
+      // 1) The whole IP (without port)
       options.push({
         type: 'domain',
-        label: `Entire ${target} server`,
-        target: target,
-        description: `Blocks all pages on ${target}`
+        label: `Entire ${hostname} server`,
+        target: hostname,
+        description: `Blocks all pages and ports on ${hostname}`
       });
+      
+      // 2) The IP with the port (if port exists)
+      if (urlObj.port) {
+        const ipWithPort = `${hostname}:${urlObj.port}`;
+        options.push({
+          type: 'domain',
+          label: `${ipWithPort} (this port only)`,
+          target: ipWithPort,
+          description: `Blocks only ${ipWithPort}, other ports remain accessible`
+        });
+      }
+      
+      // 3) The IP with path (if path exists) - use n-1 segments
+      if (pathname && pathname !== '/') {
+        const pathSegments = pathname.split('/').filter(segment => segment.length > 0);
+        if (pathSegments.length > 1) {
+          // Block first n-1 segments (leave out the last segment)
+          const blockedSegments = pathSegments.slice(0, -1);
+          const blockedPath = `/${blockedSegments.join('/')}`;
+          let ipWithPath;
+          let description;
+          
+          if (urlObj.port) {
+            // IP with explicit port and path
+            ipWithPath = `${hostname}:${urlObj.port}${blockedPath}`;
+            description = `Blocks only the ${blockedPath} section on ${hostname}:${urlObj.port}`;
+          } else {
+            // IP with default port and path
+            ipWithPath = `${hostname}${blockedPath}`;
+            description = `Blocks only the ${blockedPath} section on ${hostname}`;
+          }
+          
+          options.push({
+            type: 'path',
+            label: `${ipWithPath} section`,
+            target: ipWithPath,
+            description: description
+          });
+        }
+      }
     } else {
       options.push({
         type: 'domain',
@@ -332,8 +369,8 @@ export function generateBlockOptions(url: string): BlockOption[] {
         });
       }
     }
-    // Generic path handling for other sites
-    else if (pathname && pathname !== '/' && pathname.length > 1) {
+    // Generic path handling for other sites (not IP addresses)
+    else if (!isIPAddress && pathname && pathname !== '/' && pathname.length > 1) {
       // Clean up pathname for display
       const cleanPath = pathname.endsWith('/') ? pathname.slice(0, -1) : pathname;
       const pathSegments = cleanPath.split('/').filter(segment => segment.length > 0);
@@ -342,10 +379,7 @@ export function generateBlockOptions(url: string): BlockOption[] {
       if (pathSegments.length > 0) {
         // Option for first path segment (e.g., /browse for /browse/staff-picks/post/123)
         const shortPath = `/${pathSegments[0]}`;
-        let shortTarget = `${hostname}${shortPath}`;
-        if (isIPAddress && urlObj.port) {
-          shortTarget = `${hostname}:${urlObj.port}${shortPath}`;
-        }
+        const shortTarget = `${hostname}${shortPath}`;
         
         options.push({
           type: 'path',
@@ -356,10 +390,7 @@ export function generateBlockOptions(url: string): BlockOption[] {
         
         // If there are multiple path segments, also add the full path option
         if (pathSegments.length > 1) {
-          let fullTarget = `${hostname}${cleanPath}`;
-          if (isIPAddress && urlObj.port) {
-            fullTarget = `${hostname}:${urlObj.port}${cleanPath}`;
-          }
+          const fullTarget = `${hostname}${cleanPath}`;
           
           options.push({
             type: 'path',
@@ -371,21 +402,35 @@ export function generateBlockOptions(url: string): BlockOption[] {
       }
     }
     
-    // Option 4: Block specific page (full URL path)
+    // Option 4: Block specific page (full URL path)  
     if (pathname && pathname !== '/') {
+      // Use full URL with query parameters but without fragments
       const fullUrl = urlObj.href.split('#')[0]; // Remove fragment but keep query params
-      let displayPath = fullUrl.replace(/^https?:\/\//, '');
+      let displayPath;
+      let description;
       
-      // For IP addresses, ensure we include the port if present
-      if (isIPAddress && urlObj.port) {
-        displayPath = `${hostname}:${urlObj.port}${pathname}`;
+      if (isIPAddress) {
+        // For IP addresses, construct the path with query parameters
+        const pathWithQuery = pathname + urlObj.search;
+        
+        if (urlObj.port) {
+          displayPath = `${hostname}:${urlObj.port}${pathWithQuery}`;
+          description = `Blocks only this exact page on ${hostname}:${urlObj.port}`;
+        } else {
+          displayPath = `${hostname}${pathWithQuery}`;
+          description = `Blocks only this exact page on ${hostname}`;
+        }
+      } else {
+        // For regular domains, use the full URL approach
+        displayPath = fullUrl.replace(/^https?:\/\//, '');
+        description = `Blocks only this exact page`;
       }
       
       options.push({
         type: 'page',
         label: 'This specific page',
         target: displayPath,
-        description: `Blocks only this exact page`
+        description: description
       });
     }
     
