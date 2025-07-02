@@ -17,6 +17,13 @@ export interface PomodoroSettings {
   autoStartWork: boolean;
   showNotifications: boolean;
   playSound: boolean;
+  // Enhanced audio settings
+  audioEnabled: boolean;
+  audioVolume: number; // 0-100
+  soundTheme: 'default' | 'nature' | 'minimal' | 'custom';
+  workCompleteSound: string;
+  restCompleteSound: string;
+  sessionStartSound: string;
 }
 
 export interface ExtensionSettings {

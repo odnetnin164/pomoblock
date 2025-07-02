@@ -3,11 +3,13 @@ import { PomodoroTimer } from '@shared/pomodoroTimer';
 import { TimerStatus, TimerNotification, PomodoroMessage, TimerState } from '@shared/pomodoroTypes';
 import { getPomodoroSettings, savePomodoroSettings } from '@shared/pomodoroStorage';
 import { logger } from '@shared/logger';
+import { AudioManager } from '@shared/audioManager';
 
 export class BackgroundPomodoroManager {
   private timer: PomodoroTimer;
   private badgeUpdateInterval: ReturnType<typeof setInterval> | null = null;
   private isInitialized: boolean = false;
+  private audioManager: AudioManager | null = null;
 
   constructor() {
     this.timer = new PomodoroTimer(
@@ -42,6 +44,12 @@ export class BackgroundPomodoroManager {
       
       // Initial badge update
       this.updateBadge();
+      
+      // Initialize audio manager if audio is enabled
+      const settings = await getPomodoroSettings();
+      if (settings.audioEnabled) {
+        await this.initializeAudioManager(settings);
+      }
       
       this.isInitialized = true;
       logger.log('BackgroundPomodoroManager initialized successfully');
@@ -187,10 +195,34 @@ export class BackgroundPomodoroManager {
         try {
           await this.timer.updateSettings(message.settings);
           await savePomodoroSettings(message.settings);
+          
+          // Update audio manager if audio settings changed
+          if (message.settings.audioEnabled) {
+            await this.initializeAudioManager(message.settings);
+          }
+          
           return { success: true };
         } catch (error) {
           console.error('Error updating pomodoro settings:', error);
           return { error: 'Failed to update settings' };
+        }
+        
+      case 'TEST_SOUND':
+        try {
+          await this.testSound(message.data.soundId, message.data.volume);
+          return { success: true };
+        } catch (error) {
+          console.error('Error testing sound:', error);
+          return { error: 'Failed to test sound' };
+        }
+        
+      case 'TEST_CUSTOM_SOUND':
+        try {
+          await this.testCustomSound(message.data.soundId, message.data.dataUrl, message.data.volume);
+          return { success: true };
+        } catch (error) {
+          console.error('Error testing custom sound:', error);
+          return { error: 'Failed to test custom sound' };
         }
         
       // Legacy support - keep for backward compatibility
@@ -269,9 +301,14 @@ export class BackgroundPomodoroManager {
         this.showNotification(notification);
       }
       
-      // Play sound if enabled (using alarms as a workaround)
+      // Play sound if enabled
       if (settings.playSound) {
         this.playNotificationSound();
+      }
+      
+      // Play custom audio if enabled
+      if (settings.audioEnabled && this.audioManager) {
+        await this.playCustomAudio(notification.type);
       }
     } catch (error) {
       console.error('Error handling timer completion:', error);
@@ -500,6 +537,129 @@ export class BackgroundPomodoroManager {
   }
 
   /**
+   * Initialize audio manager for custom sounds
+   */
+  private async initializeAudioManager(settings: any): Promise<void> {
+    try {
+      if (this.audioManager) {
+        this.audioManager.destroy();
+      }
+
+      const audioSettings = AudioManager.getDefaultSettings();
+      audioSettings.enabled = settings.audioEnabled || false;
+      audioSettings.volume = settings.audioVolume || 70;
+      audioSettings.soundTheme = settings.soundTheme || 'default';
+      
+      if (settings.workCompleteSound) {
+        audioSettings.sounds.work_complete.id = settings.workCompleteSound;
+      }
+      if (settings.restCompleteSound) {
+        audioSettings.sounds.rest_complete.id = settings.restCompleteSound;
+      }
+      if (settings.sessionStartSound) {
+        audioSettings.sounds.session_start.id = settings.sessionStartSound;
+      }
+
+      this.audioManager = new AudioManager(audioSettings);
+      
+      // Note: Can't initialize AudioContext in service worker
+      // Audio will be handled by content scripts instead
+      logger.log('Audio manager configuration prepared');
+    } catch (error) {
+      logger.log('Error initializing audio manager:', error);
+    }
+  }
+
+  /**
+   * Play custom audio for timer events
+   */
+  private async playCustomAudio(eventType: string): Promise<void> {
+    try {
+      let soundType: 'work_complete' | 'rest_complete' | 'session_start' = 'work_complete';
+      
+      switch (eventType) {
+        case 'work_complete':
+          soundType = 'work_complete';
+          break;
+        case 'rest_complete':
+          soundType = 'rest_complete';
+          break;
+        case 'session_start':
+          soundType = 'session_start';
+          break;
+      }
+
+      // Get current settings from storage
+      const pomodoroSettings = await getPomodoroSettings();
+      
+      // Create audio settings from pomodoro settings
+      const audioSettings = AudioManager.getDefaultSettings();
+      audioSettings.enabled = pomodoroSettings.audioEnabled;
+      audioSettings.volume = pomodoroSettings.audioVolume || 70;
+      audioSettings.soundTheme = pomodoroSettings.soundTheme || 'default';
+      
+      if (pomodoroSettings.workCompleteSound) {
+        audioSettings.sounds.work_complete.id = pomodoroSettings.workCompleteSound;
+      }
+      if (pomodoroSettings.restCompleteSound) {
+        audioSettings.sounds.rest_complete.id = pomodoroSettings.restCompleteSound;
+      }
+      if (pomodoroSettings.sessionStartSound) {
+        audioSettings.sounds.session_start.id = pomodoroSettings.sessionStartSound;
+      }
+
+      // Send message to content scripts to play audio
+      // (since service workers can't use Web Audio API)
+      this.broadcastMessage({
+        type: 'PLAY_CUSTOM_AUDIO',
+        data: {
+          soundType: soundType,
+          settings: audioSettings
+        }
+      });
+      
+      logger.log(`Broadcasting custom audio request: ${soundType}`);
+    } catch (error) {
+      logger.log('Error playing custom audio:', error);
+    }
+  }
+
+  /**
+   * Test a built-in sound
+   */
+  private async testSound(soundId: string, volume: number): Promise<void> {
+    try {
+      this.broadcastMessage({
+        type: 'TEST_BUILT_IN_SOUND',
+        data: {
+          soundId: soundId,
+          volume: volume
+        }
+      });
+    } catch (error) {
+      logger.log('Error testing sound:', error);
+    }
+  }
+
+  /**
+   * Test a custom sound
+   */
+  private async testCustomSound(soundId: string, dataUrl: string, volume: number): Promise<void> {
+    try {
+      this.broadcastMessage({
+        type: 'TEST_CUSTOM_SOUND_PLAYBACK',
+        data: {
+          soundId: soundId,
+          dataUrl: dataUrl,
+          volume: volume
+        }
+      });
+    } catch (error) {
+      logger.log('Error testing custom sound:', error);
+    }
+  }
+
+  /**
    * Cleanup
    */
   destroy(): void {
@@ -512,6 +672,11 @@ export class BackgroundPomodoroManager {
     
     if (this.timer) {
       this.timer.destroy();
+    }
+    
+    if (this.audioManager) {
+      this.audioManager.destroy();
+      this.audioManager = null;
     }
     
     this.isInitialized = false;

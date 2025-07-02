@@ -32,7 +32,13 @@ export class PomodoroTimer {
       autoStartRest: true,
       autoStartWork: true,
       showNotifications: true,
-      playSound: true
+      playSound: true,
+      audioEnabled: false,
+      audioVolume: 70,
+      soundTheme: 'default',
+      workCompleteSound: 'chime',
+      restCompleteSound: 'bell',
+      sessionStartSound: 'ding'
     };
     
     this.status = {
@@ -70,7 +76,13 @@ export class PomodoroTimer {
           autoStartRest: true,
           autoStartWork: true,
           showNotifications: true,
-          playSound: true
+          playSound: true,
+          audioEnabled: false,
+          audioVolume: 70,
+          soundTheme: 'default',
+          workCompleteSound: 'chime',
+          restCompleteSound: 'bell',
+          sessionStartSound: 'ding'
         };
       }
       
@@ -166,7 +178,13 @@ export class PomodoroTimer {
         autoStartRest: true,
         autoStartWork: true,
         showNotifications: true,
-        playSound: true
+        playSound: true,
+        audioEnabled: false,
+        audioVolume: 70,
+        soundTheme: 'default',
+        workCompleteSound: 'chime',
+        restCompleteSound: 'bell',
+        sessionStartSound: 'ding'
       };
       
       this.status = {

@@ -10,7 +10,14 @@ export const DEFAULT_POMODORO_SETTINGS = {
   autoStartRest: true,  // Enable auto-start for seamless flow
   autoStartWork: true,  // Enable auto-start for seamless flow
   showNotifications: true,
-  playSound: true
+  playSound: true,
+  // Enhanced audio settings
+  audioEnabled: false,
+  audioVolume: 70,
+  soundTheme: 'default' as const,
+  workCompleteSound: 'chime',
+  restCompleteSound: 'bell',
+  sessionStartSound: 'ding'
 };
 
 // Default Work Hours Settings

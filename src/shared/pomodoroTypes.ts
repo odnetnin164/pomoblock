@@ -40,12 +40,18 @@ export interface DailyStats {
 }
 
 export interface PomodoroMessage {
-  type: 'TIMER_UPDATE' | 'TIMER_COMPLETE' | 'SESSION_START' | 'SESSION_END';
+  type: 'TIMER_UPDATE' | 'TIMER_COMPLETE' | 'SESSION_START' | 'SESSION_END' | 'PLAY_CUSTOM_AUDIO' | 'TEST_BUILT_IN_SOUND' | 'TEST_CUSTOM_SOUND_PLAYBACK';
   data: {
     timerStatus?: TimerStatus;
     session?: PomodoroSession;
     state?: TimerState;
-    notification?: TimerNotification; // Add notification support
+    notification?: TimerNotification;
+    // Audio-related data
+    soundType?: 'work_complete' | 'rest_complete' | 'session_start' | 'tick' | 'warning';
+    soundId?: string;
+    dataUrl?: string;
+    volume?: number;
+    settings?: any;
   };
 }
 

@@ -18,6 +18,15 @@ export class PomodoroSettingsManager {
   private notificationsToggle!: HTMLInputElement;
   private soundToggle!: HTMLInputElement;
   
+  // Audio elements
+  private audioEnabledToggle!: HTMLInputElement;
+  private audioVolumeSlider!: HTMLInputElement;
+  private soundThemeSelect!: HTMLSelectElement;
+  private workCompleteSoundSelect!: HTMLSelectElement;
+  private restCompleteSoundSelect!: HTMLSelectElement;
+  private sessionStartSoundSelect!: HTMLSelectElement;
+  private customSoundUpload!: HTMLInputElement;
+  
   // Floating timer elements
   private floatingTimerToggle!: HTMLInputElement;
   private floatingTimerLabel!: HTMLElement;
@@ -27,6 +36,8 @@ export class PomodoroSettingsManager {
   private autoStartWorkLabel!: HTMLElement;
   private notificationsLabel!: HTMLElement;
   private soundLabel!: HTMLElement;
+  private audioEnabledLabel!: HTMLElement;
+  private volumeValue!: HTMLElement;
 
   constructor(onStatusMessage?: (message: StatusMessage) => void) {
     this.onStatusMessage = onStatusMessage;
@@ -182,8 +193,87 @@ export class PomodoroSettingsManager {
                   <input type="checkbox" id="playSound">
                   <span class="toggle-slider"></span>
                 </label>
-                <span class="toggle-label" id="soundLabel">Notification sound</span>
-                <small class="toggle-description">Play sound when timers complete</small>
+                <span class="toggle-label" id="soundLabel">Basic notification sound</span>
+                <small class="toggle-description">Simple browser notification sound (legacy)</small>
+              </div>
+            </div>
+          </div>
+          
+          <div class="audio-settings">
+            <h4>🔊 Custom Audio Settings</h4>
+            <div class="audio-controls">
+              <div class="toggle-group">
+                <label class="toggle-switch">
+                  <input type="checkbox" id="audioEnabled">
+                  <span class="toggle-slider"></span>
+                </label>
+                <span class="toggle-label" id="audioEnabledLabel">Enhanced audio notifications</span>
+                <small class="toggle-description">Use custom sounds for different timer events</small>
+              </div>
+              
+              <div class="audio-options" id="audioOptions">
+                <div class="volume-control">
+                  <label for="audioVolume">Volume:</label>
+                  <input type="range" id="audioVolume" min="0" max="100" value="70" class="volume-slider">
+                  <span class="volume-value" id="volumeValue">70%</span>
+                </div>
+                
+                <div class="sound-theme-control">
+                  <label for="soundTheme">Sound Theme:</label>
+                  <select id="soundTheme" class="sound-theme-select">
+                    <option value="default">Default</option>
+                    <option value="nature">Nature</option>
+                    <option value="minimal">Minimal</option>
+                    <option value="custom">Custom</option>
+                  </select>
+                </div>
+                
+                <div class="individual-sounds">
+                  <h5>Individual Sound Settings:</h5>
+                  
+                  <div class="sound-setting">
+                    <label for="workCompleteSound">Work Complete:</label>
+                    <select id="workCompleteSound" class="sound-select">
+                      <option value="chime">Chime</option>
+                      <option value="bell">Bell</option>
+                      <option value="ding">Ding</option>
+                      <option value="notification">Notification</option>
+                    </select>
+                    <button class="test-sound-btn" data-sound="workComplete">🔊 Test</button>
+                  </div>
+                  
+                  <div class="sound-setting">
+                    <label for="restCompleteSound">Break Complete:</label>
+                    <select id="restCompleteSound" class="sound-select">
+                      <option value="bell">Bell</option>
+                      <option value="chime">Chime</option>
+                      <option value="ding">Ding</option>
+                      <option value="notification">Notification</option>
+                    </select>
+                    <button class="test-sound-btn" data-sound="restComplete">🔊 Test</button>
+                  </div>
+                  
+                  <div class="sound-setting">
+                    <label for="sessionStartSound">Session Start:</label>
+                    <select id="sessionStartSound" class="sound-select">
+                      <option value="ding">Ding</option>
+                      <option value="chime">Chime</option>
+                      <option value="bell">Bell</option>
+                      <option value="notification">Notification</option>
+                    </select>
+                    <button class="test-sound-btn" data-sound="sessionStart">🔊 Test</button>
+                  </div>
+                </div>
+                
+                <div class="custom-sounds-section" id="customSoundsSection" style="display: none;">
+                  <h5>Custom Sounds:</h5>
+                  <div class="custom-sound-upload">
+                    <input type="file" id="customSoundUpload" accept="audio/*" multiple style="display: none;">
+                    <button class="upload-sound-btn" onclick="document.getElementById('customSoundUpload').click()">📁 Upload Custom Sounds</button>
+                    <small class="upload-description">Upload .mp3, .wav, or .ogg files (max 1MB each)</small>
+                  </div>
+                  <div class="custom-sounds-list" id="customSoundsList"></div>
+                </div>
               </div>
             </div>
           </div>
@@ -232,6 +322,17 @@ export class PomodoroSettingsManager {
     this.notificationsLabel = document.getElementById('notificationsLabel')!;
     this.soundLabel = document.getElementById('soundLabel')!;
 
+    // Audio elements
+    this.audioEnabledToggle = document.getElementById('audioEnabled') as HTMLInputElement;
+    this.audioVolumeSlider = document.getElementById('audioVolume') as HTMLInputElement;
+    this.soundThemeSelect = document.getElementById('soundTheme') as HTMLSelectElement;
+    this.workCompleteSoundSelect = document.getElementById('workCompleteSound') as HTMLSelectElement;
+    this.restCompleteSoundSelect = document.getElementById('restCompleteSound') as HTMLSelectElement;
+    this.sessionStartSoundSelect = document.getElementById('sessionStartSound') as HTMLSelectElement;
+    this.customSoundUpload = document.getElementById('customSoundUpload') as HTMLInputElement;
+    this.audioEnabledLabel = document.getElementById('audioEnabledLabel')!;
+    this.volumeValue = document.getElementById('volumeValue')!;
+
     // Floating timer elements
     this.floatingTimerToggle = document.getElementById('showFloatingTimer') as HTMLInputElement;
     this.floatingTimerLabel = document.getElementById('floatingTimerLabel')!;
@@ -249,6 +350,23 @@ export class PomodoroSettingsManager {
     this.floatingTimerToggle.addEventListener('change', () => {
       this.updateToggleLabels();
       this.updateFloatingTimerSetting();
+    });
+
+    // Audio event listeners
+    this.audioEnabledToggle.addEventListener('change', () => {
+      this.updateToggleLabels();
+      this.toggleAudioOptions();
+    });
+    this.audioVolumeSlider.addEventListener('input', () => this.updateVolumeDisplay());
+    this.soundThemeSelect.addEventListener('change', () => this.updateSoundTheme());
+    this.customSoundUpload.addEventListener('change', (e) => this.handleCustomSoundUpload(e));
+
+    // Test sound button listeners
+    document.querySelectorAll('.test-sound-btn').forEach(button => {
+      button.addEventListener('click', (e) => {
+        const soundType = (e.target as HTMLElement).dataset.sound;
+        if (soundType) this.testSound(soundType);
+      });
     });
 
     // Preset button listeners
@@ -341,8 +459,20 @@ export class PomodoroSettingsManager {
     this.notificationsToggle.checked = settings.showNotifications;
     this.soundToggle.checked = settings.playSound;
     
+    // Load audio settings
+    this.audioEnabledToggle.checked = settings.audioEnabled || false;
+    this.audioVolumeSlider.value = (settings.audioVolume || 70).toString();
+    this.soundThemeSelect.value = settings.soundTheme || 'default';
+    this.workCompleteSoundSelect.value = settings.workCompleteSound || 'chime';
+    this.restCompleteSoundSelect.value = settings.restCompleteSound || 'bell';
+    this.sessionStartSoundSelect.value = settings.sessionStartSound || 'ding';
+    
     this.updateToggleLabels();
     this.updatePresetButtons();
+    this.updateVolumeDisplay();
+    this.toggleAudioOptions();
+    this.updateSoundTheme();
+    this.refreshCustomSoundsList();
   }
 
   /**
@@ -365,7 +495,14 @@ export class PomodoroSettingsManager {
       autoStartRest: this.autoStartRestToggle.checked,
       autoStartWork: this.autoStartWorkToggle.checked,
       showNotifications: this.notificationsToggle.checked,
-      playSound: this.soundToggle.checked
+      playSound: this.soundToggle.checked,
+      // Audio settings
+      audioEnabled: this.audioEnabledToggle.checked,
+      audioVolume: parseInt(this.audioVolumeSlider.value) || 70,
+      soundTheme: (this.soundThemeSelect.value as 'default' | 'nature' | 'minimal' | 'custom') || 'default',
+      workCompleteSound: this.workCompleteSoundSelect.value || 'chime',
+      restCompleteSound: this.restCompleteSoundSelect.value || 'bell',
+      sessionStartSound: this.sessionStartSoundSelect.value || 'ding'
     };
   }
 
@@ -450,6 +587,9 @@ export class PomodoroSettingsManager {
     this.soundLabel.textContent = this.soundToggle.checked ? 
       'Sound enabled' : 'Sound disabled';
       
+    this.audioEnabledLabel.textContent = this.audioEnabledToggle.checked ? 
+      'Enhanced audio enabled' : 'Enhanced audio disabled';
+      
     this.floatingTimerLabel.textContent = this.floatingTimerToggle.checked ? 
       'Always show floating timer' : 'Show floating timer when active';
   }
@@ -521,6 +661,329 @@ export class PomodoroSettingsManager {
         button.classList.remove('active');
       }
     });
+  }
+
+  /**
+   * Toggle audio options visibility
+   */
+  private toggleAudioOptions(): void {
+    const audioOptions = document.getElementById('audioOptions');
+    const customSoundsSection = document.getElementById('customSoundsSection');
+    
+    if (audioOptions) {
+      audioOptions.style.display = this.audioEnabledToggle.checked ? 'block' : 'none';
+    }
+    
+    if (customSoundsSection && this.soundThemeSelect.value === 'custom') {
+      customSoundsSection.style.display = this.audioEnabledToggle.checked ? 'block' : 'none';
+    }
+  }
+
+  /**
+   * Update volume display
+   */
+  private updateVolumeDisplay(): void {
+    if (this.volumeValue) {
+      this.volumeValue.textContent = `${this.audioVolumeSlider.value}%`;
+    }
+  }
+
+  /**
+   * Update sound theme and show/hide custom sounds section
+   */
+  private updateSoundTheme(): void {
+    const customSoundsSection = document.getElementById('customSoundsSection');
+    const isCustomTheme = this.soundThemeSelect.value === 'custom';
+    const isAudioEnabled = this.audioEnabledToggle.checked;
+    
+    if (customSoundsSection) {
+      customSoundsSection.style.display = (isCustomTheme && isAudioEnabled) ? 'block' : 'none';
+    }
+
+    // Update sound options based on theme
+    if (this.soundThemeSelect.value !== 'custom') {
+      this.applyThemeToSoundSelects();
+    }
+  }
+
+  /**
+   * Apply sound theme to individual sound selects
+   */
+  private applyThemeToSoundSelects(): void {
+    const themes = {
+      default: {
+        workComplete: 'chime',
+        restComplete: 'bell',
+        sessionStart: 'ding'
+      },
+      nature: {
+        workComplete: 'nature_birds',
+        restComplete: 'nature_water',
+        sessionStart: 'nature_wind'
+      },
+      minimal: {
+        workComplete: 'minimal_pop',
+        restComplete: 'minimal_beep',
+        sessionStart: 'minimal_click'
+      }
+    };
+
+    const theme = themes[this.soundThemeSelect.value as keyof typeof themes];
+    if (theme) {
+      // Update the options in the select elements
+      this.updateSoundSelectOptions();
+      
+      // Set the values
+      this.workCompleteSoundSelect.value = theme.workComplete;
+      this.restCompleteSoundSelect.value = theme.restComplete;
+      this.sessionStartSoundSelect.value = theme.sessionStart;
+    }
+  }
+
+  /**
+   * Update sound select options based on theme
+   */
+  private updateSoundSelectOptions(): void {
+    const soundOptions = {
+      default: [
+        { value: 'chime', text: 'Chime' },
+        { value: 'bell', text: 'Bell' },
+        { value: 'ding', text: 'Ding' },
+        { value: 'notification', text: 'Notification' }
+      ],
+      nature: [
+        { value: 'nature_birds', text: 'Birds' },
+        { value: 'nature_water', text: 'Water' },
+        { value: 'nature_wind', text: 'Wind' }
+      ],
+      minimal: [
+        { value: 'minimal_click', text: 'Click' },
+        { value: 'minimal_pop', text: 'Pop' },
+        { value: 'minimal_beep', text: 'Beep' }
+      ]
+    };
+
+    const theme = this.soundThemeSelect.value as keyof typeof soundOptions;
+    const options = soundOptions[theme] || soundOptions.default;
+
+    [this.workCompleteSoundSelect, this.restCompleteSoundSelect, this.sessionStartSoundSelect].forEach(select => {
+      const currentValue = select.value;
+      select.innerHTML = '';
+      
+      options.forEach(option => {
+        const optionElement = document.createElement('option');
+        optionElement.value = option.value;
+        optionElement.textContent = option.text;
+        select.appendChild(optionElement);
+      });
+      
+      // Try to restore previous value, or use first option
+      if (options.some(opt => opt.value === currentValue)) {
+        select.value = currentValue;
+      } else {
+        select.selectedIndex = 0;
+      }
+    });
+  }
+
+  /**
+   * Test a sound
+   */
+  private async testSound(soundType: string): Promise<void> {
+    try {
+      let soundId = '';
+      
+      switch (soundType) {
+        case 'workComplete':
+          soundId = this.workCompleteSoundSelect.value;
+          break;
+        case 'restComplete':
+          soundId = this.restCompleteSoundSelect.value;
+          break;
+        case 'sessionStart':
+          soundId = this.sessionStartSoundSelect.value;
+          break;
+      }
+
+      if (soundId) {
+        // Send message to content script or background to play the sound
+        await chrome.runtime.sendMessage({
+          type: 'TEST_SOUND',
+          data: {
+            soundId: soundId,
+            volume: parseInt(this.audioVolumeSlider.value)
+          }
+        });
+      }
+    } catch (error) {
+      console.error('Error testing sound:', error);
+      this.showStatusMessage({
+        text: 'Error testing sound',
+        type: 'error'
+      });
+    }
+  }
+
+  /**
+   * Handle custom sound file upload
+   */
+  private async handleCustomSoundUpload(event: Event): Promise<void> {
+    const input = event.target as HTMLInputElement;
+    const files = input.files;
+    
+    if (!files || files.length === 0) return;
+
+    try {
+      for (const file of Array.from(files)) {
+        // Validate file
+        if (!file.type.startsWith('audio/')) {
+          this.showStatusMessage({
+            text: `${file.name} is not an audio file`,
+            type: 'error'
+          });
+          continue;
+        }
+
+        if (file.size > 1024 * 1024) { // 1MB limit
+          this.showStatusMessage({
+            text: `${file.name} is too large (max 1MB)`,
+            type: 'error'
+          });
+          continue;
+        }
+
+        // Convert to data URL
+        const dataUrl = await this.fileToDataUrl(file);
+        
+        // Store custom sound
+        await this.storeCustomSound(file.name, dataUrl);
+        
+        this.showStatusMessage({
+          text: `${file.name} uploaded successfully`,
+          type: 'success'
+        });
+      }
+      
+      // Refresh custom sounds list
+      this.refreshCustomSoundsList();
+      
+    } catch (error) {
+      console.error('Error uploading custom sound:', error);
+      this.showStatusMessage({
+        text: 'Error uploading custom sound',
+        type: 'error'
+      });
+    }
+  }
+
+  /**
+   * Convert file to data URL
+   */
+  private fileToDataUrl(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
+
+  /**
+   * Store custom sound in Chrome storage
+   */
+  private async storeCustomSound(name: string, dataUrl: string): Promise<void> {
+    const customSounds = await this.getCustomSounds();
+    const soundId = `custom_${Date.now()}_${name.replace(/[^a-zA-Z0-9]/g, '_')}`;
+    
+    customSounds[soundId] = {
+      name: name,
+      dataUrl: dataUrl,
+      uploadDate: new Date().toISOString()
+    };
+
+    await chrome.storage.local.set({ customSounds });
+  }
+
+  /**
+   * Get custom sounds from storage
+   */
+  private async getCustomSounds(): Promise<Record<string, any>> {
+    const result = await chrome.storage.local.get('customSounds');
+    return result.customSounds || {};
+  }
+
+  /**
+   * Refresh custom sounds list UI
+   */
+  private async refreshCustomSoundsList(): Promise<void> {
+    const customSoundsList = document.getElementById('customSoundsList');
+    if (!customSoundsList) return;
+
+    const customSounds = await this.getCustomSounds();
+    
+    customSoundsList.innerHTML = '';
+    
+    Object.entries(customSounds).forEach(([soundId, soundData]: [string, any]) => {
+      const soundItem = document.createElement('div');
+      soundItem.className = 'custom-sound-item';
+      soundItem.innerHTML = `
+        <span class="sound-name">${soundData.name}</span>
+        <button class="test-custom-sound-btn" data-sound-id="${soundId}">🔊 Test</button>
+        <button class="delete-custom-sound-btn" data-sound-id="${soundId}">🗑 Delete</button>
+      `;
+      
+      // Add event listeners
+      soundItem.querySelector('.test-custom-sound-btn')?.addEventListener('click', () => {
+        this.testCustomSound(soundId, soundData.dataUrl);
+      });
+      
+      soundItem.querySelector('.delete-custom-sound-btn')?.addEventListener('click', () => {
+        this.deleteCustomSound(soundId);
+      });
+      
+      customSoundsList.appendChild(soundItem);
+    });
+  }
+
+  /**
+   * Test custom sound
+   */
+  private async testCustomSound(soundId: string, dataUrl: string): Promise<void> {
+    try {
+      await chrome.runtime.sendMessage({
+        type: 'TEST_CUSTOM_SOUND',
+        data: {
+          soundId: soundId,
+          dataUrl: dataUrl,
+          volume: parseInt(this.audioVolumeSlider.value)
+        }
+      });
+    } catch (error) {
+      console.error('Error testing custom sound:', error);
+    }
+  }
+
+  /**
+   * Delete custom sound
+   */
+  private async deleteCustomSound(soundId: string): Promise<void> {
+    try {
+      const customSounds = await this.getCustomSounds();
+      delete customSounds[soundId];
+      await chrome.storage.local.set({ customSounds });
+      
+      this.refreshCustomSoundsList();
+      this.showStatusMessage({
+        text: 'Custom sound deleted',
+        type: 'success'
+      });
+    } catch (error) {
+      console.error('Error deleting custom sound:', error);
+      this.showStatusMessage({
+        text: 'Error deleting custom sound',
+        type: 'error'
+      });
+    }
   }
 
   /**

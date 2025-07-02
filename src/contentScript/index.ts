@@ -15,6 +15,7 @@ import { BlockingEngine } from './blockingEngine';
 import { BlockedPageUI } from './ui/blockedPage';
 import { FloatingTimer } from './ui/floatingTimer';
 import { TimerState } from '@shared/pomodoroTypes';
+import { AudioManager } from '@shared/audioManager';
 
 class ContentScriptManager {
   private settings: ExtensionSettings = DEFAULT_SETTINGS;
@@ -25,6 +26,7 @@ class ContentScriptManager {
   private urlCheckInterval: number | null = null;
   private isInitialized: boolean = false;
   private currentTimerState: TimerState = 'STOPPED';
+  private audioManager: AudioManager | null = null;
 
   constructor() {
     this.blockingEngine = new BlockingEngine();
@@ -353,6 +355,19 @@ class ContentScriptManager {
         this.loadConfiguration().then(() => {
           this.forceRecheck();
         });
+      } else if (message.type === 'PLAY_CUSTOM_AUDIO') {
+        logger.log('Play custom audio message received:', message.data);
+        if (message.data.settings && message.data.settings.enabled) {
+          this.playCustomAudio(message.data.soundType, message.data.settings);
+        } else {
+          logger.log('Audio disabled or no settings provided');
+        }
+      } else if (message.type === 'TEST_BUILT_IN_SOUND') {
+        logger.log('Test built-in sound message received:', message.data);
+        this.testBuiltInSound(message.data.soundId, message.data.volume);
+      } else if (message.type === 'TEST_CUSTOM_SOUND_PLAYBACK') {
+        logger.log('Test custom sound message received:', message.data);
+        this.testCustomSound(message.data.dataUrl, message.data.volume);
       }
     });
   }
@@ -558,8 +573,79 @@ class ContentScriptManager {
     // Remove global reference
     delete (window as any).contentScriptManager;
     
+    if (this.audioManager) {
+      this.audioManager.destroy();
+      this.audioManager = null;
+    }
+    
     this.isInitialized = false;
     logger.log('Content script cleaned up');
+  }
+
+  /**
+   * Initialize audio manager if needed
+   */
+  private async initializeAudioManagerIfNeeded(): Promise<void> {
+    if (!this.audioManager) {
+      const audioSettings = AudioManager.getDefaultSettings();
+      this.audioManager = new AudioManager(audioSettings);
+      await this.audioManager.initialize();
+    }
+  }
+
+  /**
+   * Play custom audio for timer events
+   */
+  private async playCustomAudio(soundType: string, settings: any): Promise<void> {
+    try {
+      await this.initializeAudioManagerIfNeeded();
+      
+      if (this.audioManager && settings) {
+        this.audioManager.updateSettings(settings);
+        await this.audioManager.playSound(soundType as any);
+      }
+    } catch (error) {
+      logger.log('Error playing custom audio:', error);
+    }
+  }
+
+  /**
+   * Test a built-in sound
+   */
+  private async testBuiltInSound(soundId: string, volume: number): Promise<void> {
+    try {
+      await this.initializeAudioManagerIfNeeded();
+      
+      if (this.audioManager) {
+        // Create temporary settings for testing
+        const testSettings = AudioManager.getDefaultSettings();
+        testSettings.volume = volume;
+        testSettings.sounds.work_complete.id = soundId;
+        
+        this.audioManager.updateSettings(testSettings);
+        await this.audioManager.playSound('work_complete');
+      }
+    } catch (error) {
+      logger.log('Error testing built-in sound:', error);
+    }
+  }
+
+  /**
+   * Test a custom sound using data URL
+   */
+  private async testCustomSound(dataUrl: string, volume: number): Promise<void> {
+    try {
+      if (!dataUrl) return;
+      
+      // Create and play audio element directly for custom sounds
+      const audio = new Audio(dataUrl);
+      audio.volume = volume / 100;
+      audio.play().catch(error => {
+        logger.log('Error playing custom sound:', error);
+      });
+    } catch (error) {
+      logger.log('Error testing custom sound:', error);
+    }
   }
 }
 

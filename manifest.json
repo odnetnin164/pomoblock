@@ -51,6 +51,9 @@
         "*.css",
         "*.js",
         "shared/*.css",
+        "sounds/*",
+        "sounds/nature/*",
+        "sounds/minimal/*",
         "history.html"
       ],
       "matches": [
