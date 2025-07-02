@@ -475,9 +475,11 @@ export class FloatingTimer {
   private setupRuntimeListeners(): void {
     // Listen for timer updates from background
     chrome.runtime.onMessage.addListener((message) => {
+      logger.log('FloatingTimer received message:', message.type);
       if (message.type === 'TIMER_UPDATE' && message.data.timerStatus) {
         this.updateStatus(message.data.timerStatus);
       } else if (message.type === 'TIMER_COMPLETE') {
+        logger.log('FloatingTimer: TIMER_COMPLETE message received, triggering vibration');
         // Add vibration when session completes
         this.triggerVibration();
         // Refresh status after timer completion
@@ -592,24 +594,10 @@ export class FloatingTimer {
   }
 
   /**
-   * Trigger vibration when session completes
+   * Trigger vibration animation when session completes
    */
   private triggerVibration(): void {
-    // Trigger haptic vibration if supported
-    if (navigator.vibrate) {
-      try {
-        // Vibrate for 500ms, pause 200ms, vibrate 300ms
-        // This creates a distinctive pattern for session completion
-        navigator.vibrate([500, 200, 300]);
-        logger.log('Session completion haptic vibration triggered');
-      } catch (error) {
-        logger.log('Error triggering haptic vibration:', error);
-      }
-    } else {
-      logger.log('Haptic vibration API not supported');
-    }
-
-    // Always trigger visual vibration effect
+    logger.log('FloatingTimer: triggerVibration() called - applying shake animation');
     this.triggerVisualVibration();
   }
 
@@ -617,20 +605,29 @@ export class FloatingTimer {
    * Trigger visual vibration effect on the widget
    */
   private triggerVisualVibration(): void {
-    if (!this.widget) {
-      logger.log('No widget available for visual vibration');
+    logger.log('triggerVisualVibration called, widget and shadowRoot available');
+    
+    if (!this.widget || !this.shadowRoot) {
+      logger.log('No widget or shadow root available for visual vibration');
       return;
     }
 
     try {
-      // Add shake animation class
-      this.widget.style.animation = 'shake 0.6s ease-in-out';
+      // Find the actual floating timer element inside the Shadow DOM
+      const floatingTimerElement = this.shadowRoot.querySelector('.floating-timer') as HTMLElement;
+      if (!floatingTimerElement) {
+        logger.log('Could not find .floating-timer element in Shadow DOM');
+        return;
+      }
+
+      logger.log('Applying shake animation to floating timer element');
       
-      // Add shake keyframes to the document if not already present
-      const styleId = 'pomoblock-shake-animation';
-      if (!document.getElementById(styleId)) {
+      // Add shake keyframes to the Shadow DOM if not already present
+      const existingShakeStyle = this.shadowRoot.querySelector('#pomoblock-shake-animation');
+      if (!existingShakeStyle) {
+        logger.log('Adding shake keyframes to Shadow DOM');
         const shakeStyle = document.createElement('style');
-        shakeStyle.id = styleId;
+        shakeStyle.id = 'pomoblock-shake-animation';
         shakeStyle.textContent = `
           @keyframes shake {
             0% { transform: translate(0, 0) rotate(0deg); }
@@ -646,17 +643,23 @@ export class FloatingTimer {
             100% { transform: translate(0, 0) rotate(0deg); }
           }
         `;
-        document.head.appendChild(shakeStyle);
+        this.shadowRoot.appendChild(shakeStyle);
+      } else {
+        logger.log('Shake keyframes already exist in Shadow DOM');
       }
+
+      // Apply shake animation to the floating timer element inside Shadow DOM
+      floatingTimerElement.style.animation = 'shake 0.6s ease-in-out';
 
       // Remove animation after it completes
       setTimeout(() => {
-        if (this.widget) {
-          this.widget.style.animation = '';
+        if (floatingTimerElement) {
+          logger.log('Clearing shake animation');
+          floatingTimerElement.style.animation = '';
         }
       }, 600);
 
-      logger.log('Session completion visual vibration triggered');
+      logger.log('Session completion visual vibration triggered successfully');
     } catch (error) {
       logger.log('Error triggering visual vibration:', error);
     }

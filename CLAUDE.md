@@ -260,3 +260,130 @@ All URLs are processed case-insensitively:
 - Converted to lowercase before pattern matching
 - Removes protocols, `www.` prefixes, and hash fragments
 - Maintains original case in storage but uses lowercase for comparisons
+
+## Message Passing Architecture
+
+The extension uses Chrome's message passing for cross-context communication:
+
+### Background ↔ Content Script Communication
+- `TIMER_UPDATE` - Background broadcasts timer status changes to all tabs
+- `TIMER_COMPLETE` - Sent when Pomodoro sessions end (triggers vibration)
+- `TIMER_INITIALIZATION_COMPLETE` - Sent after background service worker initializes
+- `PLAY_CUSTOM_AUDIO` - Requests content scripts to play audio (service workers can't use Web Audio API)
+
+### Message Flow Pattern
+```typescript
+// Background sends to all tabs
+this.broadcastMessage({
+  type: 'TIMER_UPDATE',
+  data: { timerStatus: status }
+});
+
+// Content script listens
+chrome.runtime.onMessage.addListener((message) => {
+  if (message.type === 'TIMER_UPDATE') {
+    this.updateStatus(message.data.timerStatus);
+  }
+});
+```
+
+## Audio System Architecture
+
+The extension includes a sophisticated audio system for Pomodoro notifications:
+
+### AudioManager Class (`src/shared/audioManager.ts`)
+- Manages Web Audio API contexts and sound loading
+- Supports built-in sounds (chime, bell, ding) and custom uploads
+- Volume control and theme-based sound selection
+- Preloads audio buffers for smooth playback
+
+### Audio Flow
+1. **Background Service Worker**: Cannot use Web Audio API directly
+2. **Content Scripts**: Receive `PLAY_CUSTOM_AUDIO` messages and handle playback
+3. **Settings Storage**: Audio preferences stored with Pomodoro settings
+4. **Sound Files**: Located in `/sounds/` directory with theme folders
+
+## Visual Effects System
+
+### Floating Timer Vibration
+When Pomodoro sessions complete, the floating timer triggers a visual shake animation:
+
+```typescript
+// CSS keyframes are added to Shadow DOM for complete isolation
+// Animation applied to .floating-timer element inside Shadow DOM
+floatingTimerElement.style.animation = 'shake 0.6s ease-in-out';
+```
+
+### Animation Architecture
+- Keyframes defined in Shadow DOM for CSS isolation
+- Applied to internal elements, not host container
+- Cleanup after 600ms animation duration
+
+## Constants and Configuration
+
+Key configuration is centralized in `src/shared/constants.ts`:
+
+### Storage Key Patterns
+- **General Extension**: `STORAGE_KEYS.*` (e.g., `blockedWebsitesArray`)
+- **Pomodoro System**: `POMODORO_STORAGE_KEYS.*` (e.g., `pomodoroSettings`)
+- **Floating Timer**: `floatingTimerSettings` for position and visibility
+
+### Default Settings Hierarchy
+```typescript
+DEFAULT_SETTINGS → DEFAULT_POMODORO_SETTINGS → DEFAULT_TIMER_STATUS
+```
+
+## Test Infrastructure
+
+### Jest Configuration
+- **Environment**: jsdom for DOM testing
+- **Setup**: Chrome API mocking in `tests/setup.ts`
+- **Path Mapping**: Mirrors webpack aliases for consistent imports
+
+### Shadow DOM Testing Patterns
+```typescript
+// Access closed Shadow DOM in tests via _testShadowRoot
+const shadowRoot = (component as any)._testShadowRoot;
+const element = shadowRoot?.querySelector('.target-element');
+
+// Wait for async CSS loading in Shadow DOM components
+await new Promise(resolve => setTimeout(resolve, 100));
+```
+
+### Test Naming Conventions
+- **Component Tests**: `ComponentName.test.ts`
+- **Integration Tests**: `moduleName.test.ts`
+- **Pattern Matching**: Use `--testNamePattern` for focused testing
+
+## Development Workflow
+
+### Chrome Extension Development
+- **Hot Reload**: Use `npm run dev` for development builds with watch mode
+- **Extension Reload**: Manually reload extension in `chrome://extensions` after changes
+- **Debugging**: Check both extension console and page console for content script issues
+
+### Common Development Tasks
+- **Build for Production**: `npm run build` (creates optimized `dist/` folder)
+- **Run Specific Tests**: `npm test -- componentName.test.ts`
+- **Test with Pattern**: `npm test -- --testNamePattern="vibration"`
+- **Coverage Report**: `npm run test:coverage`
+
+### Code Splitting Disabled
+All entry points are self-contained (no shared chunks) to ensure proper Chrome extension loading.
+
+## Important Implementation Notes
+
+### Timer State Persistence
+- Timer state persists across browser restarts via Chrome storage
+- Background service worker maintains timer even when popup is closed
+- Cross-tab synchronization ensures consistent state across multiple windows
+
+### Performance Considerations
+- Shadow DOM provides complete CSS isolation but requires careful event handling
+- Content scripts inject into all pages but only activate based on blocking rules
+- Background service worker has limited API access (no Web Audio, limited DOM)
+
+### Security and Permissions
+- Manifest V3 compliance with service worker architecture
+- Minimal permissions: storage, tabs, activeTab, alarms, notifications
+- No external network requests except for built-in redirect URLs

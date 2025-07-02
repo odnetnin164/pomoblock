@@ -822,12 +822,13 @@ describe('FloatingTimer', () => {
 
     test('should handle TIMER_COMPLETE messages with vibration', () => {
       const requestStatusSpy = jest.spyOn(floatingTimer, 'requestTimerStatus');
+      const triggerVibrationSpy = jest.spyOn(floatingTimer as any, 'triggerVibration');
       
       mockMessageListener({
         type: 'TIMER_COMPLETE'
       });
       
-      expect(navigator.vibrate).toHaveBeenCalledWith([500, 200, 300]);
+      expect(triggerVibrationSpy).toHaveBeenCalled();
       expect(requestStatusSpy).toHaveBeenCalled();
     });
 
@@ -1026,16 +1027,17 @@ describe('FloatingTimer', () => {
       await new Promise(resolve => setTimeout(resolve, 0));
     });
 
-    test('should trigger haptic vibration when supported', () => {
+    test('should trigger visual vibration when called', () => {
+      const triggerVisualVibrationSpy = jest.spyOn(floatingTimer as any, 'triggerVisualVibration');
+      
       (floatingTimer as any).triggerVibration();
       
-      expect(navigator.vibrate).toHaveBeenCalledWith([500, 200, 300]);
+      expect(triggerVisualVibrationSpy).toHaveBeenCalled();
     });
 
-    test('should handle haptic vibration errors gracefully', () => {
-      (navigator.vibrate as jest.Mock).mockImplementation(() => {
-        throw new Error('Vibration error');
-      });
+    test('should handle visual vibration errors gracefully', () => {
+      // Mock shadowRoot to be null to trigger an error path
+      (floatingTimer as any).shadowRoot = null;
       
       // Should not throw
       expect(() => {
@@ -1046,10 +1048,13 @@ describe('FloatingTimer', () => {
     test('should trigger visual vibration effect', () => {
       (floatingTimer as any).triggerVisualVibration();
       
-      const widgetHost = document.getElementById('pomoblock-floating-timer-host');
-      expect(widgetHost?.style.animation).toBe('shake 0.6s ease-in-out');
+      // Check that shake animation is applied to the floating timer element inside Shadow DOM
+      const shadowRoot = (floatingTimer as any)._testShadowRoot;
+      const floatingTimerElement = shadowRoot?.querySelector('.floating-timer') as HTMLElement;
+      expect(floatingTimerElement?.style.animation).toBe('shake 0.6s ease-in-out');
       
-      const shakeStyle = document.getElementById('pomoblock-shake-animation');
+      // Check that shake animation keyframes are added to Shadow DOM
+      const shakeStyle = shadowRoot?.querySelector('#pomoblock-shake-animation');
       expect(shakeStyle).toBeTruthy();
       expect(shakeStyle?.textContent).toContain('@keyframes shake');
     });
@@ -1058,18 +1063,21 @@ describe('FloatingTimer', () => {
       (floatingTimer as any).triggerVisualVibration();
       (floatingTimer as any).triggerVisualVibration();
       
-      const shakeStyles = document.querySelectorAll('#pomoblock-shake-animation');
+      // Check that only one shake animation style exists in Shadow DOM
+      const shadowRoot = (floatingTimer as any)._testShadowRoot;
+      const shakeStyles = shadowRoot?.querySelectorAll('#pomoblock-shake-animation');
       expect(shakeStyles).toHaveLength(1);
     });
 
     test('should clear animation after completion', (done) => {
       (floatingTimer as any).triggerVisualVibration();
       
-      const widgetHost = document.getElementById('pomoblock-floating-timer-host');
-      expect(widgetHost?.style.animation).toBe('shake 0.6s ease-in-out');
+      const shadowRoot = (floatingTimer as any)._testShadowRoot;
+      const floatingTimerElement = shadowRoot?.querySelector('.floating-timer') as HTMLElement;
+      expect(floatingTimerElement?.style.animation).toBe('shake 0.6s ease-in-out');
       
       setTimeout(() => {
-        expect(widgetHost?.style.animation).toBe('');
+        expect(floatingTimerElement?.style.animation).toBe('');
         done();
       }, 700);
     });
