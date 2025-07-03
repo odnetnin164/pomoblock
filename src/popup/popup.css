@@ -291,11 +291,11 @@ body {
 }
 
 .pause-btn {
-  background: #FF9800;
+  background: #757575;
 }
 
 .pause-btn:hover:not(:disabled) {
-  background: #FFB74D;
+  background: #9E9E9E;
 }
 
 .stop-btn {
@@ -390,29 +390,29 @@ body {
 /* Timer State Styling */
 .timer-work .progress-ring-bar,
 .progress-work {
-  stroke: var(--error-color);
+  stroke: #4CAF50;
 }
 
 .timer-work .timer-display {
-  color: #ff6b6b;
+  color: #66BB6A;
 }
 
 .timer-rest .progress-ring-bar,
 .progress-rest {
-  stroke: var(--success-color);
+  stroke: #2196F3;
 }
 
 .timer-rest .timer-display {
-  color: #66bb6a;
+  color: #42A5F5;
 }
 
 .timer-paused .progress-ring-bar,
 .progress-paused {
-  stroke: var(--warning-color);
+  stroke: #757575;
 }
 
 .timer-paused .timer-display {
-  color: #ffb74d;
+  color: #9E9E9E;
   opacity: 0.8;
 }
 
