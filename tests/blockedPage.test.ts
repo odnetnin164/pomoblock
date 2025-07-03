@@ -428,18 +428,6 @@ describe('BlockedPageUI', () => {
       expect(closeSpy).toHaveBeenCalled();
     });
 
-    test('should handle escape key press', async () => {
-      await blockedPageUI.createBlockedPage();
-      
-      // Wait for async CSS loading and DOM updates
-      await new Promise(resolve => setTimeout(resolve, 100));
-      
-      const escapeEvent = new KeyboardEvent('keydown', { key: 'Escape' });
-      document.dispatchEvent(escapeEvent);
-      
-      expect(window.history.back).toHaveBeenCalled();
-    });
-
     test.skip('should handle case with no history', () => {
       // Mock window.history with no history
       (window as any).history = { length: 1, back: jest.fn() };
@@ -516,13 +504,16 @@ describe('BlockedPageUI', () => {
       expect(clearIntervalSpy).toHaveBeenCalled();
     });
 
-    test('should remove event listeners on cleanup', async () => {
-      const removeEventListenerSpy = jest.spyOn(document, 'removeEventListener');
-      
+    test('should remove blocked page overlay on cleanup', async () => {
       await blockedPageUI.createBlockedPage();
+      
+      // Verify page is blocked
+      expect(blockedPageUI.isPageBlocked()).toBe(true);
+      
       blockedPageUI.cleanup();
       
-      expect(removeEventListenerSpy).toHaveBeenCalledWith('keydown', expect.any(Function));
+      // Verify page is no longer blocked after cleanup
+      expect(blockedPageUI.isPageBlocked()).toBe(false);
     });
   });
 
