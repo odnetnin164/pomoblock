@@ -83,7 +83,7 @@ describe('Constants', () => {
   describe('DEBUG_CONFIG', () => {
     test('should have expected debug configuration', () => {
       expect(DEBUG_CONFIG.MAX_LOG_ENTRIES).toBe(10);
-      expect(DEBUG_CONFIG.DEBUG_DIV_ID).toBe('siteblocker-debug');
+      expect(DEBUG_CONFIG.DEBUG_DIV_ID).toBe('pomoblock-debug');
     });
 
     test('should have reasonable max log entries', () => {

@@ -140,7 +140,7 @@ export const DEFAULT_FLOATING_TIMER_SETTINGS = {
 // Debug Configuration
 export const DEBUG_CONFIG = {
   MAX_LOG_ENTRIES: 10,
-  DEBUG_DIV_ID: 'siteblocker-debug',
+  DEBUG_DIV_ID: 'pomoblock-debug',
   AUTO_HIDE_DELAY: 5000
 };
 

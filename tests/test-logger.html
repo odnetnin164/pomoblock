@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Logger Shadow DOM Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            background: linear-gradient(45deg, #e3f2fd, #f3e5f5);
+            min-height: 100vh;
+            margin: 0;
+        }
+        .test-container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+        }
+        button {
+            background: #2196F3;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            margin: 5px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        button:hover {
+            background: #1976D2;
+        }
+        .blocked-simulation {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(255, 0, 0, 0.9);
+            z-index: 2147483646;
+            display: none;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            font-size: 24px;
+            font-weight: bold;
+        }
+        .info {
+            background: #f5f5f5;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+            border-left: 4px solid #2196F3;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <h1>🍅 PomoBlock Logger Shadow DOM Test</h1>
+        
+        <div class="info">
+            <strong>Instructions:</strong> This test page simulates the logger behavior in a shadow DOM environment.
+            <br>• Click "Enable Debug Logger" to show the movable/resizable debug panel
+            <br>• The logger uses shadow DOM for complete isolation from page styles
+            <br>• You can drag the panel by its header and resize it using the handle in the bottom-right corner
+            <br>• Click "Simulate Blocked Page" to test logger visibility over blocked content
+        </div>
+
+        <div>
+            <button onclick="enableLogger()">Enable Debug Logger</button>
+            <button onclick="disableLogger()">Disable Debug Logger</button>
+            <button onclick="addTestLogs()">Add Test Logs</button>
+            <button onclick="simulateBlockedPage()">Simulate Blocked Page</button>
+            <button onclick="clearSimulation()">Clear Simulation</button>
+        </div>
+    </div>
+
+    <div class="blocked-simulation" id="blocked-simulation">
+        🚫 BLOCKED - PomoBlock<br>
+        <small style="font-size: 16px;">The debug logger should still be visible and interactive above this overlay</small>
+    </div>
+
+    <script type="module">
+        // Simple Logger implementation for testing
+        class TestLogger {
+            constructor() {
+                this.logs = [];
+                this.debugEnabled = false;
+                this.shadowHost = null;
+                this.shadowRoot = null;
+                this.debugDiv = null;
+                this.isDragging = false;
+                this.isResizing = false;
+                this.dragOffset = { x: 0, y: 0 };
+                this.currentPosition = { x: 10, y: 10 };
+                this.currentSize = { width: 320, height: 250 };
+            }
+
+            setDebugEnabled(enabled) {
+                this.debugEnabled = enabled;
+                if (!enabled && this.shadowHost) {
+                    this.shadowHost.remove();
+                    this.shadowHost = null;
+                    this.shadowRoot = null;
+                    this.debugDiv = null;
+                }
+            }
+
+            log(message, data) {
+                const entry = {
+                    timestamp: new Date(),
+                    message,
+                    data
+                };
+
+                console.log(`[PomoBlock Debug] ${message}`, data || '');
+                this.logs.push(entry);
+                
+                if (this.logs.length > 10) {
+                    this.logs.shift();
+                }
+
+                if (this.debugEnabled) {
+                    this.showVisualLog(entry);
+                }
+            }
+
+            showVisualLog(entry) {
+                if (!this.debugDiv) {
+                    this.debugDiv = this.createDebugDiv();
+                }
+
+                const logElement = document.createElement('div');
+                logElement.style.cssText = `
+                    margin: 2px 0; 
+                    font-size: 12px; 
+                    color: #fff; 
+                    background: rgba(0,0,0,0.7); 
+                    padding: 2px 5px; 
+                    border-radius: 3px; 
+                    word-wrap: break-word; 
+                    overflow-wrap: break-word; 
+                    white-space: pre-wrap;
+                `;
+                logElement.textContent = `${entry.timestamp.toLocaleTimeString()}: ${entry.message} ${
+                    entry.data ? JSON.stringify(entry.data) : ''
+                }`;
+
+                const logContainer = this.shadowRoot?.querySelector('.log-container');
+                if (logContainer) {
+                    logContainer.appendChild(logElement);
+                    
+                    while (logContainer.children.length > 10) {
+                        logContainer.removeChild(logContainer.children[0]);
+                    }
+                    
+                    logContainer.scrollTop = logContainer.scrollHeight;
+                }
+            }
+
+            createDebugDiv() {
+                this.shadowHost = document.createElement('div');
+                this.shadowHost.style.cssText = `
+                    position: fixed !important;
+                    top: ${this.currentPosition.y}px !important;
+                    left: ${this.currentPosition.x}px !important;
+                    width: ${this.currentSize.width}px !important;
+                    height: ${this.currentSize.height}px !important;
+                    z-index: 2147483647 !important;
+                    pointer-events: auto !important;
+                `;
+
+                this.shadowRoot = this.shadowHost.attachShadow({ mode: 'open' });
+
+                const debugDiv = document.createElement('div');
+                debugDiv.style.cssText = `
+                    width: 100%;
+                    height: 100%;
+                    background: rgba(255, 0, 0, 0.95);
+                    color: white;
+                    border-radius: 8px;
+                    font-family: 'Courier New', monospace;
+                    font-size: 11px;
+                    border: 2px solid #fff;
+                    box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+                    display: flex;
+                    flex-direction: column;
+                    overflow: hidden;
+                    backdrop-filter: blur(5px);
+                `;
+
+                const header = document.createElement('div');
+                header.style.cssText = `
+                    background: rgba(0,0,0,0.2);
+                    padding: 8px 12px;
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    cursor: move;
+                    user-select: none;
+                    border-bottom: 1px solid rgba(255,255,255,0.2);
+                    min-height: 24px;
+                `;
+
+                const title = document.createElement('div');
+                title.textContent = 'PomoBlock Debug';
+                title.style.cssText = 'font-weight: bold; font-size: 12px;';
+
+                const controls = document.createElement('div');
+                controls.style.cssText = 'display: flex; gap: 8px; align-items: center;';
+
+                const clearButton = document.createElement('button');
+                clearButton.textContent = '🗑️';
+                clearButton.title = 'Clear logs';
+                clearButton.style.cssText = this.getButtonStyles();
+                clearButton.addEventListener('click', () => this.clearLogs());
+
+                const closeButton = document.createElement('button');
+                closeButton.textContent = '×';
+                closeButton.title = 'Close debug panel';
+                closeButton.style.cssText = this.getButtonStyles();
+                closeButton.addEventListener('click', () => this.setDebugEnabled(false));
+
+                controls.appendChild(clearButton);
+                controls.appendChild(closeButton);
+                header.appendChild(title);
+                header.appendChild(controls);
+
+                const logContainer = document.createElement('div');
+                logContainer.className = 'log-container';
+                logContainer.style.cssText = `
+                    flex: 1;
+                    overflow-y: auto;
+                    padding: 8px;
+                    word-wrap: break-word;
+                    overflow-wrap: break-word;
+                `;
+
+                const resizeHandle = document.createElement('div');
+                resizeHandle.style.cssText = `
+                    position: absolute;
+                    bottom: 0;
+                    right: 0;
+                    width: 12px;
+                    height: 12px;
+                    cursor: se-resize;
+                    background: linear-gradient(-45deg, transparent 30%, rgba(255,255,255,0.3) 30%, rgba(255,255,255,0.3) 70%, transparent 70%);
+                `;
+
+                debugDiv.appendChild(header);
+                debugDiv.appendChild(logContainer);
+                debugDiv.appendChild(resizeHandle);
+
+                this.setupDragAndResize(header, resizeHandle);
+
+                const style = document.createElement('style');
+                style.textContent = `
+                    .log-container::-webkit-scrollbar { width: 8px; }
+                    .log-container::-webkit-scrollbar-track { background: rgba(255,255,255,0.1); border-radius: 4px; }
+                    .log-container::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.3); border-radius: 4px; }
+                    .log-container::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.5); }
+                `;
+
+                this.shadowRoot.appendChild(style);
+                this.shadowRoot.appendChild(debugDiv);
+                document.documentElement.appendChild(this.shadowHost);
+
+                return debugDiv;
+            }
+
+            getButtonStyles() {
+                return `
+                    background: rgba(255,255,255,0.1);
+                    border: 1px solid rgba(255,255,255,0.3);
+                    color: white;
+                    font-size: 12px;
+                    font-weight: bold;
+                    cursor: pointer;
+                    padding: 4px 8px;
+                    border-radius: 4px;
+                    transition: background 0.2s;
+                `;
+            }
+
+            setupDragAndResize(header, resizeHandle) {
+                header.addEventListener('mousedown', (e) => {
+                    if (e.target === header || header.contains(e.target)) {
+                        this.isDragging = true;
+                        this.dragOffset = {
+                            x: e.clientX - this.currentPosition.x,
+                            y: e.clientY - this.currentPosition.y
+                        };
+                        document.addEventListener('mousemove', this.handleDrag);
+                        document.addEventListener('mouseup', this.handleDragEnd);
+                        e.preventDefault();
+                    }
+                });
+
+                resizeHandle.addEventListener('mousedown', (e) => {
+                    this.isResizing = true;
+                    document.addEventListener('mousemove', this.handleResize);
+                    document.addEventListener('mouseup', this.handleResizeEnd);
+                    e.preventDefault();
+                    e.stopPropagation();
+                });
+
+                const buttons = header.querySelectorAll('button');
+                buttons.forEach(button => {
+                    button.addEventListener('mouseenter', () => {
+                        button.style.background = 'rgba(255,255,255,0.2)';
+                    });
+                    button.addEventListener('mouseleave', () => {
+                        button.style.background = 'rgba(255,255,255,0.1)';
+                    });
+                });
+            }
+
+            handleDrag = (e) => {
+                if (!this.isDragging || !this.shadowHost) return;
+
+                this.currentPosition = {
+                    x: Math.max(0, Math.min(window.innerWidth - this.currentSize.width, e.clientX - this.dragOffset.x)),
+                    y: Math.max(0, Math.min(window.innerHeight - this.currentSize.height, e.clientY - this.dragOffset.y))
+                };
+
+                this.shadowHost.style.left = this.currentPosition.x + 'px';
+                this.shadowHost.style.top = this.currentPosition.y + 'px';
+            };
+
+            handleDragEnd = () => {
+                this.isDragging = false;
+                document.removeEventListener('mousemove', this.handleDrag);
+                document.removeEventListener('mouseup', this.handleDragEnd);
+            };
+
+            handleResize = (e) => {
+                if (!this.isResizing || !this.shadowHost) return;
+
+                const rect = this.shadowHost.getBoundingClientRect();
+                this.currentSize = {
+                    width: Math.max(250, Math.min(600, e.clientX - rect.left)),
+                    height: Math.max(150, Math.min(400, e.clientY - rect.top))
+                };
+
+                this.shadowHost.style.width = this.currentSize.width + 'px';
+                this.shadowHost.style.height = this.currentSize.height + 'px';
+            };
+
+            handleResizeEnd = () => {
+                this.isResizing = false;
+                document.removeEventListener('mousemove', this.handleResize);
+                document.removeEventListener('mouseup', this.handleResizeEnd);
+            };
+
+            clearLogs() {
+                this.logs = [];
+                if (this.shadowRoot) {
+                    const logContainer = this.shadowRoot.querySelector('.log-container');
+                    if (logContainer) {
+                        while (logContainer.firstChild) {
+                            logContainer.removeChild(logContainer.firstChild);
+                        }
+                    }
+                }
+            }
+        }
+
+        // Create global logger instance
+        window.testLogger = new TestLogger();
+
+        // Global functions for buttons
+        window.enableLogger = () => {
+            window.testLogger.setDebugEnabled(true);
+            window.testLogger.log('Debug logger enabled!', { timestamp: new Date().toISOString() });
+        };
+
+        window.disableLogger = () => {
+            window.testLogger.setDebugEnabled(false);
+        };
+
+        window.addTestLogs = () => {
+            const messages = [
+                'Blocking engine initialized',
+                'Timer state changed to WORK',
+                'Site blocked: reddit.com',
+                'Floating timer updated',
+                'Pomodoro session started'
+            ];
+            
+            messages.forEach((msg, i) => {
+                setTimeout(() => {
+                    window.testLogger.log(msg, { 
+                        sessionId: Math.random().toString(36).substr(2, 9),
+                        action: 'test_log_' + i
+                    });
+                }, i * 500);
+            });
+        };
+
+        window.simulateBlockedPage = () => {
+            document.getElementById('blocked-simulation').style.display = 'flex';
+        };
+
+        window.clearSimulation = () => {
+            document.getElementById('blocked-simulation').style.display = 'none';
+        };
+
+        // Auto-start demo
+        setTimeout(() => {
+            window.testLogger.log('Test page loaded', { userAgent: navigator.userAgent.slice(0, 50) });
+        }, 500);
+    </script>
+</body>
+</html>
