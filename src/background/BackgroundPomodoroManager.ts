@@ -187,6 +187,10 @@ export class BackgroundPomodoroManager {
         await this.timer.reset();
         return { success: true };
         
+      case 'RESET_SESSION_COUNT':
+        await this.timer.resetSessionCount();
+        return { success: true };
+        
       case 'UPDATE_TASK':
         await this.timer.updateCurrentTask(message.task || '');
         return { success: true };

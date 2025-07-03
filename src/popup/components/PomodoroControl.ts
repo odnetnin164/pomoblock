@@ -10,6 +10,9 @@ export class PomodoroControl {
   private startBtn!: HTMLButtonElement;
   private pauseBtn!: HTMLButtonElement;
   private stopBtn!: HTMLButtonElement;
+  private timerOptionsBtn!: HTMLButtonElement;
+  private timerOptionsDropdown!: HTMLElement;
+  private resetSessionBtn!: HTMLButtonElement;
   private statusText!: HTMLElement;
   private sessionCounter!: HTMLElement;
   private progressBar!: HTMLElement;
@@ -64,6 +67,19 @@ export class PomodoroControl {
       <div class="pomodoro-container">
         <!-- Timer Display with Overlay -->
         <div class="timer-section">
+          <div class="timer-header">
+            <div class="timer-options-menu">
+              <button class="timer-options-btn" id="timerOptionsBtn" title="Timer options">
+                <span class="options-icon">⋯</span>
+              </button>
+              <div class="timer-options-dropdown" id="timerOptionsDropdown">
+                <button class="timer-option-item" id="resetSessionBtn">
+                  <span class="option-icon">🔄</span>
+                  <span class="option-text">Reset Session Count</span>
+                </button>
+              </div>
+            </div>
+          </div>
           <div class="timer-circle-container">
             <div class="timer-progress-ring">
               <svg class="progress-ring" width="160" height="160">
@@ -137,12 +153,18 @@ export class PomodoroControl {
     this.startBtn = document.getElementById('playPauseBtn') as HTMLButtonElement;
     this.pauseBtn = this.startBtn; // Same button for both actions
     this.stopBtn = document.getElementById('stopBtn') as HTMLButtonElement;
+    this.timerOptionsBtn = document.getElementById('timerOptionsBtn') as HTMLButtonElement;
+    this.timerOptionsDropdown = document.getElementById('timerOptionsDropdown')!;
+    this.resetSessionBtn = document.getElementById('resetSessionBtn') as HTMLButtonElement;
     this.statusText = document.getElementById('sessionInfo')!; // Use session info as status
     this.sessionCounter = document.getElementById('sessionCounter')!;
     this.progressBar = document.getElementById('progressBar')!;
     // Add next button handler
     const nextBtn = document.getElementById('nextBtn') as HTMLButtonElement;
     nextBtn.addEventListener('click', () => this.handleNextAction());
+    // Add options menu handlers
+    this.timerOptionsBtn.addEventListener('click', () => this.toggleOptionsMenu());
+    this.resetSessionBtn.addEventListener('click', () => this.handleResetAction());
   }
 
   /**
@@ -157,6 +179,14 @@ export class PomodoroControl {
     this.taskInput.addEventListener('keypress', (e) => {
       if (e.key === 'Enter') {
         this.handleStartAction();
+      }
+    });
+
+    // Close options menu when clicking outside
+    document.addEventListener('click', (e) => {
+      const target = e.target as HTMLElement;
+      if (!this.timerOptionsBtn.contains(target) && !this.timerOptionsDropdown.contains(target)) {
+        this.closeOptionsMenu();
       }
     });
 
@@ -467,6 +497,62 @@ export class PomodoroControl {
       setTimeout(() => this.loadCurrentStatus(), 100);
     } catch (error) {
       console.error('Error advancing to next session:', error);
+    }
+  }
+
+  /**
+   * Toggle options menu visibility
+   */
+  private toggleOptionsMenu(): void {
+    const isOpen = this.timerOptionsDropdown.classList.contains('open');
+    if (isOpen) {
+      this.closeOptionsMenu();
+    } else {
+      this.openOptionsMenu();
+    }
+  }
+
+  /**
+   * Open options menu
+   */
+  private openOptionsMenu(): void {
+    this.timerOptionsDropdown.classList.add('open');
+    this.timerOptionsBtn.classList.add('active');
+  }
+
+  /**
+   * Close options menu
+   */
+  private closeOptionsMenu(): void {
+    this.timerOptionsDropdown.classList.remove('open');
+    this.timerOptionsBtn.classList.remove('active');
+  }
+
+  /**
+   * Handle reset action (reset to first work session)
+   */
+  private async handleResetAction(): Promise<void> {
+    // Close the options menu first
+    this.closeOptionsMenu();
+    
+    if (!confirm('Reset session count back to the first work session? This will stop the current timer if running.')) {
+      return;
+    }
+    
+    try {
+      // If timer is running, stop it first
+      if (this.currentStatus.state !== 'STOPPED') {
+        await chrome.runtime.sendMessage({ type: 'STOP_TIMER' });
+        await new Promise(resolve => setTimeout(resolve, 200));
+      }
+      
+      // Send message to reset session count
+      await chrome.runtime.sendMessage({ type: 'RESET_SESSION_COUNT' });
+      
+      // Refresh status to show the reset session
+      setTimeout(() => this.loadCurrentStatus(), 100);
+    } catch (error) {
+      console.error('Error resetting session count:', error);
     }
   }
 

@@ -439,6 +439,23 @@ export class PomodoroTimer {
   }
 
   /**
+   * Reset session count back to the first work session (without stopping current timer)
+   */
+  async resetSessionCount(): Promise<void> {
+    // Reset session count to 0 
+    this.status.sessionCount = 0;
+    
+    // If timer is stopped, set next session to be work
+    if (this.status.state === 'STOPPED') {
+      this.status.nextSessionType = 'WORK';
+      this.status.nextSessionDuration = this.settings.workDuration * 60;
+    }
+    
+    await this.saveStatus();
+    this.notifyStatusUpdate();
+  }
+
+  /**
    * Check if sites should be blocked based on timer state
    */
   shouldBlockSites(): boolean {
