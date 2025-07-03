@@ -13,6 +13,7 @@ export class BlockedPageUI {
   private redirectCountdownInterval: number | null = null;
   private currentTimerState: string = 'STOPPED';
   private isCreatingOverlay: boolean = false;
+  private blurFallbackElement: HTMLElement | null = null;
 
   constructor(settings: ExtensionSettings) {
     this.settings = settings;
@@ -880,6 +881,9 @@ export class BlockedPageUI {
       });
     }
     
+    // Test if CSS blur is working and apply fallback if needed
+    this.testAndApplyBlurFallback(pageContent);
+    
     logger.log('Applied optimized page blur effect');
   }
 
@@ -888,13 +892,16 @@ export class BlockedPageUI {
    */
   private removePageBlur(): void {
     const pageContent = document.querySelector('body');
-    if (!pageContent) return;
-    
-    // Remove all blur-related classes
-    pageContent.classList.remove('pomoblock-page-blur', 'pomoblock-blur-active', 'pomoblock-animate-blur');
+    if (pageContent) {
+      // Remove all blur-related classes
+      pageContent.classList.remove('pomoblock-page-blur', 'pomoblock-blur-active', 'pomoblock-animate-blur');
+    }
     
     // Remove injected styles
     this.removeBlurStyles();
+    
+    // Remove fallback overlay if it exists
+    this.removeBlurFallback();
     
     logger.log('Removed page blur effect');
   }
@@ -908,42 +915,10 @@ export class BlockedPageUI {
     
     const style = document.createElement('style');
     style.id = 'pomoblock-blur-styles';
-    style.textContent = `
-      body.pomoblock-page-blur {
-        transform: translate3d(0, 0, 0) !important;
-        filter: blur(0) !important;
-        will-change: filter !important;
-        transition: filter 0.3s ease !important;
-      }
-
-      body.pomoblock-blur-active {
-        filter: blur(12px) !important;
-      }
-
-      body.pomoblock-animate-blur {
-        animation: pomoblock-background-blur 0.4s 1 forwards !important;
-      }
-
-      @keyframes pomoblock-background-blur {
-        0% { 
-          filter: blur(0) !important; 
-        }
-        100% { 
-          filter: blur(12px) !important; 
-        }
-      }
-
-      @media (prefers-reduced-motion: reduce) {
-        body.pomoblock-page-blur {
-          transition: none !important;
-          animation: none !important;
-        }
-        
-        body.pomoblock-blur-active {
-          filter: blur(8px) !important;
-        }
-      }
-    `;
+    
+    // Import the blur styles using CSS @import to reference our main CSS file
+    const cssUrl = chrome.runtime.getURL('shared/blocked-page.css');
+    style.textContent = `@import url("${cssUrl}");`;
     
     document.head.appendChild(style);
   }
@@ -955,6 +930,116 @@ export class BlockedPageUI {
     const style = document.getElementById('pomoblock-blur-styles');
     if (style) {
       style.remove();
+    }
+  }
+
+  /**
+   * Test if CSS blur is working and apply fallback overlay if needed (for Mac compatibility)
+   */
+  private testAndApplyBlurFallback(pageContent: Element): void {
+    // Detect Mac/Safari/WebKit browsers that commonly have blur issues
+    const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+    const isSafari = /Safari/.test(navigator.userAgent) && !/Chrome/.test(navigator.userAgent);
+    const isWebKit = /WebKit/.test(navigator.userAgent) && !/Chrome/.test(navigator.userAgent);
+    
+    // If on Mac or Safari/WebKit, test blur support more thoroughly
+    if (isMac || isSafari || isWebKit) {
+      this.testBlurSupport().then(isSupported => {
+        if (!isSupported) {
+          logger.log('CSS blur not supported on this Mac/Safari system, applying enhanced fallback');
+          this.applyBlurFallback(pageContent);
+        } else {
+          logger.log('CSS blur is supported on this Mac/Safari system');
+        }
+      });
+    } else {
+      // On other platforms, assume blur works
+      logger.log('Non-Mac platform detected, using standard CSS blur');
+    }
+  }
+
+  /**
+   * Test blur support using a more comprehensive method
+   */
+  private testBlurSupport(): Promise<boolean> {
+    return new Promise((resolve) => {
+      // Create a test element to check if blur is working
+      const testElement = document.createElement('div');
+      testElement.className = 'pomoblock-blur-test';
+      document.body.appendChild(testElement);
+      
+      // Give the browser time to apply the filter and render
+      setTimeout(() => {
+        try {
+          const computedStyle = window.getComputedStyle(testElement);
+          const filterValue = computedStyle.filter;
+          
+          // Additional test: check if backdrop-filter is supported
+          const supportsBackdropFilter = CSS.supports('backdrop-filter', 'blur(1px)') || 
+                                        CSS.supports('-webkit-backdrop-filter', 'blur(1px)');
+          
+          // Clean up test element
+          if (testElement.parentNode) {
+            testElement.parentNode.removeChild(testElement);
+          }
+          
+          // Check if blur is working
+          const hasBlurFilter = filterValue && filterValue !== 'none' && filterValue.includes('blur');
+          const isBlurSupported = hasBlurFilter || supportsBackdropFilter;
+          
+          resolve(isBlurSupported);
+        } catch (error) {
+          // Clean up on error
+          if (testElement.parentNode) {
+            testElement.parentNode.removeChild(testElement);
+          }
+          resolve(false);
+        }
+      }, 150);
+    });
+  }
+
+  /**
+   * Apply fallback blur effect using overlay (for Mac/Safari compatibility)
+   */
+  private applyBlurFallback(pageContent: Element): void {
+    // Remove CSS blur classes since they don't work reliably
+    pageContent.classList.remove('pomoblock-blur-active', 'pomoblock-animate-blur');
+    
+    // Create enhanced fallback overlay element
+    const fallbackOverlay = document.createElement('div');
+    fallbackOverlay.id = 'pomoblock-blur-fallback';
+    fallbackOverlay.className = 'pomoblock-blur-fallback';
+    
+    // Insert the overlay at the beginning of body to ensure proper layering
+    document.body.insertBefore(fallbackOverlay, document.body.firstChild);
+    
+    // Force reflow and then fade in the overlay using CSS class
+    fallbackOverlay.offsetHeight; // Trigger reflow
+    requestAnimationFrame(() => {
+      fallbackOverlay.classList.add('fade-in');
+    });
+    
+    // Store reference for cleanup
+    this.blurFallbackElement = fallbackOverlay;
+    
+    logger.log('Applied enhanced blur fallback overlay for Mac/Safari compatibility');
+  }
+
+  /**
+   * Remove fallback blur overlay
+   */
+  private removeBlurFallback(): void {
+    if (this.blurFallbackElement) {
+      // Fade out the overlay by removing the fade-in class
+      this.blurFallbackElement.classList.remove('fade-in');
+      
+      setTimeout(() => {
+        if (this.blurFallbackElement && this.blurFallbackElement.parentNode) {
+          this.blurFallbackElement.parentNode.removeChild(this.blurFallbackElement);
+        }
+        this.blurFallbackElement = null;
+      }, 300);
     }
   }
 }

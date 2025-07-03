@@ -221,7 +221,7 @@
   filter: blur(4px);
 }
 
-/* Alternative static blur overlay for very low-end devices */
+/* Alternative static blur overlay for very low-end devices or Mac compatibility */
 .static-blur-overlay {
   position: fixed;
   top: 0;
@@ -230,6 +230,139 @@
   height: 100%;
   background: rgba(26, 26, 46, 0.9);
   z-index: 1;
+}
+
+/* Enhanced backdrop-filter fallback for Mac Safari/WebKit */
+.mac-blur-fallback {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(135deg, 
+    rgba(26, 26, 46, 0.85) 0%, 
+    rgba(22, 33, 62, 0.85) 50%,
+    rgba(30, 30, 50, 0.85) 100%);
+  backdrop-filter: blur(10px) saturate(150%);
+  -webkit-backdrop-filter: blur(10px) saturate(150%);
+  z-index: 999998;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+
+/* Safari-specific enhancements */
+@supports (-webkit-backdrop-filter: blur(1px)) {
+  .mac-blur-fallback {
+    background: linear-gradient(135deg, 
+      rgba(26, 26, 46, 0.65) 0%, 
+      rgba(22, 33, 62, 0.65) 50%,
+      rgba(30, 30, 50, 0.65) 100%);
+    -webkit-backdrop-filter: blur(15px) saturate(180%) brightness(0.9);
+    backdrop-filter: blur(15px) saturate(180%) brightness(0.9);
+  }
+}
+
+/* ========================================
+   PAGE BLUR STYLES - Applied to main document
+   ======================================== */
+
+/* Page blur styles that get injected into main document */
+.pomoblock-page-blur {
+  transform: translate3d(0, 0, 0) !important;
+  filter: blur(0) !important;
+  will-change: filter !important;
+  transition: filter 0.3s ease !important;
+  backface-visibility: hidden !important;
+}
+
+.pomoblock-blur-active {
+  filter: blur(12px) saturate(150%) !important;
+}
+
+.pomoblock-animate-blur {
+  animation: pomoblock-background-blur 0.4s 1 forwards !important;
+}
+
+@keyframes pomoblock-background-blur {
+  0% { 
+    filter: blur(0) saturate(100%) !important; 
+  }
+  100% { 
+    filter: blur(12px) saturate(150%) !important; 
+  }
+}
+
+/* Enhanced support for Safari/WebKit */
+@supports (-webkit-backdrop-filter: blur(1px)) {
+  .pomoblock-blur-active {
+    filter: blur(8px) saturate(120%) brightness(0.95) !important;
+  }
+  
+  @keyframes pomoblock-background-blur {
+    0% { 
+      filter: blur(0) saturate(100%) brightness(1) !important; 
+    }
+    100% { 
+      filter: blur(8px) saturate(120%) brightness(0.95) !important; 
+    }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pomoblock-page-blur {
+    transition: none !important;
+    animation: none !important;
+  }
+  
+  .pomoblock-blur-active {
+    filter: blur(6px) !important;
+  }
+}
+
+/* Fallback for very old browsers */
+@supports not (filter: blur(1px)) {
+  .pomoblock-blur-active {
+    opacity: 0.7 !important;
+    transform: scale(1.02) !important;
+  }
+}
+
+/* Enhanced fallback overlay styles for Mac/Safari compatibility */
+.pomoblock-blur-fallback {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  background: linear-gradient(135deg, 
+    rgba(26, 26, 46, 0.85) 0%, 
+    rgba(22, 33, 62, 0.85) 50%,
+    rgba(30, 30, 50, 0.85) 100%) !important;
+  backdrop-filter: blur(15px) saturate(180%) brightness(0.9) !important;
+  -webkit-backdrop-filter: blur(15px) saturate(180%) brightness(0.9) !important;
+  z-index: 999998 !important;
+  pointer-events: none !important;
+  transition: opacity 0.3s ease !important;
+  opacity: 0 !important;
+  will-change: opacity !important;
+}
+
+.pomoblock-blur-fallback.fade-in {
+  opacity: 1 !important;
+}
+
+/* Test element for blur support detection */
+.pomoblock-blur-test {
+  position: fixed !important;
+  top: -100px !important;
+  left: -100px !important;
+  width: 10px !important;
+  height: 10px !important;
+  filter: blur(5px) !important;
+  background: rgb(255, 0, 0) !important;
+  pointer-events: none !important;
+  z-index: -9999 !important;
+  opacity: 1 !important;
 }
 
 /* Keyframe animation for smooth blur transition */
