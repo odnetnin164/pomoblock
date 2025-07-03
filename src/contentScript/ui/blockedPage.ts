@@ -219,6 +219,9 @@ export class BlockedPageUI {
     }
     
     if (this.isBlocked) {
+      // Remove blur effect from page background
+      this.removePageBlur();
+      
       // Restore original title
       document.title = this.originalTitle;
       
@@ -271,6 +274,8 @@ export class BlockedPageUI {
       height: 100vh !important;
       z-index: 2147483647 !important;
       pointer-events: auto !important;
+      contain: layout style paint !important;
+      transform: translateZ(0) !important;
     `;
 
     // Create shadow root for complete CSS isolation
@@ -289,6 +294,9 @@ export class BlockedPageUI {
     overlayContent.innerHTML = this.generateBlockedContent(isRedirectMode);
 
     this.shadowRoot.appendChild(overlayContent);
+
+    // Apply optimized blur effect to page background
+    this.applyPageBlur();
 
     // Prevent scrolling on background page
     document.body.style.overflow = 'hidden';
@@ -859,6 +867,111 @@ export class BlockedPageUI {
     // If staying unblocked, no action needed
     else {
       logger.log('Staying in unblocked state - no action needed');
+    }
+  }
+
+  /**
+   * Apply optimized blur effect to page background
+   */
+  private applyPageBlur(): void {
+    // Check if user prefers reduced motion
+    const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    
+    // Inject blur styles into the main document
+    this.injectBlurStyles();
+    
+    // Apply blur to the body element
+    const pageContent = document.querySelector('body');
+    if (!pageContent) return;
+    
+    // Add a class to enable blur effect
+    pageContent.classList.add('pomoblock-page-blur');
+    
+    // Use animation or direct class application based on motion preference
+    if (prefersReducedMotion) {
+      pageContent.classList.add('pomoblock-blur-active');
+    } else {
+      // Use requestAnimationFrame for smooth animation
+      requestAnimationFrame(() => {
+        pageContent.classList.add('pomoblock-animate-blur');
+      });
+    }
+    
+    logger.log('Applied optimized page blur effect');
+  }
+
+  /**
+   * Remove blur effect from page background
+   */
+  private removePageBlur(): void {
+    const pageContent = document.querySelector('body');
+    if (!pageContent) return;
+    
+    // Remove all blur-related classes
+    pageContent.classList.remove('pomoblock-page-blur', 'pomoblock-blur-active', 'pomoblock-animate-blur');
+    
+    // Remove injected styles
+    this.removeBlurStyles();
+    
+    logger.log('Removed page blur effect');
+  }
+
+  /**
+   * Inject blur styles into the main document
+   */
+  private injectBlurStyles(): void {
+    // Check if styles are already injected
+    if (document.getElementById('pomoblock-blur-styles')) return;
+    
+    const style = document.createElement('style');
+    style.id = 'pomoblock-blur-styles';
+    style.textContent = `
+      body.pomoblock-page-blur {
+        transform: translate3d(0, 0, 0) !important;
+        filter: blur(0) !important;
+        will-change: filter !important;
+        transition: filter 0.3s ease !important;
+      }
+
+      body.pomoblock-blur-active {
+        filter: blur(12px) !important;
+      }
+
+      body.pomoblock-animate-blur {
+        animation: pomoblock-background-blur 0.4s 1 forwards !important;
+      }
+
+      @keyframes pomoblock-background-blur {
+        0% { 
+          filter: blur(0) !important; 
+        }
+        100% { 
+          filter: blur(12px) !important; 
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        body.pomoblock-page-blur {
+          transition: none !important;
+          animation: none !important;
+        }
+        
+        body.pomoblock-blur-active {
+          filter: blur(8px) !important;
+        }
+      }
+    `;
+    
+    document.head.appendChild(style);
+  }
+
+  /**
+   * Remove injected blur styles from the main document
+   */
+  private removeBlurStyles(): void {
+    const style = document.getElementById('pomoblock-blur-styles');
+    if (style) {
+      style.remove();
     }
   }
 }
