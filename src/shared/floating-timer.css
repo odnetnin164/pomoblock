@@ -139,8 +139,12 @@
   text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.8), 0 0 6px rgba(0, 0, 0, 0.5);
   white-space: nowrap;
   z-index: 10;
-  font-family: 'Consolas', 'Monaco', 'SF Mono', 'Courier New', monospace;
+  font-family: 'Consolas', 'Courier New', 'Monaco', 'Lucida Console', monospace;
   letter-spacing: 0.5px;
+  -webkit-font-feature-settings: "tnum";
+  font-feature-settings: "tnum";
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 .timer-task-overlay {
