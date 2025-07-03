@@ -398,32 +398,4 @@ describe('SettingsManager', () => {
       expect(config).toHaveProperty('TIME_PRESETS');
     });
   });
-
-  describe('Debug Work Hours', () => {
-    test('should log work hours debug information', async () => {
-      mockChrome.storage.sync.get.mockImplementation((keys, callback) => {
-        callback({
-          workHoursEnabled: true,
-          workHoursStartTime: '09:00',
-          workHoursEndTime: '17:00',
-          workHoursDays: [1, 2, 3, 4, 5]
-        });
-      });
-      
-      await settingsManager.debugWorkHours();
-      
-      expect(mockStorage.getSettings).toHaveBeenCalled();
-      expect(mockChrome.storage.sync.get).toHaveBeenCalled();
-    });
-
-    test('should handle debug errors gracefully', async () => {
-      mockStorage.getSettings.mockRejectedValue(new Error('Debug error'));
-      const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
-      
-      // The error is caught and logged, so we should expect the function to not throw
-      await expect(settingsManager.debugWorkHours()).resolves.not.toThrow();
-      
-      consoleSpy.mockRestore();
-    });
-  });
 });

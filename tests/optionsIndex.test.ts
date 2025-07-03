@@ -61,8 +61,7 @@ describe.skip('Options Index - Behavior Tests', () => {
       saveSettingsToStorage: jest.fn(),
       resetSettings: jest.fn(),
       testRedirectUrl: jest.fn(),
-      getSuggestedUrls: jest.fn(),
-      debugWorkHours: jest.fn()
+      getSuggestedUrls: jest.fn()
     } as any;
 
     mockSiteListManager = {
@@ -249,10 +248,6 @@ describe.skip('Options Index - Behavior Tests', () => {
       expect(mockSettingsManager.loadSettings).toHaveBeenCalled();
     });
 
-    test('should debug work hours when enabled', () => {
-      // Should provide work hours debugging
-      expect(mockSettingsManager.debugWorkHours).toBeDefined();
-    });
   });
 
   describe('Status Message Display', () => {

@@ -168,34 +168,7 @@ export class SettingsManager {
     return null;
   }
 
-  /**
-   * Debug: Log current work hours settings to console
-   */
-  async debugWorkHours(): Promise<void> {
-    try {
-      const settings = await this.loadSettings();
-      logger.log('=== WORK HOURS DEBUG ===');
-      logger.log('Current settings:', settings);
-      logger.log('Work hours enabled:', settings.workHours.enabled);
-      logger.log('Work hours start time:', settings.workHours.startTime);
-      logger.log('Work hours end time:', settings.workHours.endTime);
-      logger.log('Work hours days:', settings.workHours.days);
-      logger.log('========================');
-      
-      // Also check raw storage
-      chrome.storage.sync.get(null, (data) => {
-        logger.log('=== RAW STORAGE DEBUG ===');
-        logger.log('All storage data:', data);
-        logger.log('Work hours enabled:', data.workHoursEnabled);
-        logger.log('Work hours start:', data.workHoursStartTime);
-        logger.log('Work hours end:', data.workHoursEndTime);
-        logger.log('Work hours days:', data.workHoursDays);
-        logger.log('=========================');
-      });
-    } catch (error) {
-      console.error('Error debugging work hours:', error);
-    }
-  }
+
 
   /**
    * Validate settings before saving

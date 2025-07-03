@@ -491,13 +491,6 @@ class OptionsPageManager {
       this.animateSaveButton();
       // Update work hours status after save
       this.updateWorkHoursStatus(workHours);
-      
-      // Debug log after saving
-      if (this.debugEnabled.checked) {
-        setTimeout(async () => {
-          await this.settingsManager.debugWorkHours();
-        }, 100);
-      }
     }
   }
 

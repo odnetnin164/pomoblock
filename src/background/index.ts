@@ -205,7 +205,3 @@ chrome.runtime.onSuspendCanceled.addListener(() => {
   logger.log('PomoBlock extension suspend cancelled');
 });
 
-// Export for testing/debugging
-if (typeof globalThis !== 'undefined') {
-  (globalThis as any).pomodoroManager = pomodoroManager;
-}

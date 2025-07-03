@@ -202,7 +202,18 @@ export class Logger {
     clearButton.textContent = '🗑️';
     clearButton.title = 'Clear logs';
     clearButton.style.cssText = this.getButtonStyles();
-    clearButton.addEventListener('click', () => this.clearLogs());
+    clearButton.addEventListener('click', () => {
+      this.logs = [];
+      if (this.shadowRoot && !this.isServiceWorker) {
+        const logContainer = this.shadowRoot.querySelector('.log-container') as HTMLElement;
+        if (logContainer) {
+          // Remove all log entries
+          while (logContainer.firstChild) {
+            logContainer.removeChild(logContainer.firstChild);
+          }
+        }
+      }
+    });
 
     // Close button
     const closeButton = document.createElement('button');
@@ -380,26 +391,17 @@ export class Logger {
   };
 
   /**
-   * Get all logged entries
+   * Get all logged entries (for testing purposes)
    */
   getLogs(): DebugLogEntry[] {
     return [...this.logs];
   }
 
   /**
-   * Clear all logs
+   * Clear all logs (for testing purposes)
    */
   clearLogs(): void {
     this.logs = [];
-    if (this.shadowRoot && !this.isServiceWorker) {
-      const logContainer = this.shadowRoot.querySelector('.log-container') as HTMLElement;
-      if (logContainer) {
-        // Remove all log entries
-        while (logContainer.firstChild) {
-          logContainer.removeChild(logContainer.firstChild);
-        }
-      }
-    }
   }
 }
 
