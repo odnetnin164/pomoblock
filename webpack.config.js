@@ -76,6 +76,11 @@ module.exports = (env, argv) => {
               ignore: ['**/iconRaw.png'] 
             }
           },
+          { 
+            from: 'sounds', 
+            to: 'sounds', 
+            noErrorOnMissing: true
+          },
           { from: 'readme.md', to: 'readme.md' },
           { from: 'src/shared', to: 'shared', globOptions: { ignore: ['**/*.ts'] } }
         ]

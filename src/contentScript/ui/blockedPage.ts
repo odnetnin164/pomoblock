@@ -209,11 +209,6 @@ export class BlockedPageUI {
     
     // Remove the overlay
     if (this.blockOverlay) {
-      // Remove keyboard handler if it exists
-      if ((this.blockOverlay as any)._keyHandler) {
-        document.removeEventListener('keydown', (this.blockOverlay as any)._keyHandler);
-      }
-      
       this.blockOverlay.remove();
       this.blockOverlay = null;
     }
@@ -305,8 +300,8 @@ export class BlockedPageUI {
     document.documentElement.appendChild(overlay);
     this.blockOverlay = overlay;
 
-    // Handle escape key to go back
-    this.setupKeyboardHandlers();
+    // Set up button click handlers
+    this.setupButtonHandlers();
     
     // Ensure floating timer remains visible by sending a message to refresh it
     this.ensureFloatingTimerVisible();
@@ -462,18 +457,9 @@ export class BlockedPageUI {
 
 
   /**
-   * Set up keyboard handlers for navigation
+   * Set up button click handlers for navigation
    */
-  private setupKeyboardHandlers(): void {
-    const handleKeyPress = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        logger.log('Escape key pressed, going back');
-        this.goBack();
-      }
-    };
-
-    document.addEventListener('keydown', handleKeyPress);
-
+  private setupButtonHandlers(): void {
     // Set up button click handlers within Shadow DOM
     if (this.shadowRoot) {
       const goBackBtn = this.shadowRoot.getElementById('go-back-btn');
@@ -492,9 +478,6 @@ export class BlockedPageUI {
         closeTabBtn.addEventListener('click', () => this.attemptCloseTab());
       }
     }
-
-    // Store handler reference for cleanup
-    (this.blockOverlay as any)._keyHandler = handleKeyPress;
   }
 
   /**
@@ -826,8 +809,8 @@ export class BlockedPageUI {
       // Regenerate content with current timer state
       overlayContent.innerHTML = this.generateBlockedContent(false);
       
-      // Re-setup keyboard handlers since we regenerated the content
-      this.setupKeyboardHandlers();
+      // Re-setup button handlers since we regenerated the content
+      this.setupButtonHandlers();
       
       logger.log('Blocked page content updated successfully');
     } else {

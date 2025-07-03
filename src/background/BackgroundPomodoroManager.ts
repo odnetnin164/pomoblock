@@ -10,6 +10,7 @@ export class BackgroundPomodoroManager {
   private badgeUpdateInterval: ReturnType<typeof setInterval> | null = null;
   private isInitialized: boolean = false;
   private audioManager: AudioManager | null = null;
+  private previousTimerState: TimerState = 'STOPPED';
 
   constructor() {
     this.timer = new PomodoroTimer(
@@ -275,6 +276,16 @@ export class BackgroundPomodoroManager {
    */
   private handleStatusUpdate(status: TimerStatus): void {
     logger.log('Timer status updated:', status);
+    
+    // Check for session start (transition from STOPPED to WORK or REST)
+    if (this.previousTimerState === 'STOPPED' && 
+        (status.state === 'WORK' || status.state === 'REST')) {
+      logger.log('Session started, playing session start audio');
+      this.playCustomAudio('session_start');
+    }
+    
+    // Update previous state for next comparison
+    this.previousTimerState = status.state;
     
     // Update extension badge
     this.updateBadge();

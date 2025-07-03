@@ -46,11 +46,11 @@ export class PomodoroSettingsManager {
   /**
    * Initialize the pomodoro settings UI
    */
-  initializeUI(): void {
+  async initializeUI(): Promise<void> {
     this.createPomodoroSettingsHTML();
     this.initializeDOMElements();
     this.setupEventListeners();
-    this.loadAndDisplaySettings();
+    await this.loadAndDisplaySettings();
   }
 
   /**
@@ -358,7 +358,11 @@ export class PomodoroSettingsManager {
       this.toggleAudioOptions();
     });
     this.audioVolumeSlider.addEventListener('input', () => this.updateVolumeDisplay());
-    this.soundThemeSelect.addEventListener('change', () => this.updateSoundTheme());
+    this.soundThemeSelect.addEventListener('change', () => {
+      this.updateSoundTheme().catch(error => {
+        console.error('Error updating sound theme:', error);
+      });
+    });
     this.customSoundUpload.addEventListener('change', (e) => this.handleCustomSoundUpload(e));
 
     // Test sound button listeners
@@ -410,7 +414,7 @@ export class PomodoroSettingsManager {
     try {
       const response = await chrome.runtime.sendMessage({ type: 'GET_POMODORO_SETTINGS' });
       if (response.settings) {
-        this.displaySettings(response.settings);
+        await this.displaySettings(response.settings);
       }
       
       // Load floating timer settings separately
@@ -441,7 +445,7 @@ export class PomodoroSettingsManager {
   /**
    * Display settings in UI
    */
-  private displaySettings(settings: PomodoroSettings): void {
+  private async displaySettings(settings: PomodoroSettings): Promise<void> {
     // Convert decimal minutes back to minutes and seconds
     const workTotalSeconds = Math.round(settings.workDuration * 60);
     const restTotalSeconds = Math.round(settings.restDuration * 60);
@@ -471,8 +475,8 @@ export class PomodoroSettingsManager {
     this.updatePresetButtons();
     this.updateVolumeDisplay();
     this.toggleAudioOptions();
-    this.updateSoundTheme();
-    this.refreshCustomSoundsList();
+    await this.updateSoundTheme();
+    await this.refreshCustomSoundsList();
   }
 
   /**
@@ -691,7 +695,7 @@ export class PomodoroSettingsManager {
   /**
    * Update sound theme and show/hide custom sounds section
    */
-  private updateSoundTheme(): void {
+  private async updateSoundTheme(): Promise<void> {
     const customSoundsSection = document.getElementById('customSoundsSection');
     const isCustomTheme = this.soundThemeSelect.value === 'custom';
     const isAudioEnabled = this.audioEnabledToggle.checked;
@@ -702,14 +706,17 @@ export class PomodoroSettingsManager {
 
     // Update sound options based on theme
     if (this.soundThemeSelect.value !== 'custom') {
-      this.applyThemeToSoundSelects();
+      await this.applyThemeToSoundSelects();
+    } else {
+      // For custom theme, just update the options
+      await this.updateSoundSelectOptions();
     }
   }
 
   /**
    * Apply sound theme to individual sound selects
    */
-  private applyThemeToSoundSelects(): void {
+  private async applyThemeToSoundSelects(): Promise<void> {
     const themes = {
       default: {
         workComplete: 'chime',
@@ -728,22 +735,27 @@ export class PomodoroSettingsManager {
       }
     };
 
-    const theme = themes[this.soundThemeSelect.value as keyof typeof themes];
+    const themeValue = this.soundThemeSelect.value as 'default' | 'nature' | 'minimal' | 'custom';
+    const theme = themes[themeValue as keyof typeof themes];
+    
     if (theme) {
       // Update the options in the select elements
-      this.updateSoundSelectOptions();
+      await this.updateSoundSelectOptions();
       
       // Set the values
       this.workCompleteSoundSelect.value = theme.workComplete;
       this.restCompleteSoundSelect.value = theme.restComplete;
       this.sessionStartSoundSelect.value = theme.sessionStart;
+    } else if (themeValue === 'custom') {
+      // For custom theme, just update the options, don't set specific values
+      await this.updateSoundSelectOptions();
     }
   }
 
   /**
    * Update sound select options based on theme
    */
-  private updateSoundSelectOptions(): void {
+  private async updateSoundSelectOptions(): Promise<void> {
     const soundOptions = {
       default: [
         { value: 'chime', text: 'Chime' },
@@ -763,8 +775,22 @@ export class PomodoroSettingsManager {
       ]
     };
 
-    const theme = this.soundThemeSelect.value as keyof typeof soundOptions;
-    const options = soundOptions[theme] || soundOptions.default;
+    const theme = this.soundThemeSelect.value as 'default' | 'nature' | 'minimal' | 'custom';
+    let options = soundOptions[theme as keyof typeof soundOptions] || soundOptions.default;
+
+    // If custom theme is selected, get custom sounds from storage
+    if (theme === 'custom') {
+      const customSounds = await this.getCustomSounds();
+      options = Object.entries(customSounds).map(([soundId, soundData]: [string, any]) => ({
+        value: soundId,
+        text: soundData.name
+      }));
+      
+      // If no custom sounds available, show a message
+      if (options.length === 0) {
+        options = [{ value: '', text: 'No custom sounds available - upload some first!' }];
+      }
+    }
 
     [this.workCompleteSoundSelect, this.restCompleteSoundSelect, this.sessionStartSoundSelect].forEach(select => {
       const currentValue = select.value;
@@ -774,13 +800,14 @@ export class PomodoroSettingsManager {
         const optionElement = document.createElement('option');
         optionElement.value = option.value;
         optionElement.textContent = option.text;
+        optionElement.disabled = option.value === ''; // Disable placeholder options
         select.appendChild(optionElement);
       });
       
       // Try to restore previous value, or use first option
-      if (options.some(opt => opt.value === currentValue)) {
+      if (options.some(opt => opt.value === currentValue && opt.value !== '')) {
         select.value = currentValue;
-      } else {
+      } else if (options.length > 0 && options[0].value !== '') {
         select.selectedIndex = 0;
       }
     });

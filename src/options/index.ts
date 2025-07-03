@@ -119,7 +119,7 @@ class OptionsPageManager {
    */
   private async init(): Promise<void> {
     // Initialize pomodoro settings UI first (creates HTML)
-    this.pomodoroSettingsManager.initializeUI();
+    await this.pomodoroSettingsManager.initializeUI();
     
     // Load and display settings
     await this.loadAndDisplaySettings();

@@ -98,6 +98,16 @@ export class AudioManager {
         // Load custom sound from data URL
         const response = await fetch(soundOption.dataUrl);
         audioData = await response.arrayBuffer();
+      } else if (soundOption.type === 'custom' || soundId.startsWith('custom_')) {
+        // Try to load custom sound from storage
+        const customSoundData = await this.getCustomSoundDataUrl(soundId);
+        if (customSoundData) {
+          const response = await fetch(customSoundData);
+          audioData = await response.arrayBuffer();
+        } else {
+          logger.log(`Custom sound ${soundId} not found in storage, using fallback`);
+          return this.createFallbackAudioBuffer(soundId);
+        }
       } else {
         return null;
       }
@@ -169,15 +179,37 @@ export class AudioManager {
    * Preload custom sounds
    */
   private async preloadCustomSounds(): Promise<void> {
+    // Get custom sounds that have dataUrl in settings
     const customSounds = Object.values(this.settings.sounds).filter(
       sound => sound.type === 'custom' && sound.dataUrl
     );
 
-    const loadPromises = customSounds.map(sound => 
-      this.getSoundBuffer(sound).catch(error => {
-        logger.log(`Failed to preload custom sound ${sound.id}:`, error);
-      })
-    );
+    // Also check for custom sounds referenced by ID that need to be loaded from storage
+    const customSoundIds = Object.values(this.settings.sounds)
+      .filter(sound => sound.id.startsWith('custom_'))
+      .map(sound => sound.id);
+
+    const loadPromises: Promise<void>[] = [];
+
+    // Load sounds with dataUrl
+    customSounds.forEach(sound => {
+      loadPromises.push(
+        this.getSoundBuffer(sound).then(() => {}).catch(error => {
+          logger.log(`Failed to preload custom sound ${sound.id}:`, error);
+        })
+      );
+    });
+
+    // Load custom sounds from storage
+    for (const soundId of customSoundIds) {
+      if (!customSounds.find(s => s.id === soundId)) {
+        loadPromises.push(
+          this.getSoundBuffer({ id: soundId, name: 'Custom Sound', type: 'custom' }).then(() => {}).catch(error => {
+            logger.log(`Failed to preload custom sound ${soundId}:`, error);
+          })
+        );
+      }
+    }
 
     await Promise.all(loadPromises);
   }
@@ -307,6 +339,25 @@ export class AudioManager {
       return audioBuffer;
     } catch (error) {
       logger.log(`Failed to create fallback audio buffer for ${soundId}:`, error);
+      return null;
+    }
+  }
+
+  /**
+   * Get custom sound data URL from Chrome storage
+   */
+  private async getCustomSoundDataUrl(soundId: string): Promise<string | null> {
+    try {
+      const result = await chrome.storage.local.get('customSounds');
+      const customSounds = result.customSounds || {};
+      
+      if (customSounds[soundId] && customSounds[soundId].dataUrl) {
+        return customSounds[soundId].dataUrl;
+      }
+      
+      return null;
+    } catch (error) {
+      logger.log(`Error retrieving custom sound ${soundId} from storage:`, error);
       return null;
     }
   }
