@@ -1,8 +1,11 @@
+/* Import Inter font for consistent cross-platform display */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
+
 /* Floating Timer Widget Styles - Shadow DOM Encapsulated */
 :host {
   all: initial;
   box-sizing: border-box;
-  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
   font-size: 14px;
   color: white;
 }
@@ -21,7 +24,7 @@
   border: 3px solid rgba(255, 255, 255, 0.3);
   border-radius: 25px;
   color: white;
-  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
   font-size: 14px;
   font-weight: 400;
   z-index: 2147483648;
@@ -75,7 +78,7 @@
   justify-content: center;
   transition: all 0.2s ease;
   flex-shrink: 0;
-  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
   line-height: 1;
 }
 
@@ -134,17 +137,15 @@
   left: 50%;
   transform: translate(-50%, -50%);
   color: white;
-  font-weight: 500;
+  font-weight: 600;
   font-size: 18px;
   text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.8), 0 0 6px rgba(0, 0, 0, 0.5);
   white-space: nowrap;
   z-index: 10;
-  font-family: 'Consolas', 'Courier New', 'Monaco', 'Lucida Console', monospace;
+  font-family: 'Inter', sans-serif;
   letter-spacing: 0.5px;
-  -webkit-font-feature-settings: "tnum";
+  font-variant-numeric: tabular-nums;
   font-feature-settings: "tnum";
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
 }
 
 .timer-task-overlay {
@@ -164,7 +165,7 @@
   font-size: 10px;
   font-weight: 300;
   padding: 2px 4px;
-  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
   text-align: center;
   outline: none;
   transition: all 0.2s ease;
@@ -200,7 +201,7 @@
   justify-content: center;
   transition: all 0.2s ease;
   flex-shrink: 0;
-  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
   line-height: 1;
 }
 
