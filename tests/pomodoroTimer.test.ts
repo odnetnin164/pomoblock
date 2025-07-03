@@ -26,7 +26,13 @@ describe('PomodoroTimer', () => {
     autoStartRest: true,
     autoStartWork: true,
     showNotifications: true,
-    playSound: true
+    playSound: true,
+    audioEnabled: false,
+    audioVolume: 70,
+    soundTheme: 'default',
+    workCompleteSound: 'chime',
+    restCompleteSound: 'bell',
+    sessionStartSound: 'ding'
   };
 
   const defaultStatus: TimerStatus = {

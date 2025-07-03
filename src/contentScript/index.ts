@@ -363,13 +363,6 @@ class ContentScriptManager {
         this.loadConfiguration().then(() => {
           this.forceRecheck();
         });
-      } else if (message.type === 'PLAY_CUSTOM_AUDIO') {
-        logger.log('Play custom audio message received:', message.data);
-        if (message.data.settings && message.data.settings.enabled) {
-          this.playCustomAudio(message.data.soundType, message.data.settings);
-        } else {
-          logger.log('Audio disabled or no settings provided');
-        }
       } else if (message.type === 'TEST_BUILT_IN_SOUND') {
         logger.log('Test built-in sound message received:', message.data);
         this.testBuiltInSound(message.data.soundId, message.data.volume);
@@ -583,7 +576,9 @@ class ContentScriptManager {
     delete (window as any).contentScriptManager;
     
     if (this.audioManager) {
-      this.audioManager.destroy();
+      this.audioManager.destroy().catch(() => {
+        // Ignore cleanup errors
+      });
       this.audioManager = null;
     }
     
@@ -599,22 +594,6 @@ class ContentScriptManager {
       const audioSettings = AudioManager.getDefaultSettings();
       this.audioManager = new AudioManager(audioSettings);
       await this.audioManager.initialize();
-    }
-  }
-
-  /**
-   * Play custom audio for timer events
-   */
-  private async playCustomAudio(soundType: string, settings: any): Promise<void> {
-    try {
-      await this.initializeAudioManagerIfNeeded();
-      
-      if (this.audioManager && settings) {
-        this.audioManager.updateSettings(settings);
-        await this.audioManager.playSound(soundType as any);
-      }
-    } catch (error) {
-      logger.log('Error playing custom audio:', error);
     }
   }
 

@@ -67,7 +67,13 @@ describe('Types', () => {
         autoStartRest: true,
         autoStartWork: true,
         showNotifications: true,
-        playSound: true
+        playSound: true,
+        audioEnabled: false,
+        audioVolume: 70,
+        soundTheme: 'default',
+        workCompleteSound: 'chime',
+        restCompleteSound: 'bell',
+        sessionStartSound: 'ding'
       };
       
       expect(settings.workDuration).toBe(25);
@@ -86,7 +92,13 @@ describe('Types', () => {
         autoStartRest: false,
         autoStartWork: false,
         showNotifications: false,
-        playSound: false
+        playSound: false,
+        audioEnabled: false,
+        audioVolume: 70,
+        soundTheme: 'default',
+        workCompleteSound: 'chime',
+        restCompleteSound: 'bell',
+        sessionStartSound: 'ding'
       };
       
       expect(settings.workDuration).toBe(45);
@@ -112,7 +124,13 @@ describe('Types', () => {
         autoStartRest: true,
         autoStartWork: true,
         showNotifications: true,
-        playSound: true
+        playSound: true,
+        audioEnabled: false,
+        audioVolume: 70,
+        soundTheme: 'default',
+        workCompleteSound: 'chime',
+        restCompleteSound: 'bell',
+        sessionStartSound: 'ding'
       };
 
       const settings: ExtensionSettings = {
@@ -149,7 +167,13 @@ describe('Types', () => {
           autoStartRest: false,
           autoStartWork: false,
           showNotifications: false,
-          playSound: false
+          playSound: false,
+          audioEnabled: false,
+          audioVolume: 70,
+          soundTheme: 'default',
+          workCompleteSound: 'chime',
+          restCompleteSound: 'bell',
+          sessionStartSound: 'ding'
         }
       };
       
@@ -390,7 +414,13 @@ describe('Types', () => {
         autoStartRest: true,
         autoStartWork: true,
         showNotifications: true,
-        playSound: true
+        playSound: true,
+        audioEnabled: false,
+        audioVolume: 70,
+        soundTheme: 'default',
+        workCompleteSound: 'chime',
+        restCompleteSound: 'bell',
+        sessionStartSound: 'ding'
       };
 
       const storageData: StorageData = {

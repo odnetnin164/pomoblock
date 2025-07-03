@@ -11,6 +11,7 @@ export class BackgroundPomodoroManager {
   private isInitialized: boolean = false;
   private audioManager: AudioManager | null = null;
   private previousTimerState: TimerState = 'STOPPED';
+  private offscreenDocumentCreated: boolean = false;
 
   constructor() {
     this.timer = new PomodoroTimer(
@@ -557,7 +558,9 @@ export class BackgroundPomodoroManager {
   private async initializeAudioManager(settings: any): Promise<void> {
     try {
       if (this.audioManager) {
-        this.audioManager.destroy();
+        this.audioManager.destroy().catch(() => {
+          // Ignore cleanup errors
+        });
       }
 
       const audioSettings = AudioManager.getDefaultSettings();
@@ -623,19 +626,72 @@ export class BackgroundPomodoroManager {
         audioSettings.sounds.session_start.id = pomodoroSettings.sessionStartSound;
       }
 
-      // Send message to content scripts to play audio
-      // (since service workers can't use Web Audio API)
-      this.broadcastMessage({
-        type: 'PLAY_CUSTOM_AUDIO',
+      if (!audioSettings.enabled) {
+        return;
+      }
+
+      // Create offscreen document if needed
+      await this.ensureOffscreenDocument();
+
+      // Send message to offscreen document to play audio
+      const soundOption = audioSettings.sounds[soundType];
+      const response = await chrome.runtime.sendMessage({
+        type: 'PLAY_AUDIO_OFFSCREEN',
         data: {
-          soundType: soundType,
-          settings: audioSettings
+          soundOption: soundOption,
+          volume: audioSettings.volume
         }
       });
+
+      if (response && response.success) {
+        logger.log(`Audio played successfully: ${soundType}`);
+      } else {
+        logger.log(`Failed to play audio: ${soundType}`, response?.error);
+      }
       
-      logger.log(`Broadcasting custom audio request: ${soundType}`);
     } catch (error) {
       logger.log('Error playing custom audio:', error);
+    }
+  }
+
+  /**
+   * Ensure offscreen document is created for audio playback
+   */
+  private async ensureOffscreenDocument(): Promise<void> {
+    if (this.offscreenDocumentCreated) {
+      return;
+    }
+
+    try {
+      // Check if offscreen API is available
+      if (typeof chrome.offscreen === 'undefined') {
+        logger.log('Offscreen API not available, skipping audio setup');
+        return;
+      }
+
+      // Check if offscreen document already exists
+      const existingContexts = await chrome.runtime.getContexts({
+        contextTypes: [chrome.runtime.ContextType.OFFSCREEN_DOCUMENT],
+        documentUrls: [chrome.runtime.getURL('offscreen/audio.html')]
+      });
+
+      if (existingContexts.length > 0) {
+        this.offscreenDocumentCreated = true;
+        return;
+      }
+
+      // Create offscreen document
+      await chrome.offscreen.createDocument({
+        url: chrome.runtime.getURL('offscreen/audio.html'),
+        reasons: [chrome.offscreen.Reason.AUDIO_PLAYBACK],
+        justification: 'Playing Pomodoro timer audio notifications'
+      });
+
+      this.offscreenDocumentCreated = true;
+      logger.log('Offscreen document created for audio playback');
+    } catch (error) {
+      logger.log('Error creating offscreen document:', error);
+      // If offscreen API is not available, we'll fall back to silent mode
     }
   }
 
@@ -644,13 +700,29 @@ export class BackgroundPomodoroManager {
    */
   private async testSound(soundId: string, volume: number): Promise<void> {
     try {
-      this.broadcastMessage({
-        type: 'TEST_BUILT_IN_SOUND',
+      // Create offscreen document if needed
+      await this.ensureOffscreenDocument();
+
+      // Send message to offscreen document to play audio
+      const soundOption = {
+        id: soundId,
+        name: 'Test Sound',
+        type: 'built-in' as const
+      };
+      
+      const response = await chrome.runtime.sendMessage({
+        type: 'PLAY_AUDIO_OFFSCREEN',
         data: {
-          soundId: soundId,
+          soundOption: soundOption,
           volume: volume
         }
       });
+
+      if (response && response.success) {
+        logger.log(`Test sound played successfully: ${soundId}`);
+      } else {
+        logger.log(`Failed to play test sound: ${soundId}`, response?.error);
+      }
     } catch (error) {
       logger.log('Error testing sound:', error);
     }
@@ -661,14 +733,30 @@ export class BackgroundPomodoroManager {
    */
   private async testCustomSound(soundId: string, dataUrl: string, volume: number): Promise<void> {
     try {
-      this.broadcastMessage({
-        type: 'TEST_CUSTOM_SOUND_PLAYBACK',
+      // Create offscreen document if needed
+      await this.ensureOffscreenDocument();
+
+      // Send message to offscreen document to play audio
+      const soundOption = {
+        id: soundId,
+        name: 'Test Custom Sound',
+        type: 'custom' as const,
+        dataUrl: dataUrl
+      };
+      
+      const response = await chrome.runtime.sendMessage({
+        type: 'PLAY_AUDIO_OFFSCREEN',
         data: {
-          soundId: soundId,
-          dataUrl: dataUrl,
+          soundOption: soundOption,
           volume: volume
         }
       });
+
+      if (response && response.success) {
+        logger.log(`Test custom sound played successfully: ${soundId}`);
+      } else {
+        logger.log(`Failed to play test custom sound: ${soundId}`, response?.error);
+      }
     } catch (error) {
       logger.log('Error testing custom sound:', error);
     }
@@ -690,7 +778,9 @@ export class BackgroundPomodoroManager {
     }
     
     if (this.audioManager) {
-      this.audioManager.destroy();
+      this.audioManager.destroy().catch(() => {
+        // Ignore cleanup errors
+      });
       this.audioManager = null;
     }
     

@@ -81,6 +81,11 @@ module.exports = (env, argv) => {
             to: 'sounds', 
             noErrorOnMissing: true
           },
+          { 
+            from: 'src/offscreen', 
+            to: 'offscreen', 
+            noErrorOnMissing: true
+          },
           { from: 'readme.md', to: 'readme.md' },
           { from: 'src/shared', to: 'shared', globOptions: { ignore: ['**/*.ts'] } }
         ]

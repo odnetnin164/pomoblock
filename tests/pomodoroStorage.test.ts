@@ -43,7 +43,13 @@ describe('Pomodoro Storage', () => {
         autoStartRest: false,
         autoStartWork: false,
         showNotifications: false,
-        playSound: false
+        playSound: false,
+        audioEnabled: false,
+        audioVolume: 70,
+        soundTheme: 'default',
+        workCompleteSound: 'chime',
+        restCompleteSound: 'bell',
+        sessionStartSound: 'ding'
       };
 
       (chrome.storage.sync.get as jest.Mock).mockImplementation((keys, callback) => {

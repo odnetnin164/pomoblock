@@ -50,6 +50,7 @@ export class AudioManager {
       
       if (soundBuffer) {
         await this.playAudioBuffer(soundBuffer);
+        logger.log(`Audio played for ${soundType}`);
       }
     } catch (error) {
       logger.log(`Failed to play sound for ${soundType}:`, error);
@@ -365,7 +366,7 @@ export class AudioManager {
   /**
    * Destroy audio manager
    */
-  destroy(): void {
+  async destroy(): Promise<void> {
     if (this.audioContext) {
       this.audioContext.close();
       this.audioContext = null;
