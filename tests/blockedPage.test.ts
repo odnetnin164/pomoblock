@@ -80,7 +80,13 @@ describe('BlockedPageUI', () => {
         autoStartRest: true,
         autoStartWork: true,
         showNotifications: true,
-        playSound: true
+        playSound: true,
+        audioEnabled: true,
+        audioVolume: 0.5,
+        soundTheme: 'default' as const,
+        workCompleteSound: 'ding.mp3',
+        restCompleteSound: 'ding.mp3',
+        sessionStartSound: 'ding.mp3',
       }
     };
 

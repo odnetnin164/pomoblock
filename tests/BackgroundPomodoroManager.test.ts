@@ -1,6 +1,6 @@
 import { BackgroundPomodoroManager } from '@background/BackgroundPomodoroManager';
 import { PomodoroTimer } from '@shared/pomodoroTimer';
-import { TimerStatus, TimerNotification } from '@shared/pomodoroTypes';
+import { TimerStatus, TimerNotification, PomodoroSettings } from '@shared/pomodoroTypes';
 import * as pomodoroStorage from '@shared/pomodoroStorage';
 
 // Mock dependencies
@@ -63,7 +63,7 @@ describe('BackgroundPomodoroManager', () => {
     nextSessionDuration: 25 * 60
   };
 
-  const defaultSettings = {
+  const defaultSettings: PomodoroSettings = {
     workDuration: 25,
     restDuration: 5,
     longRestDuration: 15,
@@ -74,10 +74,10 @@ describe('BackgroundPomodoroManager', () => {
     playSound: true,
     audioEnabled: false,
     audioVolume: 70,
-    soundTheme: 'default',
-    workCompleteSound: 'chime',
-    restCompleteSound: 'bell',
-    sessionStartSound: 'ding'
+    soundTheme: 'default' as const,
+    workCompleteSound: 'chime.mp3',
+    restCompleteSound: 'bell.mp3',
+    sessionStartSound: 'ding.mp3'
   };
 
   beforeEach(() => {

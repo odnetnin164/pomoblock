@@ -42,7 +42,13 @@ describe('PomodoroSettingsManager', () => {
     autoStartRest: true,
     autoStartWork: true,
     showNotifications: true,
-    playSound: true
+    playSound: true,
+    audioEnabled: true,
+    audioVolume: 0.5,
+    soundTheme: 'default' as const,
+    workCompleteSound: 'ding.mp3',
+    restCompleteSound: 'ding.mp3',
+    sessionStartSound: 'ding.mp3',
   };
 
   beforeEach(() => {
@@ -115,7 +121,13 @@ describe('PomodoroSettingsManager', () => {
         autoStartRest: false,
         autoStartWork: false,
         showNotifications: false,
-        playSound: false
+        playSound: false,
+        audioEnabled: false,
+        audioVolume: 0.5,
+        soundTheme: 'default' as const,
+        workCompleteSound: 'ding.mp3',
+        restCompleteSound: 'ding.mp3',
+        sessionStartSound: 'ding.mp3',
       };
 
       mockChrome.runtime.sendMessage.mockResolvedValue({ settings: customSettings });
@@ -393,6 +405,78 @@ describe('PomodoroSettingsManager', () => {
       manager['updateToggleLabels']();
       
       expect(floatingTimerLabel.textContent).toBe('Show floating timer when active');
+    });
+  });
+
+  describe('Audio Test Functionality', () => {
+    beforeEach(() => {
+      manager.initializeUI();
+    });
+
+    test('should send TEST_SOUND message when test button clicked', async () => {
+      // Get test sound button
+      const testButton = document.querySelector('[data-sound="workComplete"]') as HTMLButtonElement;
+      expect(testButton).toBeTruthy();
+      
+      // Click the test button
+      testButton.click();
+      
+      // Wait for the async operation
+      await new Promise(resolve => setTimeout(resolve, 10));
+      
+      // Should have sent TEST_SOUND message (note: sound IDs don't include .mp3 extension)
+      expect(mockChrome.runtime.sendMessage).toHaveBeenCalledWith({
+        type: 'TEST_SOUND',
+        data: {
+          soundId: 'chime', // Default value from select option
+          volume: expect.any(Number)
+        }
+      });
+    });
+
+    test('should handle test sound errors gracefully', async () => {
+      mockChrome.runtime.sendMessage.mockRejectedValue(new Error('Test failed'));
+      
+      const testButton = document.querySelector('[data-sound="restComplete"]') as HTMLButtonElement;
+      testButton.click();
+      
+      // Wait for the async operation
+      await new Promise(resolve => setTimeout(resolve, 10));
+      
+      // Should have attempted to send message
+      expect(mockChrome.runtime.sendMessage).toHaveBeenCalledWith({
+        type: 'TEST_SOUND',
+        data: {
+          soundId: 'bell', // Default value from select option
+          volume: expect.any(Number)
+        }
+      });
+    });
+
+    test('should test different sound types correctly', async () => {
+      const testButtons = [
+        { selector: '[data-sound="workComplete"]', expectedSoundId: 'chime' },  // Default select values
+        { selector: '[data-sound="restComplete"]', expectedSoundId: 'bell' },
+        { selector: '[data-sound="sessionStart"]', expectedSoundId: 'ding' }
+      ];
+
+      for (const { selector, expectedSoundId } of testButtons) {
+        jest.clearAllMocks();
+        
+        const testButton = document.querySelector(selector) as HTMLButtonElement;
+        expect(testButton).toBeTruthy();
+        
+        testButton.click();
+        await new Promise(resolve => setTimeout(resolve, 10));
+        
+        expect(mockChrome.runtime.sendMessage).toHaveBeenCalledWith({
+          type: 'TEST_SOUND',
+          data: {
+            soundId: expectedSoundId,
+            volume: expect.any(Number)
+          }
+        });
+      }
     });
   });
 });

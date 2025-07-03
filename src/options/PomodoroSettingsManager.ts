@@ -834,11 +834,12 @@ export class PomodoroSettingsManager {
 
       if (soundId) {
         // Send message to content script or background to play the sound
+        const volume = parseInt(this.audioVolumeSlider.value) || 70; // Default to 70% if invalid
         await chrome.runtime.sendMessage({
           type: 'TEST_SOUND',
           data: {
             soundId: soundId,
-            volume: parseInt(this.audioVolumeSlider.value)
+            volume: volume
           }
         });
       }
