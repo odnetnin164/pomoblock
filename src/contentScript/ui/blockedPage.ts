@@ -12,6 +12,7 @@ export class BlockedPageUI {
   private _testShadowRoot: ShadowRoot | null = null;
   private redirectCountdownInterval: number | null = null;
   private currentTimerState: string = 'STOPPED';
+  private isCreatingOverlay: boolean = false;
 
   constructor(settings: ExtensionSettings) {
     this.settings = settings;
@@ -138,25 +139,39 @@ export class BlockedPageUI {
   async createBlockedPage(isRedirectMode: boolean = false): Promise<void> {
     logger.log('Creating blocked page overlay', { isRedirectMode, timerState: this.currentTimerState });
     
-    // Don't block if already blocked
-    if (this.isBlocked) {
-      logger.log('Page already blocked, skipping');
+    // Don't block if already blocked or currently creating overlay
+    if (this.isBlocked || this.isCreatingOverlay) {
+      logger.log('Page already blocked or overlay creation in progress, skipping');
       return;
     }
 
-    // Store original title
-    this.originalTitle = document.title;
-    
-    // Pause any playing media when blocking the page
-    this.pauseAllMedia();
-    
-    if (isRedirectMode && this.settings.redirectDelay === 0) {
-      this.handleRedirect();
-      return;
-    }
-    
-    await this.createBlockOverlay(isRedirectMode);
+    // Set both states immediately to prevent race conditions
     this.isBlocked = true;
+    this.isCreatingOverlay = true;
+
+    try {
+      // Store original title
+      this.originalTitle = document.title;
+      
+      // Pause any playing media when blocking the page
+      this.pauseAllMedia();
+      
+      if (isRedirectMode && this.settings.redirectDelay === 0) {
+        this.handleRedirect();
+        return;
+      }
+      
+      await this.createBlockOverlay(isRedirectMode);
+    } catch (error) {
+      logger.log('Failed to create blocked page overlay', error);
+      // Reset both states if blocking fails
+      this.isBlocked = false;
+      this.isCreatingOverlay = false;
+      throw error;
+    } finally {
+      // Always reset the creation flag
+      this.isCreatingOverlay = false;
+    }
     
     // Update page title based on timer state
     this.updatePageTitle();
@@ -236,8 +251,11 @@ export class BlockedPageUI {
    * Create the block overlay with Shadow DOM encapsulation
    */
   private async createBlockOverlay(isRedirectMode: boolean = false): Promise<void> {
-    // Remove any existing overlay
-    this.removeBlockedPage();
+    // Only remove existing overlay if there actually is one (check DOM element, not isBlocked flag)
+    if (this.blockOverlay) {
+      logger.log('Removing existing overlay before creating new one');
+      this.removeBlockedPage();
+    }
 
     // Load CSS content
     const cssContent = await this.loadCSS();
@@ -778,5 +796,69 @@ export class BlockedPageUI {
     this.removeBlockedPage();
     
     logger.log('BlockedPageUI cleanup completed');
+  }
+
+  /**
+   * Update blocked page content without recreating the overlay
+   */
+  updateBlockedPageContent(): void {
+    if (!this.isBlocked || !this.shadowRoot) {
+      logger.log('Cannot update blocked page content - page not blocked or shadow root not available');
+      return;
+    }
+
+    logger.log('Updating blocked page content in place');
+
+    // Update page title based on current timer state
+    this.updatePageTitle();
+
+    // Find the blocked overlay content within shadow DOM
+    const overlayContent = this.shadowRoot.querySelector('.blocked-overlay');
+    if (overlayContent) {
+      // Regenerate content with current timer state
+      overlayContent.innerHTML = this.generateBlockedContent(false);
+      
+      // Re-setup keyboard handlers since we regenerated the content
+      this.setupKeyboardHandlers();
+      
+      logger.log('Blocked page content updated successfully');
+    } else {
+      logger.log('Could not find blocked overlay content to update');
+    }
+  }
+
+  /**
+   * Handle timer state transitions more gracefully
+   */
+  handleTimerStateTransition(newTimerState: string, shouldBeBlocked: boolean): void {
+    logger.log('Handling timer state transition', { 
+      from: this.currentTimerState, 
+      to: newTimerState, 
+      shouldBeBlocked,
+      currentlyBlocked: this.isBlocked 
+    });
+
+    // Update timer state first
+    this.setTimerState(newTimerState);
+
+    // If transitioning TO a state where the page should be blocked
+    if (!this.isBlocked && shouldBeBlocked) {
+      logger.log('Transitioning to blocked state - creating blocked page');
+      this.createBlockedPage(false);
+    }
+    // If transitioning FROM a blocked state to unblocked
+    else if (this.isBlocked && !shouldBeBlocked) {
+      logger.log('Transitioning to unblocked state - removing blocked page');
+      this.removeBlockedPage();
+    }
+    // If staying in blocked state but timer state changed
+    else if (this.isBlocked && shouldBeBlocked) {
+      logger.log('Staying in blocked state but timer changed - updating content');
+      this.updateBlockedPageContent();
+    }
+    // If staying unblocked, no action needed
+    else {
+      logger.log('Staying in unblocked state - no action needed');
+    }
   }
 }

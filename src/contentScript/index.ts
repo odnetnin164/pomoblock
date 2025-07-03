@@ -329,16 +329,24 @@ class ContentScriptManager {
           this.currentTimerState = message.data.timerStatus.state;
           logger.log('Timer state updated', { from: previousState, to: this.currentTimerState });
           
-          // If timer just started work session, media will be paused when/if a page gets blocked
-          if (previousState !== 'WORK' && this.currentTimerState === 'WORK') {
-            logger.log('Work session started - media will be paused if any blocked sites are accessed');
-          }
-          
           // Update blocked page UI with new timer state
           this.blockedPageUI.setTimerState(this.currentTimerState);
           
-          // Re-check blocking with new timer state
-          this.checkAndBlock();
+          // Only re-check blocking if the timer state actually changed (not just time remaining)
+          if (previousState !== this.currentTimerState) {
+            logger.log('Timer state changed, using graceful transition handling');
+            
+            // If timer just started work session, media will be paused when/if a page gets blocked
+            if (previousState !== 'WORK' && this.currentTimerState === 'WORK') {
+              logger.log('Work session started - media will be paused if any blocked sites are accessed');
+            }
+            
+            // Use graceful timer state transition instead of checkAndBlock
+            const shouldBeBlocked = this.shouldCurrentPageBeBlocked();
+            this.blockedPageUI.handleTimerStateTransition(this.currentTimerState, shouldBeBlocked);
+          } else {
+            logger.log('Timer time remaining updated, but state unchanged - no blocking check needed');
+          }
         }
       } else if (message.type === 'TIMER_COMPLETE') {
         logger.log('Timer completion message received:', message.type);
@@ -489,9 +497,10 @@ class ContentScriptManager {
       return;
     }
     
-    // If page is already blocked and should remain blocked, skip duplicate overlay
+    // If page is already blocked and should remain blocked, just update the content instead of recreating
     if (isCurrentlyBlocked && shouldBlock) {
-      logger.log('Page already blocked and should remain blocked, skipping duplicate block');
+      logger.log('Page already blocked and should remain blocked, updating blocked page content in place');
+      this.blockedPageUI.updateBlockedPageContent();
       return;
     }
 
