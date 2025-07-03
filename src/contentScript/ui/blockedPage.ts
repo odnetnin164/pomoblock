@@ -996,15 +996,11 @@ export class BlockedPageUI {
             left: 0 !important;
             width: 100% !important;
             height: 100% !important;
-            background: linear-gradient(135deg, 
-              rgba(26, 26, 46, 0.85) 0%, 
-              rgba(22, 33, 62, 0.85) 100%) !important;
-            backdrop-filter: blur(10px) !important;
-            -webkit-backdrop-filter: blur(10px) !important;
+            backdrop-filter: blur(3px) !important;
+            -webkit-backdrop-filter: blur(3px) !important;
             z-index: 999998 !important;
             pointer-events: none !important;
-            transition: opacity 0.3s ease !important;
-            opacity: 0 !important;
+            opacity: 1 !important;
           }
 
           .pomoblock-blur-fallback.fade-in {
@@ -1041,7 +1037,7 @@ export class BlockedPageUI {
       style.textContent = `
         body.pomoblock-page-blur { transform: translate3d(0, 0, 0) !important; filter: blur(0) !important; will-change: filter !important; transition: filter 0.3s ease !important; }
         body.pomoblock-blur-active { filter: blur(8px) !important; }
-        .pomoblock-blur-fallback { position: fixed !important; top: 0 !important; left: 0 !important; width: 100% !important; height: 100% !important; background: rgba(26, 26, 46, 0.85) !important; backdrop-filter: blur(10px) !important; -webkit-backdrop-filter: blur(10px) !important; z-index: 999998 !important; pointer-events: none !important; transition: opacity 0.3s ease !important; opacity: 0 !important; }
+        .pomoblock-blur-fallback { position: fixed !important; top: 0 !important; left: 0 !important; width: 100% !important; height: 100% !important; backdrop-filter: blur(3px) !important; -webkit-backdrop-filter: blur(3px) !important; z-index: 999998 !important; pointer-events: none !important; opacity: 1 !important; }
         .pomoblock-blur-fallback.fade-in { opacity: 1 !important; }
       `;
       document.head.appendChild(style);
@@ -1089,14 +1085,6 @@ export class BlockedPageUI {
     // Insert at the beginning of body
     document.body.insertBefore(fallbackOverlay, document.body.firstChild);
     
-    // Force a reflow to ensure element is rendered
-    fallbackOverlay.offsetHeight;
-    
-    // Animate in
-    requestAnimationFrame(() => {
-      fallbackOverlay.classList.add('fade-in');
-    });
-    
     // Store reference for cleanup
     this.blurFallbackElement = fallbackOverlay;
     
@@ -1108,16 +1096,11 @@ export class BlockedPageUI {
    */
   private removeBlurFallback(): void {
     if (this.blurFallbackElement) {
-      // Fade out first
-      this.blurFallbackElement.classList.remove('fade-in');
-      
-      // Remove element after animation
-      setTimeout(() => {
-        if (this.blurFallbackElement && this.blurFallbackElement.parentNode) {
-          this.blurFallbackElement.parentNode.removeChild(this.blurFallbackElement);
-        }
-        this.blurFallbackElement = null;
-      }, 300);
+      // Remove element immediately
+      if (this.blurFallbackElement.parentNode) {
+        this.blurFallbackElement.parentNode.removeChild(this.blurFallbackElement);
+      }
+      this.blurFallbackElement = null;
       
       logger.log('Removed blur fallback overlay');
     }
