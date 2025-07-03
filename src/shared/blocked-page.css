@@ -353,3 +353,100 @@
   background: rgba(244, 67, 54, 1);
 }
 
+/* Page blur styles that get injected into main document */
+body.pomoblock-page-blur {
+  transform: translate3d(0, 0, 0) !important;
+  filter: blur(0) !important;
+  will-change: filter !important;
+  transition: filter 0.3s ease !important;
+  backface-visibility: hidden !important;
+}
+
+body.pomoblock-blur-active {
+  filter: blur(12px) saturate(150%) !important;
+}
+
+body.pomoblock-animate-blur {
+  animation: pomoblock-background-blur 0.4s 1 forwards !important;
+}
+
+@keyframes pomoblock-background-blur {
+  0% { 
+    filter: blur(0) saturate(100%) !important; 
+  }
+  100% { 
+    filter: blur(12px) saturate(150%) !important; 
+  }
+}
+
+/* Enhanced support for Safari/WebKit */
+@supports (-webkit-backdrop-filter: blur(1px)) {
+  body.pomoblock-blur-active {
+    filter: blur(8px) saturate(120%) brightness(0.95) !important;
+  }
+  
+  @keyframes pomoblock-background-blur {
+    0% { 
+      filter: blur(0) saturate(100%) brightness(1) !important; 
+    }
+    100% { 
+      filter: blur(8px) saturate(120%) brightness(0.95) !important; 
+    }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body.pomoblock-page-blur {
+    transition: none !important;
+    animation: none !important;
+  }
+  
+  body.pomoblock-blur-active {
+    filter: blur(6px) !important;
+  }
+}
+
+/* Fallback for very old browsers */
+@supports not (filter: blur(1px)) {
+  body.pomoblock-blur-active {
+    opacity: 0.7 !important;
+    transform: scale(1.02) !important;
+  }
+}
+
+/* Enhanced fallback overlay styles for Mac/Safari compatibility */
+.pomoblock-blur-fallback {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  background: linear-gradient(135deg, 
+    rgba(26, 26, 46, 0.85) 0%, 
+    rgba(22, 33, 62, 0.85) 100%) !important;
+  backdrop-filter: blur(10px) !important;
+  -webkit-backdrop-filter: blur(10px) !important;
+  z-index: 999998 !important;
+  pointer-events: none !important;
+  transition: opacity 0.3s ease !important;
+  opacity: 0 !important;
+}
+
+.pomoblock-blur-fallback.fade-in {
+  opacity: 1 !important;
+}
+
+/* Test element for blur support detection */
+.pomoblock-blur-test {
+  position: fixed !important;
+  top: -100px !important;
+  left: -100px !important;
+  width: 10px !important;
+  height: 10px !important;
+  filter: blur(5px) !important;
+  background: rgb(255, 0, 0) !important;
+  pointer-events: none !important;
+  z-index: -9999 !important;
+  opacity: 1 !important;
+}
+

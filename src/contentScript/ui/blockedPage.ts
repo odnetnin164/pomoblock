@@ -13,6 +13,7 @@ export class BlockedPageUI {
   private redirectCountdownInterval: number | null = null;
   private currentTimerState: string = 'STOPPED';
   private isCreatingOverlay: boolean = false;
+  private blurFallbackElement: HTMLElement | null = null;
 
   constructor(settings: ExtensionSettings) {
     this.settings = settings;
@@ -856,12 +857,12 @@ export class BlockedPageUI {
   /**
    * Apply optimized blur effect to page background
    */
-  private applyPageBlur(): void {
+  private async applyPageBlur(): Promise<void> {
     // Check if user prefers reduced motion
     const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     
     // Inject blur styles into the main document
-    this.injectBlurStyles();
+    await this.injectBlurStyles();
     
     // Apply blur to the body element
     const pageContent = document.querySelector('body');
@@ -880,6 +881,9 @@ export class BlockedPageUI {
       });
     }
     
+    // Check if this is Mac and apply fallback if needed
+    this.checkMacAndApplyFallback(pageContent);
+    
     logger.log('Applied optimized page blur effect');
   }
 
@@ -896,56 +900,227 @@ export class BlockedPageUI {
     // Remove injected styles
     this.removeBlurStyles();
     
+    // Remove blur fallback if it exists
+    this.removeBlurFallback();
+    
     logger.log('Removed page blur effect');
   }
 
   /**
    * Inject blur styles into the main document
    */
-  private injectBlurStyles(): void {
+  private async injectBlurStyles(): Promise<void> {
     // Check if styles are already injected
     if (document.getElementById('pomoblock-blur-styles')) return;
     
-    const style = document.createElement('style');
-    style.id = 'pomoblock-blur-styles';
-    style.textContent = `
-      body.pomoblock-page-blur {
-        transform: translate3d(0, 0, 0) !important;
-        filter: blur(0) !important;
-        will-change: filter !important;
-        transition: filter 0.3s ease !important;
+    try {
+      const cssUrl = chrome.runtime.getURL('shared/blocked-page.css');
+      const response = await fetch(cssUrl);
+      const fullCssContent = await response.text();
+      
+      // Extract the page blur styles section
+      const blurStylesStart = fullCssContent.indexOf('/* Page blur styles that get injected into main document */');
+      const blurStylesEnd = fullCssContent.indexOf('/* Test element for blur support detection */');
+      
+      let blurStyles = '';
+      if (blurStylesStart !== -1 && blurStylesEnd !== -1) {
+        blurStyles = fullCssContent.substring(blurStylesStart, blurStylesEnd);
+      } else {
+        // Fallback styles with enhanced Mac support
+        blurStyles = `
+          /* Page blur styles */
+          body.pomoblock-page-blur {
+            transform: translate3d(0, 0, 0) !important;
+            filter: blur(0) !important;
+            will-change: filter !important;
+            transition: filter 0.3s ease !important;
+            backface-visibility: hidden !important;
+          }
+
+          body.pomoblock-blur-active {
+            filter: blur(12px) saturate(150%) !important;
+          }
+
+          body.pomoblock-animate-blur {
+            animation: pomoblock-background-blur 0.4s 1 forwards !important;
+          }
+
+          @keyframes pomoblock-background-blur {
+            0% { 
+              filter: blur(0) saturate(100%) !important; 
+            }
+            100% { 
+              filter: blur(12px) saturate(150%) !important; 
+            }
+          }
+
+          /* Enhanced support for Safari/WebKit */
+          @supports (-webkit-backdrop-filter: blur(1px)) {
+            body.pomoblock-blur-active {
+              filter: blur(8px) saturate(120%) brightness(0.95) !important;
+            }
+            
+            @keyframes pomoblock-background-blur {
+              0% { 
+                filter: blur(0) saturate(100%) brightness(1) !important; 
+              }
+              100% { 
+                filter: blur(8px) saturate(120%) brightness(0.95) !important; 
+              }
+            }
+          }
+
+          @media (prefers-reduced-motion: reduce) {
+            body.pomoblock-page-blur {
+              transition: none !important;
+              animation: none !important;
+            }
+            
+            body.pomoblock-blur-active {
+              filter: blur(6px) !important;
+            }
+          }
+
+          /* Fallback for very old browsers */
+          @supports not (filter: blur(1px)) {
+            body.pomoblock-blur-active {
+              opacity: 0.7 !important;
+              transform: scale(1.02) !important;
+            }
+          }
+
+          /* Enhanced fallback overlay styles for Mac/Safari compatibility */
+          .pomoblock-blur-fallback {
+            position: fixed !important;
+            top: 0 !important;
+            left: 0 !important;
+            width: 100% !important;
+            height: 100% !important;
+            background: linear-gradient(135deg, 
+              rgba(26, 26, 46, 0.85) 0%, 
+              rgba(22, 33, 62, 0.85) 100%) !important;
+            backdrop-filter: blur(10px) !important;
+            -webkit-backdrop-filter: blur(10px) !important;
+            z-index: 999998 !important;
+            pointer-events: none !important;
+            transition: opacity 0.3s ease !important;
+            opacity: 0 !important;
+          }
+
+          .pomoblock-blur-fallback.fade-in {
+            opacity: 1 !important;
+          }
+
+          .pomoblock-blur-test {
+            position: fixed !important;
+            top: -100px !important;
+            left: -100px !important;
+            width: 10px !important;
+            height: 10px !important;
+            filter: blur(5px) !important;
+            background: rgb(255, 0, 0) !important;
+            pointer-events: none !important;
+            z-index: -9999 !important;
+            opacity: 1 !important;
+          }
+        `;
       }
 
-      body.pomoblock-blur-active {
-        filter: blur(12px) !important;
-      }
+      const style = document.createElement('style');
+      style.id = 'pomoblock-blur-styles';
+      style.textContent = blurStyles;
+      document.head.appendChild(style);
+      
+      logger.log('Blur styles injected successfully');
+    } catch (error) {
+      logger.log('Error injecting blur styles:', error);
+      
+      // Simple fallback if CSS loading fails
+      const style = document.createElement('style');
+      style.id = 'pomoblock-blur-styles';
+      style.textContent = `
+        body.pomoblock-page-blur { transform: translate3d(0, 0, 0) !important; filter: blur(0) !important; will-change: filter !important; transition: filter 0.3s ease !important; }
+        body.pomoblock-blur-active { filter: blur(8px) !important; }
+        .pomoblock-blur-fallback { position: fixed !important; top: 0 !important; left: 0 !important; width: 100% !important; height: 100% !important; background: rgba(26, 26, 46, 0.85) !important; backdrop-filter: blur(10px) !important; -webkit-backdrop-filter: blur(10px) !important; z-index: 999998 !important; pointer-events: none !important; transition: opacity 0.3s ease !important; opacity: 0 !important; }
+        .pomoblock-blur-fallback.fade-in { opacity: 1 !important; }
+      `;
+      document.head.appendChild(style);
+    }
+  }
 
-      body.pomoblock-animate-blur {
-        animation: pomoblock-background-blur 0.4s 1 forwards !important;
-      }
-
-      @keyframes pomoblock-background-blur {
-        0% { 
-          filter: blur(0) !important; 
-        }
-        100% { 
-          filter: blur(12px) !important; 
-        }
-      }
-
-      @media (prefers-reduced-motion: reduce) {
-        body.pomoblock-page-blur {
-          transition: none !important;
-          animation: none !important;
-        }
-        
-        body.pomoblock-blur-active {
-          filter: blur(8px) !important;
-        }
-      }
-    `;
+  /**
+   * Check if this is Mac and apply fallback if needed (Mac-specific blur fix)
+   */
+  private checkMacAndApplyFallback(pageContent: Element): void {
+    // Detect Mac/Safari/WebKit browsers that commonly have blur issues
+    const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+    const isSafari = /Safari/.test(navigator.userAgent) && !/Chrome/.test(navigator.userAgent);
+    const isWebKit = /WebKit/.test(navigator.userAgent) && !/Chrome/.test(navigator.userAgent);
     
-    document.head.appendChild(style);
+    logger.log('Browser detection:', { 
+      isMac, 
+      isSafari, 
+      isWebKit, 
+      userAgent: navigator.userAgent, 
+      platform: navigator.platform 
+    });
+
+    // Apply fallback for Mac or Safari browsers
+    if (isMac || isSafari || isWebKit) {
+      logger.log('Mac/Safari/WebKit detected, applying blur fallback immediately');
+      this.applyBlurFallback(pageContent);
+    } else {
+      logger.log('Non-Mac browser detected, using standard blur');
+    }
+  }
+
+  /**
+   * Apply enhanced blur fallback overlay for Mac/Safari compatibility
+   */
+  private applyBlurFallback(pageContent: Element): void {
+    // Remove existing blur classes to prevent conflicts
+    pageContent.classList.remove('pomoblock-blur-active', 'pomoblock-animate-blur');
+    
+    // Create fallback overlay element
+    const fallbackOverlay = document.createElement('div');
+    fallbackOverlay.id = 'pomoblock-blur-fallback';
+    fallbackOverlay.className = 'pomoblock-blur-fallback';
+    
+    // Insert at the beginning of body
+    document.body.insertBefore(fallbackOverlay, document.body.firstChild);
+    
+    // Force a reflow to ensure element is rendered
+    fallbackOverlay.offsetHeight;
+    
+    // Animate in
+    requestAnimationFrame(() => {
+      fallbackOverlay.classList.add('fade-in');
+    });
+    
+    // Store reference for cleanup
+    this.blurFallbackElement = fallbackOverlay;
+    
+    logger.log('Applied enhanced blur fallback overlay for Mac/Safari compatibility');
+  }
+
+  /**
+   * Remove blur fallback overlay
+   */
+  private removeBlurFallback(): void {
+    if (this.blurFallbackElement) {
+      // Fade out first
+      this.blurFallbackElement.classList.remove('fade-in');
+      
+      // Remove element after animation
+      setTimeout(() => {
+        if (this.blurFallbackElement && this.blurFallbackElement.parentNode) {
+          this.blurFallbackElement.parentNode.removeChild(this.blurFallbackElement);
+        }
+        this.blurFallbackElement = null;
+      }, 300);
+      
+      logger.log('Removed blur fallback overlay');
+    }
   }
 
   /**
