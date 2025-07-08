@@ -11,6 +11,9 @@ export class AudioManager {
 
   constructor(settings: AudioSettings) {
     this.settings = settings;
+    
+    // Enable debug logging for audio components
+    logger.setDebugEnabled(true);
   }
 
   /**

@@ -12,8 +12,12 @@ export class BackgroundPomodoroManager {
   private audioManager: AudioManager | null = null;
   private previousTimerState: TimerState = 'STOPPED';
   private offscreenDocumentCreated: boolean = false;
+  private offscreenHeartbeatInterval: ReturnType<typeof setInterval> | null = null;
 
   constructor() {
+    // Enable debug logging for background service worker
+    logger.setDebugEnabled(true);
+    
     this.timer = new PomodoroTimer(
       (status: TimerStatus) => this.handleStatusUpdate(status),
       (notification: TimerNotification) => this.handleTimerComplete(notification)
@@ -51,6 +55,8 @@ export class BackgroundPomodoroManager {
       const settings = await getPomodoroSettings();
       if (settings.audioEnabled) {
         await this.initializeAudioManager(settings);
+        // Start heartbeat to keep offscreen document alive
+        this.startOffscreenHeartbeat();
       }
       
       this.isInitialized = true;
@@ -660,13 +666,17 @@ export class BackgroundPomodoroManager {
         volume: audioSettings.volume
       }, 'AUDIO');
       
-      const response = await chrome.runtime.sendMessage({
+      logger.debug('About to send message to offscreen document', undefined, 'AUDIO');
+      
+      const response = await this.sendMessageToOffscreenWithRetry({
         type: 'PLAY_AUDIO_OFFSCREEN',
         data: {
           soundOption: soundOption,
           volume: audioSettings.volume
         }
       });
+
+      logger.debug('Received response from offscreen document:', response, 'AUDIO');
 
       if (response && response.success) {
         logger.info(`Audio played successfully: ${soundType}`, response, 'AUDIO');
@@ -681,12 +691,9 @@ export class BackgroundPomodoroManager {
 
   /**
    * Ensure offscreen document is created for audio playback
+   * Always checks for existing contexts and recreates if needed
    */
   private async ensureOffscreenDocument(): Promise<void> {
-    if (this.offscreenDocumentCreated) {
-      return;
-    }
-
     try {
       // Check if offscreen API is available
       if (typeof chrome.offscreen === 'undefined') {
@@ -694,11 +701,17 @@ export class BackgroundPomodoroManager {
         return;
       }
 
-      // Check if offscreen document already exists
-      const existingContexts = await chrome.runtime.getContexts({
-        contextTypes: [chrome.runtime.ContextType.OFFSCREEN_DOCUMENT],
-        documentUrls: [chrome.runtime.getURL('offscreen/audio.html')]
-      });
+      // Always check if offscreen document exists (Chrome can kill it after idle)
+      let existingContexts: chrome.runtime.ExtensionContext[] = [];
+      try {
+        existingContexts = await chrome.runtime.getContexts({
+          contextTypes: [chrome.runtime.ContextType.OFFSCREEN_DOCUMENT],
+          documentUrls: [chrome.runtime.getURL('offscreen/audio.html')]
+        });
+      } catch (error) {
+        logger.debug('Error checking existing contexts, will create new offscreen document', error, 'AUDIO');
+        // Continue to create new document
+      }
 
       if (existingContexts.length > 0) {
         this.offscreenDocumentCreated = true;
@@ -706,7 +719,18 @@ export class BackgroundPomodoroManager {
         return;
       }
 
-      // Create offscreen document
+      // Document doesn't exist, create it
+      logger.debug('Creating offscreen document (was destroyed or never created)', undefined, 'AUDIO');
+      
+      // First, try to close any existing document to ensure clean state
+      try {
+        await chrome.offscreen.closeDocument();
+        logger.debug('Closed existing offscreen document', undefined, 'AUDIO');
+      } catch (closeError) {
+        // Ignore errors when closing (document might not exist)
+      }
+      
+      // Create new document
       await chrome.offscreen.createDocument({
         url: chrome.runtime.getURL('offscreen/audio.html'),
         reasons: [chrome.offscreen.Reason.AUDIO_PLAYBACK],
@@ -715,8 +739,13 @@ export class BackgroundPomodoroManager {
 
       this.offscreenDocumentCreated = true;
       logger.info('Offscreen document created for audio playback', undefined, 'AUDIO');
+      
+      // Give the document a moment to initialize
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
     } catch (error) {
       logger.error('Error creating offscreen document:', error, 'AUDIO');
+      this.offscreenDocumentCreated = false;
       // If offscreen API is not available, we'll fall back to silent mode
     }
   }
@@ -736,7 +765,7 @@ export class BackgroundPomodoroManager {
         type: 'built-in' as const
       };
       
-      const response = await chrome.runtime.sendMessage({
+      const response = await this.sendMessageToOffscreenWithRetry({
         type: 'PLAY_AUDIO_OFFSCREEN',
         data: {
           soundOption: soundOption,
@@ -770,7 +799,7 @@ export class BackgroundPomodoroManager {
         dataUrl: dataUrl
       };
       
-      const response = await chrome.runtime.sendMessage({
+      const response = await this.sendMessageToOffscreenWithRetry({
         type: 'PLAY_AUDIO_OFFSCREEN',
         data: {
           soundOption: soundOption,
@@ -789,6 +818,107 @@ export class BackgroundPomodoroManager {
   }
 
   /**
+   * Start heartbeat to keep offscreen document alive and detect when it dies
+   */
+  private startOffscreenHeartbeat(): void {
+    if (this.offscreenHeartbeatInterval) {
+      clearInterval(this.offscreenHeartbeatInterval);
+    }
+    
+    // Send heartbeat every 30 seconds
+    this.offscreenHeartbeatInterval = setInterval(async () => {
+      try {
+        // Check if offscreen document is still alive
+        const contexts = await chrome.runtime.getContexts({
+          contextTypes: [chrome.runtime.ContextType.OFFSCREEN_DOCUMENT],
+          documentUrls: [chrome.runtime.getURL('offscreen/audio.html')]
+        });
+        
+        if (contexts.length === 0) {
+          logger.warn('Offscreen document died, marking for recreation', undefined, 'AUDIO');
+          this.offscreenDocumentCreated = false;
+        } else {
+          logger.debug('Offscreen document heartbeat - still alive', undefined, 'AUDIO');
+        }
+      } catch (error) {
+        logger.warn('Error checking offscreen document heartbeat:', error, 'AUDIO');
+        this.offscreenDocumentCreated = false;
+      }
+    }, 30000); // Check every 30 seconds
+  }
+
+  /**
+   * Stop heartbeat monitoring
+   */
+  private stopOffscreenHeartbeat(): void {
+    if (this.offscreenHeartbeatInterval) {
+      clearInterval(this.offscreenHeartbeatInterval);
+      this.offscreenHeartbeatInterval = null;
+    }
+  }
+
+  /**
+   * Send message to offscreen document with retry logic
+   * Handles cases where offscreen document dies after idle
+   */
+  private async sendMessageToOffscreenWithRetry(message: any): Promise<any> {
+    const MAX_RETRIES = 2;
+    let lastError: any = null;
+    
+    for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+      try {
+        // Ensure offscreen document exists before sending message
+        await this.ensureOffscreenDocument();
+        
+        // Send message
+        const response = await chrome.runtime.sendMessage(message);
+        
+        // If we get a response, return it
+        if (response !== undefined) {
+          return response;
+        }
+        
+        // If response is undefined, the offscreen document might be dead
+        logger.warn(`Offscreen document didn't respond on attempt ${attempt + 1}`, undefined, 'AUDIO');
+        this.offscreenDocumentCreated = false; // Force recreation on next attempt
+        
+      } catch (error) {
+        lastError = error;
+        logger.warn(`Failed to send message to offscreen document (attempt ${attempt + 1}):`, error, 'AUDIO');
+        
+        // Check if it's a connection error (offscreen document is dead)
+        if (error instanceof Error && error.message && (
+          error.message.includes('Could not establish connection') ||
+          error.message.includes('Receiving end does not exist') ||
+          error.message.includes('Extension context invalidated')
+        )) {
+          logger.debug('Offscreen document appears to be dead, marking for recreation', undefined, 'AUDIO');
+          this.offscreenDocumentCreated = false;
+          
+          // Try to close any existing offscreen document first
+          try {
+            await chrome.offscreen.closeDocument();
+          } catch (closeError) {
+            // Ignore errors when closing (document might not exist)
+          }
+          
+          // If this is not the last attempt, wait a bit before retrying
+          if (attempt < MAX_RETRIES - 1) {
+            await new Promise(resolve => setTimeout(resolve, 200));
+          }
+        } else {
+          // For other errors, don't retry
+          break;
+        }
+      }
+    }
+    
+    // All attempts failed
+    logger.error('Failed to send message to offscreen document after all retries', lastError, 'AUDIO');
+    throw lastError || new Error('Failed to communicate with offscreen document');
+  }
+
+  /**
    * Cleanup
    */
   destroy(): void {
@@ -798,6 +928,8 @@ export class BackgroundPomodoroManager {
       clearInterval(this.badgeUpdateInterval);
       this.badgeUpdateInterval = null;
     }
+    
+    this.stopOffscreenHeartbeat();
     
     if (this.timer) {
       this.timer.destroy();

@@ -24,14 +24,34 @@ class OffscreenAudioManager {
   private loadedSounds: Map<string, AudioBuffer> = new Map();
 
   constructor() {
-    logger.info('OffscreenAudioManager constructor called', undefined, 'AUDIO');
-    this.setupMessageListener();
-    this.initialize();
+    try {
+      // Enable debug logging for offscreen audio components
+      logger.setDebugEnabled(true);
+      
+      logger.info('OffscreenAudioManager constructor called', undefined, 'AUDIO');
+      this.setupMessageListener();
+      this.initialize();
+    } catch (error) {
+      console.error('Error in OffscreenAudioManager constructor:', error);
+      // Don't rethrow to prevent document crash
+    }
   }
 
   async initialize(): Promise<void> {
     logger.info('Initializing OffscreenAudioManager', undefined, 'AUDIO');
     try {
+      // Close existing context if it exists
+      if (this.audioContext && this.audioContext.state !== 'closed') {
+        try {
+          await this.audioContext.close();
+        } catch (error) {
+          logger.warn('Error closing previous AudioContext:', error, 'AUDIO');
+        }
+      }
+      
+      // Clear loaded sounds cache since we're creating a new context
+      this.loadedSounds.clear();
+      
       this.audioContext = new AudioContext();
       logger.info('Offscreen AudioContext initialized successfully', {
         state: this.audioContext.state,
@@ -48,7 +68,8 @@ class OffscreenAudioManager {
     chrome.runtime.onMessage.addListener((message: PlayAudioMessage, sender, sendResponse) => {
       logger.debug('Offscreen audio received message:', {
         type: message.type,
-        sender: sender
+        sender: sender,
+        hasData: !!message.data
       }, 'AUDIO');
       
       if (message.type === 'PLAY_AUDIO_OFFSCREEN') {
@@ -69,6 +90,8 @@ class OffscreenAudioManager {
             sendResponse({ success: false, error: error.message });
           });
         return true; // Will respond asynchronously
+      } else {
+        logger.debug('Message type not handled by offscreen document:', message.type, 'AUDIO');
       }
       
       return false; // Not handling this message type
@@ -83,6 +106,9 @@ class OffscreenAudioManager {
       volume: volume,
       contextState: this.audioContext?.state
     }, 'AUDIO');
+    
+    // Ensure AudioContext is ready
+    await this.ensureAudioContextReady();
     
     if (!this.audioContext) {
       const error = 'AudioContext not initialized in offscreen document';
@@ -184,6 +210,18 @@ class OffscreenAudioManager {
       gainValue: volume / 100
     }, 'AUDIO');
 
+    // Ensure AudioContext is running
+    if (this.audioContext.state === 'suspended') {
+      try {
+        logger.debug('Resuming suspended AudioContext in offscreen', undefined, 'AUDIO');
+        await this.audioContext.resume();
+        logger.debug('AudioContext resumed successfully in offscreen', undefined, 'AUDIO');
+      } catch (error) {
+        logger.error('Failed to resume AudioContext in offscreen:', error, 'AUDIO');
+        return;
+      }
+    }
+
     const source = this.audioContext.createBufferSource();
     const gainNode = this.audioContext.createGain();
     
@@ -205,6 +243,34 @@ class OffscreenAudioManager {
     logger.debug('Starting offscreen audio playback', undefined, 'AUDIO');
     source.start();
     logger.debug('Offscreen audio playback started', undefined, 'AUDIO');
+  }
+
+  /**
+   * Ensure AudioContext is ready for playback
+   */
+  async ensureAudioContextReady(): Promise<void> {
+    if (!this.audioContext) {
+      logger.debug('AudioContext is null, reinitializing in offscreen', undefined, 'AUDIO');
+      await this.initialize();
+      return;
+    }
+
+    if (this.audioContext.state === 'closed') {
+      logger.debug('AudioContext is closed, reinitializing in offscreen', undefined, 'AUDIO');
+      await this.initialize();
+      return;
+    }
+
+    if (this.audioContext.state === 'suspended') {
+      try {
+        logger.debug('AudioContext is suspended, resuming in offscreen', undefined, 'AUDIO');
+        await this.audioContext.resume();
+        logger.debug('AudioContext resumed successfully in offscreen', undefined, 'AUDIO');
+      } catch (error) {
+        logger.error('Failed to resume AudioContext in offscreen, reinitializing:', error, 'AUDIO');
+        await this.initialize();
+      }
+    }
   }
 
   getBuiltInSounds(): BuiltInSounds {
@@ -283,5 +349,10 @@ class OffscreenAudioManager {
 }
 
 // Initialize the offscreen audio manager
-logger.info('Initializing OffscreenAudioManager', undefined, 'AUDIO');
-new OffscreenAudioManager();
+try {
+  logger.info('Initializing OffscreenAudioManager', undefined, 'AUDIO');
+  console.log('OffscreenAudioManager script loaded');
+  new OffscreenAudioManager();
+} catch (error) {
+  console.error('Failed to initialize OffscreenAudioManager:', error);
+}

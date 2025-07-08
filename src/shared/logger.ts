@@ -23,6 +23,18 @@ export class Logger {
     
     // Detect if we're running in a service worker context
     this.isServiceWorker = typeof window === 'undefined' && typeof document === 'undefined';
+    
+    // Set up message listener for log relay in content scripts
+    if (!this.isServiceWorker && typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage) {
+      chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+        if (message.type === 'LOG_RELAY' && message.logEntry) {
+          // Display relayed log in visual debug panel
+          if (this.debugEnabled) {
+            this.showVisualLog(message.logEntry);
+          }
+        }
+      });
+    }
   }
 
   /**
@@ -60,6 +72,11 @@ export class Logger {
     if (this.debugEnabled && !this.isServiceWorker) {
       this.showVisualLog(entry);
     }
+    
+    // For offscreen documents and service workers, relay logs to content scripts
+    if (this.debugEnabled && (this.isServiceWorker || this.isOffscreenDocument())) {
+      this.relayLogToContentScripts(entry);
+    }
   }
 
   /**
@@ -92,8 +109,8 @@ export class Logger {
    * Show visual debug information on the page (only works in content scripts/popup)
    */
   private showVisualLog(entry: DebugLogEntry): void {
-    // Skip if we're in a service worker context
-    if (this.isServiceWorker) {
+    // Skip if we're in a service worker context or offscreen document
+    if (this.isServiceWorker || this.isOffscreenDocument()) {
       return;
     }
 
@@ -611,12 +628,48 @@ export class Logger {
       border-left: 2px solid ${levelColor};
     `;
     
-    const timeStr = entry.timestamp.toLocaleTimeString();
+    // Handle timestamp that might be serialized as string
+    const timestamp = entry.timestamp instanceof Date ? entry.timestamp : new Date(entry.timestamp);
+    const timeStr = timestamp.toLocaleTimeString();
     const dataStr = entry.data ? JSON.stringify(entry.data) : '';
     
     logElement.innerHTML = `<span style="color: #888; font-size: 10px;">${timeStr}</span> ${categoryBadge}<span style="color: ${levelColor}; font-weight: bold; font-size: 10px;">[${entry.level}]</span> <span style="color: #fff;">${entry.message}</span>${dataStr ? `<div style="color: #aaa; font-size: 10px; margin-top: 1px; padding-left: 8px;">${dataStr}</div>` : ''}`;
     
     container.appendChild(logElement);
+  }
+
+  /**
+   * Check if we're running in an offscreen document
+   */
+  private isOffscreenDocument(): boolean {
+    return typeof window !== 'undefined' && window.location && window.location.href.includes('/offscreen/');
+  }
+
+  /**
+   * Relay log entry to content scripts for display in visual debug panel
+   */
+  private relayLogToContentScripts(entry: DebugLogEntry): void {
+    // Only relay if we have chrome runtime available and we're not in offscreen document
+    // Offscreen documents don't have access to tabs API and it causes crashes
+    if (typeof chrome !== 'undefined' && chrome.runtime && chrome.tabs && !this.isOffscreenDocument()) {
+      try {
+        // Query all tabs to send log message
+        chrome.tabs.query({}, (tabs) => {
+          tabs.forEach(tab => {
+            if (tab.id) {
+              chrome.tabs.sendMessage(tab.id, {
+                type: 'LOG_RELAY',
+                logEntry: entry
+              }).catch(() => {
+                // Silently ignore errors (content script might not be injected)
+              });
+            }
+          });
+        });
+      } catch (error) {
+        // Silently ignore errors if tabs API is not available
+      }
+    }
   }
 }
 
