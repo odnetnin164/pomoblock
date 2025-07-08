@@ -7,6 +7,7 @@ export class AudioManager {
   private loadedSounds: Map<string, AudioBuffer> = new Map();
   public settings: AudioSettings;
   private isInitialized = false;
+  private readonly MAX_LOADED_SOUNDS = 20; // Limit to prevent memory bloat
 
   constructor(settings: AudioSettings) {
     this.settings = settings;
@@ -21,6 +22,11 @@ export class AudioManager {
     try {
       // Initialize AudioContext
       this.audioContext = new AudioContext();
+      
+      // Set up state change listeners
+      this.audioContext.addEventListener('statechange', () => {
+        logger.log(`AudioContext state changed to: ${this.audioContext?.state}`);
+      });
       
       // Preload built-in sounds
       await this.preloadBuiltInSounds();
@@ -40,7 +46,14 @@ export class AudioManager {
    * Play a sound for the specified type
    */
   async playSound(soundType: SoundType): Promise<void> {
-    if (!this.settings.enabled || !this.audioContext) {
+    if (!this.settings.enabled) {
+      return;
+    }
+
+    // Ensure AudioContext is ready before playing
+    const isReady = await this.ensureAudioContextReady();
+    if (!isReady) {
+      logger.log(`AudioContext not ready, cannot play sound for ${soundType}`);
       return;
     }
 
@@ -115,6 +128,10 @@ export class AudioManager {
 
       // Decode audio data
       const audioBuffer = await this.audioContext!.decodeAudioData(audioData);
+      
+      // Clean up old sounds before adding new one if needed
+      this.cleanupOldSounds();
+      
       this.loadedSounds.set(soundId, audioBuffer);
       return audioBuffer;
     } catch (error) {
@@ -130,6 +147,22 @@ export class AudioManager {
   private async playAudioBuffer(buffer: AudioBuffer): Promise<void> {
     if (!this.audioContext) return;
 
+    // Ensure AudioContext is running
+    if (this.audioContext.state === 'suspended') {
+      try {
+        await this.audioContext.resume();
+      } catch (error) {
+        logger.log('Failed to resume AudioContext:', error);
+        return;
+      }
+    }
+
+    // Check if AudioContext is in a valid state
+    if (this.audioContext.state === 'closed') {
+      logger.log('AudioContext is closed, cannot play audio');
+      return;
+    }
+
     const source = this.audioContext.createBufferSource();
     const gainNode = this.audioContext.createGain();
     
@@ -139,7 +172,39 @@ export class AudioManager {
     source.connect(gainNode);
     gainNode.connect(this.audioContext.destination);
     
-    source.start();
+    // Clean up nodes after playback finishes
+    source.addEventListener('ended', () => {
+      try {
+        source.disconnect();
+        gainNode.disconnect();
+      } catch (error) {
+        // Ignore disconnection errors if already disconnected
+      }
+    });
+    
+    // Also clean up if there's an error
+    source.addEventListener('error', (event) => {
+      logger.log('Audio playback error:', event);
+      try {
+        source.disconnect();
+        gainNode.disconnect();
+      } catch (error) {
+        // Ignore disconnection errors if already disconnected
+      }
+    });
+    
+    try {
+      source.start();
+    } catch (error) {
+      logger.log('Failed to start audio source:', error);
+      // Clean up on start failure
+      try {
+        source.disconnect();
+        gainNode.disconnect();
+      } catch (disconnectError) {
+        // Ignore disconnection errors
+      }
+    }
   }
 
   /**
@@ -335,6 +400,9 @@ export class AudioManager {
         channelData[i] = amplitude * 0.1; // Low volume
       }
 
+      // Clean up old sounds before adding new one if needed
+      this.cleanupOldSounds();
+      
       this.loadedSounds.set(soundId, audioBuffer);
       logger.log(`Created fallback audio buffer for ${soundId}`);
       return audioBuffer;
@@ -368,10 +436,138 @@ export class AudioManager {
    */
   async destroy(): Promise<void> {
     if (this.audioContext) {
-      this.audioContext.close();
+      // Remove event listeners before closing
+      try {
+        // Note: We can't remove event listeners from AudioContext as they don't support removeEventListener
+        // But closing the context will clean them up
+        await this.audioContext.close();
+      } catch (error) {
+        logger.log('Error closing AudioContext:', error);
+      }
       this.audioContext = null;
     }
     this.loadedSounds.clear();
     this.isInitialized = false;
+    logger.log('AudioManager destroyed');
+  }
+
+  /**
+   * Check and recover AudioContext if needed
+   */
+  private async ensureAudioContextReady(): Promise<boolean> {
+    if (!this.audioContext) {
+      logger.log('AudioContext is null, attempting to recreate');
+      try {
+        this.audioContext = new AudioContext();
+        this.audioContext.addEventListener('statechange', () => {
+          logger.log(`AudioContext state changed to: ${this.audioContext?.state}`);
+        });
+        return true;
+      } catch (error) {
+        logger.log('Failed to recreate AudioContext:', error);
+        return false;
+      }
+    }
+
+    if (this.audioContext.state === 'closed') {
+      logger.log('AudioContext is closed, attempting to recreate');
+      try {
+        this.audioContext = new AudioContext();
+        this.audioContext.addEventListener('statechange', () => {
+          logger.log(`AudioContext state changed to: ${this.audioContext?.state}`);
+        });
+        // Need to reload sounds since context was recreated
+        this.loadedSounds.clear();
+        await this.preloadBuiltInSounds();
+        await this.preloadCustomSounds();
+        return true;
+      } catch (error) {
+        logger.log('Failed to recreate AudioContext after closure:', error);
+        return false;
+      }
+    }
+
+    if (this.audioContext.state === 'suspended') {
+      try {
+        await this.audioContext.resume();
+        logger.log('AudioContext resumed successfully');
+        return true;
+      } catch (error) {
+        logger.log('Failed to resume AudioContext:', error);
+        return false;
+      }
+    }
+
+    return this.audioContext.state === 'running';
+  }
+
+  /**
+   * Handle page visibility changes to maintain AudioContext
+   * Call this method when the page becomes visible again
+   */
+  async handleVisibilityChange(): Promise<void> {
+    if (!this.isInitialized || !this.audioContext) return;
+
+    // If the AudioContext was suspended while the page was hidden, try to resume it
+    if (this.audioContext.state === 'suspended') {
+      try {
+        await this.audioContext.resume();
+        logger.log('AudioContext resumed after visibility change');
+      } catch (error) {
+        logger.log('Failed to resume AudioContext after visibility change:', error);
+      }
+    }
+  }
+
+  /**
+   * Get the current state of the AudioContext
+   */
+  getAudioContextState(): string {
+    return this.audioContext?.state || 'null';
+  }
+
+  /**
+   * Evict the oldest loaded sound to free up memory
+   */
+  private evictOldestSound(): void {
+    const oldestSoundId = this.loadedSounds.keys().next().value;
+    if (oldestSoundId) {
+      this.loadedSounds.delete(oldestSoundId);
+      logger.log(`Evicted oldest sound ${oldestSoundId} to free up memory`);
+    }
+  }
+
+  /**
+   * Clean up old sounds if we've exceeded the limit
+   */
+  private cleanupOldSounds(): void {
+    if (this.loadedSounds.size >= this.MAX_LOADED_SOUNDS) {
+      // Remove the oldest sounds (first ones added to the Map)
+      const keysToRemove = Array.from(this.loadedSounds.keys()).slice(0, this.loadedSounds.size - this.MAX_LOADED_SOUNDS + 1);
+      
+      for (const key of keysToRemove) {
+        this.loadedSounds.delete(key);
+        logger.log(`Removed old sound from cache: ${key}`);
+      }
+    }
+  }
+
+  /**
+   * Get diagnostic information about the AudioManager
+   */
+  getDiagnostics(): {
+    isInitialized: boolean;
+    audioContextState: string;
+    loadedSoundsCount: number;
+    loadedSoundIds: string[];
+    maxLoadedSounds: number;
+  } {
+    return {
+      isInitialized: this.isInitialized,
+      audioContextState: this.getAudioContextState(),
+      loadedSoundsCount: this.loadedSounds.size,
+      loadedSoundIds: Array.from(this.loadedSounds.keys()),
+      maxLoadedSounds: this.MAX_LOADED_SOUNDS
+    };
   }
 }

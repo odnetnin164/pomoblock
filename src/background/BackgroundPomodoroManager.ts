@@ -275,14 +275,19 @@ export class BackgroundPomodoroManager {
   /**
    * Handle timer status updates
    */
-  private handleStatusUpdate(status: TimerStatus): void {
+  private async handleStatusUpdate(status: TimerStatus): Promise<void> {
     logger.log('Timer status updated:', status);
     
     // Check for session start (transition from STOPPED to WORK or REST)
     if (this.previousTimerState === 'STOPPED' && 
         (status.state === 'WORK' || status.state === 'REST')) {
-      logger.log('Session started, playing session start audio');
-      this.playCustomAudio('session_start');
+      logger.log('Session started, checking audio settings');
+      // Play session start audio if audio is enabled
+      const settings = await getPomodoroSettings();
+      if (settings.audioEnabled || settings.playSound) {
+        logger.log('Playing session start audio');
+        await this.playCustomAudio('session_start');
+      }
     }
     
     // Update previous state for next comparison
@@ -322,8 +327,9 @@ export class BackgroundPomodoroManager {
         this.playNotificationSound();
       }
       
-      // Play custom audio if enabled
-      if (settings.audioEnabled && this.audioManager) {
+      // Play custom audio if enabled (using offscreen document)
+      // This should work when either audioEnabled is true OR when playSound is true
+      if (settings.audioEnabled || settings.playSound) {
         await this.playCustomAudio(notification.type);
       }
     } catch (error) {
@@ -554,35 +560,26 @@ export class BackgroundPomodoroManager {
 
   /**
    * Initialize audio manager for custom sounds
+   * Note: In Service Worker context, we don't create AudioManager instance
+   * Instead, we use offscreen documents for audio playback
    */
   private async initializeAudioManager(settings: any): Promise<void> {
     try {
+      // Cleanup existing audio manager if it exists
       if (this.audioManager) {
         this.audioManager.destroy().catch(() => {
           // Ignore cleanup errors
         });
+        this.audioManager = null;
       }
 
-      const audioSettings = AudioManager.getDefaultSettings();
-      audioSettings.enabled = settings.audioEnabled || false;
-      audioSettings.volume = settings.audioVolume || 70;
-      audioSettings.soundTheme = settings.soundTheme || 'default';
+      // In Service Worker context, we don't create AudioManager
+      // Audio is handled via offscreen documents
+      logger.log('Audio settings configured for Service Worker context');
+      logger.log('Audio enabled:', settings.audioEnabled);
+      logger.log('Audio volume:', settings.audioVolume);
+      logger.log('Sound theme:', settings.soundTheme);
       
-      if (settings.workCompleteSound) {
-        audioSettings.sounds.work_complete.id = settings.workCompleteSound;
-      }
-      if (settings.restCompleteSound) {
-        audioSettings.sounds.rest_complete.id = settings.restCompleteSound;
-      }
-      if (settings.sessionStartSound) {
-        audioSettings.sounds.session_start.id = settings.sessionStartSound;
-      }
-
-      this.audioManager = new AudioManager(audioSettings);
-      
-      // Note: Can't initialize AudioContext in service worker
-      // Audio will be handled by content scripts instead
-      logger.log('Audio manager configuration prepared');
     } catch (error) {
       logger.log('Error initializing audio manager:', error);
     }
