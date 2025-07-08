@@ -219,7 +219,7 @@ export class PomodoroControl {
         this.loadCurrentStatus();
       } else if (message.type === 'TIMER_INITIALIZATION_COMPLETE' && message.data.timerStatus) {
         // Background script finished initializing with real session data
-        logger.log('Timer initialization complete, updating with real session data');
+        logger.debug('Timer initialization complete, updating with real session data', undefined, 'UI');
         this.updateStatus(message.data.timerStatus);
       }
       return false; // Don't send response

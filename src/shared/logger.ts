@@ -599,14 +599,14 @@ export class Logger {
     const categoryBadge = this.getCategoryBadge(entry.category);
     
     logElement.style.cssText = `
-      margin: 1px 0; 
-      font-size: 11px; 
-      color: #fff; 
-      background: rgba(0,0,0,0.8); 
-      padding: 2px 4px; 
-      border-radius: 2px; 
-      word-wrap: break-word; 
-      overflow-wrap: break-word; 
+      margin: 1px 0;
+      font-size: 11px;
+      color: #fff;
+      background: rgba(0,0,0,0.8);
+      padding: 2px 4px;
+      border-radius: 2px;
+      word-wrap: break-word;
+      overflow-wrap: break-word;
       white-space: pre-wrap;
       border-left: 2px solid ${levelColor};
     `;
@@ -614,13 +614,7 @@ export class Logger {
     const timeStr = entry.timestamp.toLocaleTimeString();
     const dataStr = entry.data ? JSON.stringify(entry.data) : '';
     
-    logElement.innerHTML = `
-      <span style="color: #888; font-size: 10px;">${timeStr}</span> 
-      ${categoryBadge} 
-      <span style="color: ${levelColor}; font-weight: bold; font-size: 10px;">[${entry.level}]</span> 
-      <span style="color: #fff;">${entry.message}</span>
-      ${dataStr ? `<div style="color: #aaa; font-size: 10px; margin-top: 1px; padding-left: 8px;">${dataStr}</div>` : ''}
-    `;
+    logElement.innerHTML = `<span style="color: #888; font-size: 10px;">${timeStr}</span> ${categoryBadge}<span style="color: ${levelColor}; font-weight: bold; font-size: 10px;">[${entry.level}]</span> <span style="color: #fff;">${entry.message}</span>${dataStr ? `<div style="color: #aaa; font-size: 10px; margin-top: 1px; padding-left: 8px;">${dataStr}</div>` : ''}`;
     
     container.appendChild(logElement);
   }

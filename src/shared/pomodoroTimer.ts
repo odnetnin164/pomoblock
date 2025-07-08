@@ -59,13 +59,13 @@ export class PomodoroTimer {
    * Initialize timer with stored data - with improved error handling
    */
   async initialize(): Promise<void> {
-    logger.log('Initializing PomodoroTimer');
+    logger.info('Initializing PomodoroTimer', undefined, 'TIMER');
     
     try {
       // Load settings with fallback to defaults
       try {
         this.settings = await getPomodoroSettings();
-        logger.log('Pomodoro settings loaded successfully');
+        logger.debug('Pomodoro settings loaded successfully', undefined, 'TIMER');
       } catch (error) {
         console.error('Error loading pomodoro settings, using defaults:', error);
         this.settings = {
@@ -89,7 +89,7 @@ export class PomodoroTimer {
       // Load timer status with fallback to defaults
       try {
         this.status = await getTimerStatus();
-        logger.log('Timer status loaded successfully');
+        logger.debug('Timer status loaded successfully', undefined, 'TIMER');
       } catch (error) {
         console.error('Error loading timer status, using defaults:', error);
         this.status = {
@@ -110,7 +110,7 @@ export class PomodoroTimer {
       try {
         const dailyStats = await getDailyStats();
         this.status.sessionCount = dailyStats.completedWorkSessions;
-        logger.log('Daily stats loaded, session count:', this.status.sessionCount);
+        logger.debug('Daily stats loaded, session count:', this.status.sessionCount, 'TIMER');
       } catch (error) {
         console.error('Error loading daily stats, keeping current session count:', error);
         this.status.sessionCount = this.status.sessionCount || 0;
@@ -129,14 +129,14 @@ export class PomodoroTimer {
             this.status.timeRemaining = Math.max(0, this.status.timeRemaining - elapsed);
             
             if (this.status.timeRemaining <= 0) {
-              logger.log('Timer should have completed while browser was closed');
+              logger.info('Timer should have completed while browser was closed', undefined, 'TIMER');
               await this.completeCurrentTimer();
             } else {
-              logger.log(`Resuming timer with ${this.status.timeRemaining} seconds remaining`);
+              logger.info(`Resuming timer with ${this.status.timeRemaining} seconds remaining`, undefined, 'TIMER');
               this.startTicking();
             }
           } else {
-            logger.log('Invalid timer state detected, resetting to stopped');
+            logger.warn('Invalid timer state detected, resetting to stopped', undefined, 'TIMER');
             this.status.state = 'STOPPED';
             this.status.timeRemaining = 0;
             this.status.totalTime = 0;
@@ -156,7 +156,7 @@ export class PomodoroTimer {
       // Save current status
       try {
         await this.saveStatus();
-        logger.log('Timer status saved successfully');
+        logger.debug('Timer status saved successfully', undefined, 'TIMER');
       } catch (error) {
         console.error('Error saving timer status during initialization:', error);
       }
@@ -164,7 +164,7 @@ export class PomodoroTimer {
       // Notify status update
       this.notifyStatusUpdate();
       
-      logger.log('PomodoroTimer initialized successfully with status:', this.status);
+      logger.info('PomodoroTimer initialized successfully with status:', this.status, 'TIMER');
       
     } catch (error) {
       console.error('Critical error during PomodoroTimer initialization:', error);
@@ -199,7 +199,7 @@ export class PomodoroTimer {
       
       this.notifyStatusUpdate();
       
-      logger.log('PomodoroTimer initialized with safe defaults due to errors');
+      logger.warn('PomodoroTimer initialized with safe defaults due to errors', undefined, 'TIMER');
     }
   }
 
@@ -239,11 +239,11 @@ export class PomodoroTimer {
         this.settings.restDuration * 60;
     }
     
-    logger.log('Next session determined:', {
+    logger.debug('Next session determined:', {
       type: this.status.nextSessionType,
       duration: this.status.nextSessionDuration,
       sessionCount: this.status.sessionCount
-    });
+    }, 'TIMER');
   }
 
   /**
@@ -267,7 +267,7 @@ export class PomodoroTimer {
         
         // If the last session was before the most recent 5 AM reset point
         if (lastSessionTime < today5AM) {
-          logger.log('Daily reset triggered: resetting session count to 0');
+          logger.info('Daily reset triggered: resetting session count to 0', undefined, 'TIMER');
           this.status.sessionCount = 0;
           this.status.nextSessionType = 'WORK';
           this.status.nextSessionDuration = this.settings.workDuration * 60;
@@ -279,10 +279,10 @@ export class PomodoroTimer {
       try {
         const dailyStats = await getDailyStats();
         this.status.sessionCount = dailyStats.completedWorkSessions;
-        logger.log('Synced session count with daily stats:', this.status.sessionCount);
+        logger.debug('Synced session count with daily stats:', this.status.sessionCount, 'TIMER');
       } catch (statsError) {
         // If no daily stats either, keep current session count
-        logger.log('No session or daily stats found, keeping current session count');
+        logger.debug('No session or daily stats found, keeping current session count', undefined, 'TIMER');
       }
     }
   }
@@ -618,11 +618,11 @@ export class PomodoroTimer {
     if (completed) {
       if (wasWork && this.settings.autoStartRest) {
         // Work session completed -> Start rest period
-        logger.log('Auto-starting rest period after work session');
+        logger.info('Auto-starting rest period after work session', undefined, 'TIMER');
         setTimeout(() => this.startRest(), 2000);
       } else if (!wasWork && this.settings.autoStartWork) {
         // Rest period completed -> Start next work period
-        logger.log('Auto-starting work period after rest');
+        logger.info('Auto-starting work period after rest', undefined, 'TIMER');
         setTimeout(() => this.startWork(this.getDefaultWorkTask()), 2000);
       }
     }
@@ -656,7 +656,7 @@ export class PomodoroTimer {
    * Advance to next session type without starting the timer
    */
   async advanceToNextSession(): Promise<void> {
-    logger.log('Advancing to next session type');
+    logger.info('Advancing to next session type', undefined, 'TIMER');
     
     // Stop current timer if running
     if (this.status.state !== 'STOPPED') {
@@ -693,7 +693,7 @@ export class PomodoroTimer {
     await this.saveStatus();
     this.notifyStatusUpdate();
     
-    logger.log('Advanced to next session:', this.status.nextSessionType);
+    logger.info('Advanced to next session:', this.status.nextSessionType, 'TIMER');
   }
 
   /**

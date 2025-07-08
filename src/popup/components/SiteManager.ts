@@ -225,14 +225,14 @@ export class SiteManager {
       testUrl = `https://${target}/`;
     }
     
-    logger.log('checkIfTargetWouldBeBlocked:', {
+    logger.debug('checkIfTargetWouldBeBlocked:', {
       target,
       testUrl,
       blockedWebsites
-    });
+    }, 'BLOCKING');
     
     const result = this.blockingEngine.checkIfUrlWouldBeBlocked(blockedWebsites, testUrl);
-    logger.log('checkIfTargetWouldBeBlocked result:', result);
+    logger.debug('checkIfTargetWouldBeBlocked result:', result, 'BLOCKING');
     
     return result;
   }

@@ -33,7 +33,7 @@ export class BackgroundPomodoroManager {
    */
   private async init(): Promise<void> {
     try {
-      logger.log('Initializing BackgroundPomodoroManager');
+      logger.info('Initializing BackgroundPomodoroManager', undefined, 'SYSTEM');
       
       // Initialize timer with stored data
       await this.timer.initialize();
@@ -54,7 +54,7 @@ export class BackgroundPomodoroManager {
       }
       
       this.isInitialized = true;
-      logger.log('BackgroundPomodoroManager initialized successfully');
+      logger.info('BackgroundPomodoroManager initialized successfully', undefined, 'SYSTEM');
       
       // Send initialization complete status to all listeners
       await this.broadcastInitializationComplete();
@@ -63,7 +63,7 @@ export class BackgroundPomodoroManager {
       
       // Try to initialize with safe defaults if storage fails
       try {
-        logger.log('Attempting to initialize with safe defaults');
+        logger.warn('Attempting to initialize with safe defaults', undefined, 'SYSTEM');
         
         // Set up alarm listeners anyway
         this.setupAlarmListeners();
@@ -76,7 +76,7 @@ export class BackgroundPomodoroManager {
         
         // Mark as partially initialized so basic operations work
         this.isInitialized = true;
-        logger.log('BackgroundPomodoroManager initialized with safe defaults');
+        logger.warn('BackgroundPomodoroManager initialized with safe defaults', undefined, 'SYSTEM');
       } catch (fallbackError) {
         console.error('Even fallback initialization failed:', fallbackError);
         this.isInitialized = false;
@@ -89,11 +89,11 @@ export class BackgroundPomodoroManager {
    */
   private setupMessageListeners(): void {
     chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-      logger.log('BackgroundPomodoroManager received message:', message.type);
+      logger.debug('BackgroundPomodoroManager received message:', message.type, 'SYSTEM');
       
       this.handleMessage(message)
         .then(response => {
-          logger.log('Message handled successfully:', message.type);
+          logger.debug('Message handled successfully:', message.type, 'SYSTEM');
           sendResponse(response);
         })
         .catch(error => {
@@ -266,7 +266,7 @@ export class BackgroundPomodoroManager {
   private setupAlarmListeners(): void {
     chrome.alarms.onAlarm.addListener((alarm) => {
       if (alarm.name === 'pomodoroNotification') {
-        logger.log('Pomodoro alarm triggered');
+        logger.info('Pomodoro alarm triggered', undefined, 'TIMER');
         // The timer handles its own completion logic
       }
     });
@@ -276,16 +276,16 @@ export class BackgroundPomodoroManager {
    * Handle timer status updates
    */
   private async handleStatusUpdate(status: TimerStatus): Promise<void> {
-    logger.log('Timer status updated:', status);
+    logger.info('Timer status updated:', status, 'TIMER');
     
     // Check for session start (transition from STOPPED to WORK or REST)
     if (this.previousTimerState === 'STOPPED' && 
         (status.state === 'WORK' || status.state === 'REST')) {
-      logger.log('Session started, checking audio settings');
+      logger.debug('Session started, checking audio settings', undefined, 'AUDIO');
       // Play session start audio if audio is enabled
       const settings = await getPomodoroSettings();
       if (settings.audioEnabled || settings.playSound) {
-        logger.log('Playing session start audio');
+        logger.info('Playing session start audio', undefined, 'AUDIO');
         await this.playCustomAudio('session_start');
       }
     }
@@ -313,7 +313,7 @@ export class BackgroundPomodoroManager {
    * Handle timer completion
    */
   private async handleTimerComplete(notification: TimerNotification): Promise<void> {
-    logger.log('Timer completed:', notification);
+    logger.info('Timer completed:', notification, 'TIMER');
     
     try {
       // Show browser notification if enabled
@@ -536,7 +536,7 @@ export class BackgroundPomodoroManager {
   private async broadcastInitializationComplete(): Promise<void> {
     try {
       const status = this.timer.getStatus();
-      logger.log('Broadcasting initialization complete with status:', status);
+      logger.debug('Broadcasting initialization complete with status:', status, 'SYSTEM');
       
       // Send to all tabs - this will update popup and content scripts
       const tabs = await chrome.tabs.query({});
@@ -584,13 +584,14 @@ export class BackgroundPomodoroManager {
 
       // In Service Worker context, we don't create AudioManager
       // Audio is handled via offscreen documents
-      logger.log('Audio settings configured for Service Worker context');
-      logger.log('Audio enabled:', settings.audioEnabled);
-      logger.log('Audio volume:', settings.audioVolume);
-      logger.log('Sound theme:', settings.soundTheme);
+      logger.debug('Audio settings configured for Service Worker context', {
+        audioEnabled: settings.audioEnabled,
+        audioVolume: settings.audioVolume,
+        soundTheme: settings.soundTheme
+      }, 'AUDIO');
       
     } catch (error) {
-      logger.log('Error initializing audio manager:', error);
+      logger.error('Error initializing audio manager:', error, 'AUDIO');
     }
   }
 
@@ -689,7 +690,7 @@ export class BackgroundPomodoroManager {
     try {
       // Check if offscreen API is available
       if (typeof chrome.offscreen === 'undefined') {
-        logger.log('Offscreen API not available, skipping audio setup');
+        logger.warn('Offscreen API not available, skipping audio setup', undefined, 'AUDIO');
         return;
       }
 
@@ -701,7 +702,7 @@ export class BackgroundPomodoroManager {
 
       if (existingContexts.length > 0) {
         this.offscreenDocumentCreated = true;
-        logger.log('Offscreen document already exists');
+        logger.debug('Offscreen document already exists', undefined, 'AUDIO');
         return;
       }
 
@@ -713,9 +714,9 @@ export class BackgroundPomodoroManager {
       });
 
       this.offscreenDocumentCreated = true;
-      logger.log('Offscreen document created for audio playback');
+      logger.info('Offscreen document created for audio playback', undefined, 'AUDIO');
     } catch (error) {
-      logger.log('Error creating offscreen document:', error);
+      logger.error('Error creating offscreen document:', error, 'AUDIO');
       // If offscreen API is not available, we'll fall back to silent mode
     }
   }
@@ -744,12 +745,12 @@ export class BackgroundPomodoroManager {
       });
 
       if (response && response.success) {
-        logger.log(`Test sound played successfully: ${soundId}`);
+        logger.info(`Test sound played successfully: ${soundId}`, undefined, 'AUDIO');
       } else {
-        logger.log(`Failed to play test sound: ${soundId}`, response?.error);
+        logger.error(`Failed to play test sound: ${soundId}`, response?.error, 'AUDIO');
       }
     } catch (error) {
-      logger.log('Error testing sound:', error);
+      logger.error('Error testing sound:', error, 'AUDIO');
     }
   }
 
@@ -778,12 +779,12 @@ export class BackgroundPomodoroManager {
       });
 
       if (response && response.success) {
-        logger.log(`Test custom sound played successfully: ${soundId}`);
+        logger.info(`Test custom sound played successfully: ${soundId}`, undefined, 'AUDIO');
       } else {
-        logger.log(`Failed to play test custom sound: ${soundId}`, response?.error);
+        logger.error(`Failed to play test custom sound: ${soundId}`, response?.error, 'AUDIO');
       }
     } catch (error) {
-      logger.log('Error testing custom sound:', error);
+      logger.error('Error testing custom sound:', error, 'AUDIO');
     }
   }
 
@@ -791,7 +792,7 @@ export class BackgroundPomodoroManager {
    * Cleanup
    */
   destroy(): void {
-    logger.log('Destroying BackgroundPomodoroManager');
+    logger.info('Destroying BackgroundPomodoroManager', undefined, 'SYSTEM');
     
     if (this.badgeUpdateInterval) {
       clearInterval(this.badgeUpdateInterval);

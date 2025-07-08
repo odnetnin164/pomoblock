@@ -468,9 +468,9 @@ class OptionsPageManager {
 
     // Debug log before saving
     if (this.debugEnabled.checked) {
-      logger.log('=== SAVING WORK HOURS DEBUG ===');
-      logger.log('Work hours from UI:', workHours);
-      logger.log('===============================');
+      logger.debug('=== SAVING WORK HOURS DEBUG ===', {
+        workHours: workHours
+      }, 'UI');
     }
 
     const settings: Partial<ExtensionSettings> = {

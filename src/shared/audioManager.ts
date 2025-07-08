@@ -25,7 +25,7 @@ export class AudioManager {
       
       // Set up state change listeners
       this.audioContext.addEventListener('statechange', () => {
-        logger.log(`AudioContext state changed to: ${this.audioContext?.state}`);
+        logger.debug(`AudioContext state changed to: ${this.audioContext?.state}`, undefined, 'AUDIO');
       });
       
       // Preload built-in sounds
@@ -35,9 +35,9 @@ export class AudioManager {
       await this.preloadCustomSounds();
       
       this.isInitialized = true;
-      logger.log('AudioManager initialized successfully');
+      logger.info('AudioManager initialized successfully', undefined, 'AUDIO');
     } catch (error) {
-      logger.log('Failed to initialize AudioManager:', error);
+      logger.error('Failed to initialize AudioManager:', error, 'AUDIO');
       // Continue without audio
     }
   }
@@ -100,12 +100,12 @@ export class AudioManager {
     
     // Check if already loaded
     if (this.loadedSounds.has(soundId)) {
-      logger.log(`Using cached sound buffer for ${soundId}`);
+      logger.debug(`Using cached sound buffer for ${soundId}`, undefined, 'AUDIO');
       return this.loadedSounds.get(soundId) || null;
     }
 
     // Load the sound
-    logger.log(`Loading sound buffer for ${soundId} (${soundOption.name})`);
+    logger.debug(`Loading sound buffer for ${soundId} (${soundOption.name})`, undefined, 'AUDIO');
     try {
       let audioData: ArrayBuffer;
 
@@ -120,7 +120,7 @@ export class AudioManager {
         // Check if the response is actually an audio file
         const contentType = response.headers.get('content-type');
         if (!contentType || !contentType.startsWith('audio/')) {
-          logger.log(`Sound file ${soundId} is not a valid audio file, using fallback`);
+          logger.warn(`Sound file ${soundId} is not a valid audio file, using fallback`, undefined, 'AUDIO');
           return this.createFallbackAudioBuffer(soundId);
         }
 
@@ -136,7 +136,7 @@ export class AudioManager {
           const response = await fetch(customSoundData);
           audioData = await response.arrayBuffer();
         } else {
-          logger.log(`Custom sound ${soundId} not found in storage, using fallback`);
+          logger.warn(`Custom sound ${soundId} not found in storage, using fallback`, undefined, 'AUDIO');
           return this.createFallbackAudioBuffer(soundId);
         }
       } else {
@@ -150,9 +150,10 @@ export class AudioManager {
       this.cleanupOldSounds();
       
       this.loadedSounds.set(soundId, audioBuffer);
+      logger.debug(`Successfully loaded sound buffer for ${soundId}`, undefined, 'AUDIO');
       return audioBuffer;
     } catch (error) {
-      logger.log(`Failed to load sound ${soundId}:`, error);
+      logger.error(`Failed to load sound ${soundId}:`, error, 'AUDIO');
       // Create a fallback audio buffer
       return this.createFallbackAudioBuffer(soundId);
     }
@@ -163,33 +164,33 @@ export class AudioManager {
    */
   private async playAudioBuffer(buffer: AudioBuffer): Promise<void> {
     if (!this.audioContext) {
-      logger.log('No AudioContext available for playback');
+      logger.error('No AudioContext available for playback', undefined, 'AUDIO');
       return;
     }
 
-    logger.log(`Playing audio buffer:`, {
+    logger.debug(`Playing audio buffer:`, {
       duration: buffer.duration,
       sampleRate: buffer.sampleRate,
       numberOfChannels: buffer.numberOfChannels,
       contextState: this.audioContext.state,
       volume: this.settings.volume
-    });
+    }, 'AUDIO');
 
     // Ensure AudioContext is running
     if (this.audioContext.state === 'suspended') {
       try {
-        logger.log('Resuming suspended AudioContext');
+        logger.debug('Resuming suspended AudioContext', undefined, 'AUDIO');
         await this.audioContext.resume();
-        logger.log('AudioContext resumed successfully');
+        logger.debug('AudioContext resumed successfully', undefined, 'AUDIO');
       } catch (error) {
-        logger.log('Failed to resume AudioContext:', error);
+        logger.error('Failed to resume AudioContext:', error, 'AUDIO');
         return;
       }
     }
 
     // Check if AudioContext is in a valid state
     if (this.audioContext.state === 'closed') {
-      logger.log('AudioContext is closed, cannot play audio');
+      logger.error('AudioContext is closed, cannot play audio', undefined, 'AUDIO');
       return;
     }
 
@@ -204,7 +205,7 @@ export class AudioManager {
     
     // Clean up nodes after playback finishes
     source.addEventListener('ended', () => {
-      logger.log('Audio playback finished successfully');
+      logger.debug('Audio playback finished successfully', undefined, 'AUDIO');
       try {
         source.disconnect();
         gainNode.disconnect();
@@ -215,7 +216,7 @@ export class AudioManager {
     
     // Also clean up if there's an error
     source.addEventListener('error', (event) => {
-      logger.log('Audio playback error:', event);
+      logger.error('Audio playback error:', event, 'AUDIO');
       try {
         source.disconnect();
         gainNode.disconnect();
@@ -225,11 +226,11 @@ export class AudioManager {
     });
     
     try {
-      logger.log('Starting audio playback');
+      logger.debug('Starting audio playback', undefined, 'AUDIO');
       source.start();
-      logger.log('Audio playback started successfully');
+      logger.debug('Audio playback started successfully', undefined, 'AUDIO');
     } catch (error) {
-      logger.log('Failed to start audio source:', error);
+      logger.error('Failed to start audio source:', error, 'AUDIO');
       // Clean up on start failure
       try {
         source.disconnect();
@@ -250,7 +251,7 @@ export class AudioManager {
     for (const [soundId, soundInfo] of Object.entries(builtInSounds)) {
       loadPromises.push(
         this.loadBuiltInSound(soundId, soundInfo.url).catch(error => {
-          logger.log(`Failed to preload sound ${soundId}:`, error);
+          logger.warn(`Failed to preload sound ${soundId}:`, error, 'AUDIO');
         })
       );
     }
@@ -270,7 +271,7 @@ export class AudioManager {
       const audioBuffer = await this.audioContext.decodeAudioData(audioData);
       this.loadedSounds.set(soundId, audioBuffer);
     } catch (error) {
-      logger.log(`Failed to load built-in sound ${soundId}:`, error);
+      logger.error(`Failed to load built-in sound ${soundId}:`, error, 'AUDIO');
     }
   }
 
@@ -294,7 +295,7 @@ export class AudioManager {
     customSounds.forEach(sound => {
       loadPromises.push(
         this.getSoundBuffer(sound).then(() => {}).catch(error => {
-          logger.log(`Failed to preload custom sound ${sound.id}:`, error);
+          logger.warn(`Failed to preload custom sound ${sound.id}:`, error, 'AUDIO');
         })
       );
     });
@@ -304,7 +305,7 @@ export class AudioManager {
       if (!customSounds.find(s => s.id === soundId)) {
         loadPromises.push(
           this.getSoundBuffer({ id: soundId, name: 'Custom Sound', type: 'custom' }).then(() => {}).catch(error => {
-            logger.log(`Failed to preload custom sound ${soundId}:`, error);
+            logger.warn(`Failed to preload custom sound ${soundId}:`, error, 'AUDIO');
           })
         );
       }
@@ -437,10 +438,10 @@ export class AudioManager {
       this.cleanupOldSounds();
       
       this.loadedSounds.set(soundId, audioBuffer);
-      logger.log(`Created fallback audio buffer for ${soundId}`);
+      logger.info(`Created fallback audio buffer for ${soundId}`, undefined, 'AUDIO');
       return audioBuffer;
     } catch (error) {
-      logger.log(`Failed to create fallback audio buffer for ${soundId}:`, error);
+      logger.error(`Failed to create fallback audio buffer for ${soundId}:`, error, 'AUDIO');
       return null;
     }
   }
@@ -459,7 +460,7 @@ export class AudioManager {
       
       return null;
     } catch (error) {
-      logger.log(`Error retrieving custom sound ${soundId} from storage:`, error);
+      logger.error(`Error retrieving custom sound ${soundId} from storage:`, error, 'AUDIO');
       return null;
     }
   }
@@ -475,13 +476,13 @@ export class AudioManager {
         // But closing the context will clean them up
         await this.audioContext.close();
       } catch (error) {
-        logger.log('Error closing AudioContext:', error);
+        logger.error('Error closing AudioContext:', error, 'AUDIO');
       }
       this.audioContext = null;
     }
     this.loadedSounds.clear();
     this.isInitialized = false;
-    logger.log('AudioManager destroyed');
+    logger.info('AudioManager destroyed', undefined, 'AUDIO');
   }
 
   /**
@@ -489,33 +490,34 @@ export class AudioManager {
    */
   private async ensureAudioContextReady(): Promise<boolean> {
     if (!this.audioContext) {
-      logger.log('AudioContext is null, attempting to recreate');
+      logger.debug('AudioContext is null, attempting to recreate', undefined, 'AUDIO');
       try {
         this.audioContext = new AudioContext();
         this.audioContext.addEventListener('statechange', () => {
-          logger.log(`AudioContext state changed to: ${this.audioContext?.state}`);
+          logger.debug(`AudioContext state changed to: ${this.audioContext?.state}`, undefined, 'AUDIO');
         });
         return true;
       } catch (error) {
-        logger.log('Failed to recreate AudioContext:', error);
+        logger.error('Failed to recreate AudioContext:', error, 'AUDIO');
         return false;
       }
     }
 
     if (this.audioContext.state === 'closed') {
-      logger.log('AudioContext is closed, attempting to recreate');
+      logger.debug('AudioContext is closed, attempting to recreate', undefined, 'AUDIO');
       try {
         this.audioContext = new AudioContext();
         this.audioContext.addEventListener('statechange', () => {
-          logger.log(`AudioContext state changed to: ${this.audioContext?.state}`);
+          logger.debug(`AudioContext state changed to: ${this.audioContext?.state}`, undefined, 'AUDIO');
         });
         // Need to reload sounds since context was recreated
         this.loadedSounds.clear();
         await this.preloadBuiltInSounds();
         await this.preloadCustomSounds();
+        logger.info('AudioContext recreated and sounds reloaded', undefined, 'AUDIO');
         return true;
       } catch (error) {
-        logger.log('Failed to recreate AudioContext after closure:', error);
+        logger.error('Failed to recreate AudioContext after closure:', error, 'AUDIO');
         return false;
       }
     }
@@ -523,10 +525,10 @@ export class AudioManager {
     if (this.audioContext.state === 'suspended') {
       try {
         await this.audioContext.resume();
-        logger.log('AudioContext resumed successfully');
+        logger.debug('AudioContext resumed successfully', undefined, 'AUDIO');
         return true;
       } catch (error) {
-        logger.log('Failed to resume AudioContext:', error);
+        logger.error('Failed to resume AudioContext:', error, 'AUDIO');
         return false;
       }
     }
@@ -545,9 +547,9 @@ export class AudioManager {
     if (this.audioContext.state === 'suspended') {
       try {
         await this.audioContext.resume();
-        logger.log('AudioContext resumed after visibility change');
+        logger.debug('AudioContext resumed after visibility change', undefined, 'AUDIO');
       } catch (error) {
-        logger.log('Failed to resume AudioContext after visibility change:', error);
+        logger.error('Failed to resume AudioContext after visibility change:', error, 'AUDIO');
       }
     }
   }
@@ -566,7 +568,7 @@ export class AudioManager {
     const oldestSoundId = this.loadedSounds.keys().next().value;
     if (oldestSoundId) {
       this.loadedSounds.delete(oldestSoundId);
-      logger.log(`Evicted oldest sound ${oldestSoundId} to free up memory`);
+      logger.debug(`Evicted oldest sound ${oldestSoundId} to free up memory`, undefined, 'AUDIO');
     }
   }
 
@@ -580,8 +582,8 @@ export class AudioManager {
       
       for (const key of keysToRemove) {
         this.loadedSounds.delete(key);
-        logger.log(`Removed old sound from cache: ${key}`);
       }
+      logger.debug(`Removed ${keysToRemove.length} old sounds from cache`, { removedKeys: keysToRemove }, 'AUDIO');
     }
   }
 

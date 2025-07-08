@@ -51,7 +51,7 @@ This is a Chrome Extension (Manifest V3) that combines website blocking with a P
 - `storage.ts` - General Chrome storage utilities
 - `urlUtils.ts` - URL normalization and matching logic
 - `workHoursUtils.ts` - Work hours scheduling functionality
-- `logger.ts` - Centralized logging system
+- `logger.ts` - Enhanced Shadow DOM logging system with visual debug panel
 
 ### Key Data Flow
 
@@ -387,3 +387,72 @@ All entry points are self-contained (no shared chunks) to ensure proper Chrome e
 - Manifest V3 compliance with service worker architecture
 - Minimal permissions: storage, tabs, activeTab, alarms, notifications
 - No external network requests except for built-in redirect URLs
+
+## Enhanced Logging System
+
+The extension includes a sophisticated logging system with Shadow DOM-based visual debugging:
+
+### Logger Class Features (`src/shared/logger.ts`)
+- **Shadow DOM Isolation**: Debug panel uses Shadow DOM for complete CSS isolation
+- **Interactive Debug Panel**: Draggable, resizable visual debug overlay
+- **Service Worker Detection**: Automatically adapts behavior based on execution context
+- **Log Filtering**: Filter logs by level (DEBUG, INFO, WARN, ERROR) and category
+- **Persistent State**: Maintains position, size, and filter preferences
+
+### Log Categories
+- `BLOCKING` - Site blocking and URL matching logic
+- `AUDIO` - Audio system and sound playback
+- `TIMER` - Pomodoro timer state and transitions
+- `NAVIGATION` - Page navigation and URL changes
+- `STORAGE` - Chrome storage operations
+- `NETWORK` - Network requests and responses
+- `UI` - User interface interactions
+- `SYSTEM` - Extension lifecycle and background operations
+- `GENERAL` - General purpose logging
+
+### Debug Panel Features
+- **Visual Design**: Modern glassmorphism UI with backdrop blur
+- **Drag & Drop**: Click and drag header to reposition anywhere on screen
+- **Resizable**: Drag resize handle in bottom-right corner
+- **Filtering**: Toggle log levels and categories with checkboxes
+- **Clear Logs**: Button to clear all current log entries
+- **Auto-scroll**: Automatically scrolls to show newest entries
+- **High Z-Index**: Appears above all page content including blocked overlays
+
+### Usage Examples
+```typescript
+import { logger } from '@shared/logger';
+
+// Enable debug mode (shows visual panel)
+logger.setDebugEnabled(true);
+
+// Log with different levels and categories
+logger.info('Timer started', { duration: 25 }, 'TIMER');
+logger.warn('Site blocked', { url: 'facebook.com' }, 'BLOCKING');
+logger.error('Audio failed', { error: 'No audio context' }, 'AUDIO');
+
+// Convenience methods
+logger.debug('Debug message', data, 'GENERAL');
+logger.info('Info message', data, 'SYSTEM');
+logger.warn('Warning message', data, 'UI');
+logger.error('Error message', data, 'NETWORK');
+```
+
+### Environment-Specific Behavior
+- **Service Workers**: Logs to console only (no DOM access)
+- **Content Scripts**: Full Shadow DOM debug panel functionality
+- **Popup/Options Pages**: Full Shadow DOM debug panel functionality
+
+### Debug Panel Controls
+- **🔽/🔼**: Toggle filter panel visibility
+- **🗑️**: Clear all log entries
+- **×**: Close debug panel and disable debug mode
+- **Header**: Drag to move panel position
+- **Resize Handle**: Drag to resize panel dimensions
+
+### Visual Features
+- **Color-coded Levels**: DEBUG (gray), INFO (green), WARN (orange), ERROR (red)
+- **Category Badges**: Color-coded category indicators
+- **Timestamps**: Precise timing information for each log entry
+- **Data Display**: JSON formatting for additional log data
+- **Responsive Design**: Adapts to different screen sizes and positions

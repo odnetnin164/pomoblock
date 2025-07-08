@@ -52,7 +52,7 @@ export async function getPomodoroSettings(): Promise<PomodoroSettings> {
     const settings = data[POMODORO_STORAGE_KEYS.SETTINGS];
     
     if (!settings) {
-      logger.log('No pomodoro settings found, using defaults');
+      logger.debug('No pomodoro settings found, using defaults', undefined, 'STORAGE');
       return DEFAULT_POMODORO_SETTINGS;
     }
     
@@ -73,7 +73,7 @@ export async function getPomodoroSettings(): Promise<PomodoroSettings> {
 export async function savePomodoroSettings(settings: PomodoroSettings): Promise<void> {
   try {
     await setStorageData({ [POMODORO_STORAGE_KEYS.SETTINGS]: settings }, false); // Use sync storage for settings
-    logger.log('Pomodoro settings saved successfully');
+    logger.debug('Pomodoro settings saved successfully', undefined, 'STORAGE');
   } catch (error) {
     console.error('Error saving pomodoro settings:', error);
     throw error;
@@ -89,7 +89,7 @@ export async function getTimerStatus(): Promise<TimerStatus> {
     const status = data[POMODORO_STORAGE_KEYS.TIMER_STATUS];
     
     if (!status) {
-      logger.log('No timer status found, using defaults');
+      logger.debug('No timer status found, using defaults', undefined, 'STORAGE');
       return DEFAULT_TIMER_STATUS;
     }
     
@@ -136,7 +136,7 @@ export async function getDailyStats(date?: string): Promise<DailyStats> {
     const dayStats = allStats[targetDate];
     
     if (!dayStats) {
-      logger.log(`No daily stats found for ${targetDate} using defaults`);
+      logger.debug(`No daily stats found for ${targetDate} using defaults`, undefined, 'STORAGE');
       return {
         date: targetDate,
         completedWorkSessions: 0,
@@ -172,7 +172,7 @@ export async function saveDailyStats(stats: DailyStats): Promise<void> {
     allStats[stats.date] = stats;
     
     await setStorageData({ [POMODORO_STORAGE_KEYS.DAILY_STATS]: allStats }, true);
-    logger.log('Daily stats saved for', stats.date);
+    logger.debug('Daily stats saved for', stats.date, 'STORAGE');
   } catch (error) {
     console.error('Error saving daily stats:', error);
     throw error;
@@ -203,7 +203,7 @@ export async function addCompletedSession(session: PomodoroSession): Promise<voi
     }
     
     await saveDailyStats(stats);
-    logger.log(`Session added to daily stats: ${session.type}  ${session.completed ? 'completed' : 'interrupted'}`);
+    logger.debug(`Session added to daily stats: ${session.type}  ${session.completed ? 'completed' : 'interrupted'}`, undefined, 'STORAGE');
   } catch (error) {
     console.error('Error adding completed session:', error);
     throw error;
@@ -295,7 +295,7 @@ export async function cleanupOldData(): Promise<void> {
     });
     
     await setStorageData({ [POMODORO_STORAGE_KEYS.DAILY_STATS]: filteredStats }, true);
-    logger.log('Old data cleanup completed');
+    logger.debug('Old data cleanup completed', undefined, 'STORAGE');
   } catch (error) {
     console.error('Error cleaning up old data:', error);
     // Don't throw error - cleanup failure shouldn't break the app

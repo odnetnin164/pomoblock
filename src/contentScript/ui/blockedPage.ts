@@ -28,7 +28,7 @@ export class BlockedPageUI {
       const response = await fetch(cssUrl);
       return await response.text();
     } catch (error) {
-      logger.log('Error loading blocked page CSS:', error);
+      logger.error('Error loading blocked page CSS:', error, 'UI');
       return '';
     }
   }
@@ -57,7 +57,7 @@ export class BlockedPageUI {
       mediaElements.forEach(element => {
         if (!element.paused) {
           element.pause();
-          logger.log('Paused media element:', { tagName: element.tagName, src: element.src || element.currentSrc });
+          logger.debug('Paused media element:', { tagName: element.tagName, src: element.src || element.currentSrc }, 'UI');
         }
       });
 
@@ -68,9 +68,9 @@ export class BlockedPageUI {
         ytIframes.forEach(iframe => {
           try {
             iframe.contentWindow?.postMessage('{"event":"command","func":"pauseVideo","args":""}', '*');
-            logger.log('Sent pause command to YouTube iframe');
+            logger.debug('Sent pause command to YouTube iframe', {}, 'UI');
           } catch (e) {
-            logger.log('Could not pause YouTube iframe:', e);
+            logger.warn('Could not pause YouTube iframe:', { error: e }, 'UI');
           }
         });
 
@@ -80,10 +80,10 @@ export class BlockedPageUI {
           const ytPlayer = document.querySelector('#movie_player, .html5-video-player') as any;
           if (ytPlayer && typeof ytPlayer.pauseVideo === 'function') {
             ytPlayer.pauseVideo();
-            logger.log('Paused YouTube player via API');
+            logger.debug('Paused YouTube player via API', {}, 'UI');
           }
         } catch (e) {
-          logger.log('Could not pause YouTube player via API:', e);
+          logger.warn('Could not pause YouTube player via API:', { error: e }, 'UI');
         }
       }
 
@@ -93,7 +93,7 @@ export class BlockedPageUI {
         const video = player.tagName === 'VIDEO' ? player as HTMLVideoElement : player.querySelector('video') as HTMLVideoElement;
         if (video && !video.paused) {
           video.pause();
-          logger.log('Paused video in player container');
+          logger.debug('Paused video in player container', {}, 'UI');
         }
       });
 
@@ -114,16 +114,16 @@ export class BlockedPageUI {
         if (isPauseButton && btn.offsetParent !== null) { // Check if button is visible
           try {
             btn.click();
-            logger.log('Clicked pause button:', btn);
+            logger.debug('Clicked pause button:', { button: btn }, 'UI');
           } catch (e) {
-            logger.log('Could not click pause button:', e);
+            logger.warn('Could not click pause button:', { error: e }, 'UI');
           }
         }
       });
 
-      logger.log('Media pause attempt completed');
+      logger.debug('Media pause attempt completed', {}, 'UI');
     } catch (error) {
-      logger.log('Error pausing media:', error);
+      logger.error('Error pausing media:', { error }, 'UI');
     }
   }
 
@@ -138,11 +138,11 @@ export class BlockedPageUI {
    * Create blocked page with overlay approach (preserves history)
    */
   async createBlockedPage(isRedirectMode: boolean = false): Promise<void> {
-    logger.log('Creating blocked page overlay', { isRedirectMode, timerState: this.currentTimerState });
+    logger.info('Creating blocked page overlay', { isRedirectMode, timerState: this.currentTimerState }, 'BLOCKING');
     
     // Don't block if already blocked or currently creating overlay
     if (this.isBlocked || this.isCreatingOverlay) {
-      logger.log('Page already blocked or overlay creation in progress, skipping');
+      logger.debug('Page already blocked or overlay creation in progress, skipping', {}, 'BLOCKING');
       return;
     }
 
@@ -164,7 +164,7 @@ export class BlockedPageUI {
       
       await this.createBlockOverlay(isRedirectMode);
     } catch (error) {
-      logger.log('Failed to create blocked page overlay', error);
+      logger.error('Failed to create blocked page overlay', { error }, 'BLOCKING');
       // Reset both states if blocking fails
       this.isBlocked = false;
       this.isCreatingOverlay = false;
@@ -203,7 +203,7 @@ export class BlockedPageUI {
    * Remove blocked page overlay
    */
   removeBlockedPage(): void {
-    logger.log('Removing blocked page overlay');
+    logger.info('Removing blocked page overlay', {}, 'BLOCKING');
     
     // Clear any running countdown interval
     this.clearRedirectCountdown();
@@ -231,7 +231,7 @@ export class BlockedPageUI {
         detail: { blocked: false }
       }));
       
-      logger.log('Blocked page overlay removed and page state restored');
+      logger.info('Blocked page overlay removed and page state restored', {}, 'BLOCKING');
     }
   }
 
@@ -240,7 +240,7 @@ export class BlockedPageUI {
    */
   private clearRedirectCountdown(): void {
     if (this.redirectCountdownInterval !== null) {
-      logger.log('Clearing redirect countdown interval');
+      logger.debug('Clearing redirect countdown interval', {}, 'NAVIGATION');
       clearInterval(this.redirectCountdownInterval);
       this.redirectCountdownInterval = null;
     }
@@ -252,7 +252,7 @@ export class BlockedPageUI {
   private async createBlockOverlay(isRedirectMode: boolean = false): Promise<void> {
     // Only remove existing overlay if there actually is one (check DOM element, not isBlocked flag)
     if (this.blockOverlay) {
-      logger.log('Removing existing overlay before creating new one');
+      logger.debug('Removing existing overlay before creating new one', {}, 'UI');
       this.removeBlockedPage();
     }
 
@@ -307,7 +307,7 @@ export class BlockedPageUI {
     // Ensure floating timer remains visible by sending a message to refresh it
     this.ensureFloatingTimerVisible();
     
-    logger.log('Block overlay with Shadow DOM created and added to page');
+    logger.info('Block overlay with Shadow DOM created and added to page', {}, 'UI');
   }
 
   /**
@@ -485,7 +485,7 @@ export class BlockedPageUI {
    * Go back in browser history
    */
   private goBack(): void {
-    logger.log('Going back in history');
+    logger.info('Going back in history', {}, 'NAVIGATION');
     
     // Clear any running countdown before removing the overlay
     this.clearRedirectCountdown();
@@ -502,7 +502,7 @@ export class BlockedPageUI {
         this.redirectToSafePage();
       }
     } catch (error) {
-      logger.log('Error going back', (error as Error).message);
+      logger.error('Error going back', { error: (error as Error).message }, 'NAVIGATION');
       // Fallback: redirect to safe page
       this.redirectToSafePage();
     }
@@ -512,7 +512,7 @@ export class BlockedPageUI {
    * Redirect to a safe/productive page
    */
   private redirectToSafePage(): void {
-    logger.log('Redirecting to safe page');
+    logger.info('Redirecting to safe page', {}, 'NAVIGATION');
     
     // Clear any running countdown before redirecting
     this.clearRedirectCountdown();
@@ -526,7 +526,7 @@ export class BlockedPageUI {
     try {
       window.location.replace(safeUrl);
     } catch (error) {
-      logger.log('Error redirecting to safe page', (error as Error).message);
+      logger.error('Error redirecting to safe page', { error: (error as Error).message }, 'NAVIGATION');
       // Ultimate fallback
       window.location.href = 'https://www.google.com';
     }
@@ -536,7 +536,7 @@ export class BlockedPageUI {
    * Attempt to close current tab with user feedback
    */
   private attemptCloseTab(): void {
-    logger.log('Attempting to close tab');
+    logger.info('Attempting to close tab', {}, 'NAVIGATION');
     
     const closeBtn = this.shadowRoot?.getElementById('close-tab-btn');
     if (closeBtn) {
@@ -558,7 +558,7 @@ export class BlockedPageUI {
       }, 500);
       
     } catch (error) {
-      logger.log('window.close() failed', (error as Error).message);
+      logger.warn('window.close() failed', { error: (error as Error).message }, 'NAVIGATION');
       this.showCloseTabInstructions();
     }
   }
@@ -622,7 +622,7 @@ export class BlockedPageUI {
     const progressBar = this.shadowRoot?.getElementById('progress-bar');
     const cancelButton = this.shadowRoot?.getElementById('cancel-redirect');
     
-    logger.log('Starting countdown', { redirectUrl: this.settings.redirectUrl, initialSeconds: secondsLeft });
+    logger.info('Starting countdown', { redirectUrl: this.settings.redirectUrl, initialSeconds: secondsLeft }, 'NAVIGATION');
     
     // Update countdown display immediately
     if (countdownElement) {
@@ -638,7 +638,7 @@ export class BlockedPageUI {
     // Set up cancel button
     if (cancelButton) {
       cancelButton.addEventListener('click', () => {
-        logger.log('Redirect cancelled by user');
+        logger.info('Redirect cancelled by user', {}, 'NAVIGATION');
         this.clearRedirectCountdown();
         this.showCancelledMessage();
       });
@@ -648,32 +648,32 @@ export class BlockedPageUI {
     this.redirectCountdownInterval = window.setInterval(() => {
       // Safety check: only continue countdown if page is still blocked
       if (!this.isBlocked) {
-        logger.log('Page no longer blocked, stopping countdown');
+        logger.debug('Page no longer blocked, stopping countdown', {}, 'NAVIGATION');
         this.clearRedirectCountdown();
         return;
       }
       
       secondsLeft--;
-      logger.log('Countdown tick', secondsLeft);
+      logger.debug('Countdown tick', { secondsLeft }, 'NAVIGATION');
       
       if (countdownElement) {
         countdownElement.textContent = secondsLeft.toString();
       }
       
       if (secondsLeft <= 0) {
-        logger.log('Countdown finished, initiating redirect');
+        logger.info('Countdown finished, initiating redirect', {}, 'NAVIGATION');
         this.clearRedirectCountdown();
         
         // Final safety check before redirecting
         if (this.isBlocked) {
           this.handleRedirect();
         } else {
-          logger.log('Page no longer blocked, cancelling redirect');
+          logger.debug('Page no longer blocked, cancelling redirect', {}, 'NAVIGATION');
         }
       }
     }, 1000);
     
-    logger.log('Redirect countdown started with interval ID:', this.redirectCountdownInterval);
+    logger.debug('Redirect countdown started with interval ID:', { intervalId: this.redirectCountdownInterval }, 'NAVIGATION');
   }
 
   /**
@@ -698,22 +698,22 @@ export class BlockedPageUI {
    * Handle redirect to specified URL
    */
   private handleRedirect(): void {
-    logger.log('handleRedirect called');
+    logger.debug('handleRedirect called', {}, 'NAVIGATION');
     
     // Clear countdown interval first
     this.clearRedirectCountdown();
     
     const redirectUrl = this.settings.redirectUrl;
-    logger.log('Redirect URL', redirectUrl);
+    logger.debug('Redirect URL', { redirectUrl }, 'NAVIGATION');
     
     try {
       // Validate redirect URL
       const url = new URL(redirectUrl);
-      logger.log('URL validation passed', url.href);
+      logger.debug('URL validation passed', { url: url.href }, 'NAVIGATION');
       
       // Only allow http and https protocols for security
       if (url.protocol === 'http:' || url.protocol === 'https:') {
-        logger.log('Protocol is valid, attempting redirect');
+        logger.info('Protocol is valid, attempting redirect', {}, 'NAVIGATION');
         
         // Remove overlay before redirecting
         this.removeBlockedPage();
@@ -722,12 +722,12 @@ export class BlockedPageUI {
         window.location.replace(redirectUrl);
         
       } else {
-        logger.log('Invalid protocol, redirecting to Google');
+        logger.warn('Invalid protocol, redirecting to Google', { protocol: url.protocol }, 'NAVIGATION');
         this.removeBlockedPage();
         window.location.replace('https://www.google.com');
       }
     } catch (error) {
-      logger.log('Redirect error', (error as Error).message);
+      logger.error('Redirect error', { error: (error as Error).message }, 'NAVIGATION');
       this.showRedirectFailure(redirectUrl);
     }
   }
@@ -761,7 +761,7 @@ export class BlockedPageUI {
         timestamp: Date.now()
       });
     } catch (error) {
-      logger.log('Error sending blocked page displayed message:', error);
+      logger.warn('Error sending blocked page displayed message:', { error }, 'SYSTEM');
     }
     
     // Also dispatch a custom event for the floating timer
@@ -779,7 +779,7 @@ export class BlockedPageUI {
    * Clean up when component is destroyed
    */
   cleanup(): void {
-    logger.log('Cleaning up BlockedPageUI');
+    logger.info('Cleaning up BlockedPageUI', {}, 'SYSTEM');
     
     // Clear redirect countdown
     this.clearRedirectCountdown();
@@ -787,7 +787,7 @@ export class BlockedPageUI {
     // Remove blocked page overlay
     this.removeBlockedPage();
     
-    logger.log('BlockedPageUI cleanup completed');
+    logger.info('BlockedPageUI cleanup completed', {}, 'SYSTEM');
   }
 
   /**
@@ -795,11 +795,11 @@ export class BlockedPageUI {
    */
   updateBlockedPageContent(): void {
     if (!this.isBlocked || !this.shadowRoot) {
-      logger.log('Cannot update blocked page content - page not blocked or shadow root not available');
+      logger.warn('Cannot update blocked page content - page not blocked or shadow root not available', {}, 'UI');
       return;
     }
 
-    logger.log('Updating blocked page content in place');
+    logger.info('Updating blocked page content in place', {}, 'UI');
 
     // Update page title based on current timer state
     this.updatePageTitle();
@@ -813,9 +813,9 @@ export class BlockedPageUI {
       // Re-setup button handlers since we regenerated the content
       this.setupButtonHandlers();
       
-      logger.log('Blocked page content updated successfully');
+      logger.info('Blocked page content updated successfully', {}, 'UI');
     } else {
-      logger.log('Could not find blocked overlay content to update');
+      logger.warn('Could not find blocked overlay content to update', {}, 'UI');
     }
   }
 
@@ -823,34 +823,34 @@ export class BlockedPageUI {
    * Handle timer state transitions more gracefully
    */
   handleTimerStateTransition(newTimerState: string, shouldBeBlocked: boolean): void {
-    logger.log('Handling timer state transition', { 
+    logger.info('Handling timer state transition', { 
       from: this.currentTimerState, 
       to: newTimerState, 
       shouldBeBlocked,
       currentlyBlocked: this.isBlocked 
-    });
+    }, 'TIMER');
 
     // Update timer state first
     this.setTimerState(newTimerState);
 
     // If transitioning TO a state where the page should be blocked
     if (!this.isBlocked && shouldBeBlocked) {
-      logger.log('Transitioning to blocked state - creating blocked page');
+      logger.info('Transitioning to blocked state - creating blocked page', {}, 'TIMER');
       this.createBlockedPage(false);
     }
     // If transitioning FROM a blocked state to unblocked
     else if (this.isBlocked && !shouldBeBlocked) {
-      logger.log('Transitioning to unblocked state - removing blocked page');
+      logger.info('Transitioning to unblocked state - removing blocked page', {}, 'TIMER');
       this.removeBlockedPage();
     }
     // If staying in blocked state but timer state changed
     else if (this.isBlocked && shouldBeBlocked) {
-      logger.log('Staying in blocked state but timer changed - updating content');
+      logger.info('Staying in blocked state but timer changed - updating content', {}, 'TIMER');
       this.updateBlockedPageContent();
     }
     // If staying unblocked, no action needed
     else {
-      logger.log('Staying in unblocked state - no action needed');
+      logger.debug('Staying in unblocked state - no action needed', {}, 'TIMER');
     }
   }
 
@@ -884,7 +884,7 @@ export class BlockedPageUI {
     // Check if this is Mac and apply fallback if needed
     this.checkMacAndApplyFallback(pageContent);
     
-    logger.log('Applied optimized page blur effect');
+    logger.debug('Applied optimized page blur effect', {}, 'UI');
   }
 
   /**
@@ -903,7 +903,7 @@ export class BlockedPageUI {
     // Remove blur fallback if it exists
     this.removeBlurFallback();
     
-    logger.log('Removed page blur effect');
+    logger.debug('Removed page blur effect', {}, 'UI');
   }
 
   /**
@@ -1027,9 +1027,9 @@ export class BlockedPageUI {
       style.textContent = blurStyles;
       document.head.appendChild(style);
       
-      logger.log('Blur styles injected successfully');
+      logger.debug('Blur styles injected successfully', {}, 'UI');
     } catch (error) {
-      logger.log('Error injecting blur styles:', error);
+      logger.error('Error injecting blur styles:', { error }, 'UI');
       
       // Simple fallback if CSS loading fails
       const style = document.createElement('style');
@@ -1053,20 +1053,20 @@ export class BlockedPageUI {
     const isSafari = /Safari/.test(navigator.userAgent) && !/Chrome/.test(navigator.userAgent);
     const isWebKit = /WebKit/.test(navigator.userAgent) && !/Chrome/.test(navigator.userAgent);
     
-    logger.log('Browser detection:', { 
+    logger.debug('Browser detection:', { 
       isMac, 
       isSafari, 
       isWebKit, 
       userAgent: navigator.userAgent, 
       platform: navigator.platform 
-    });
+    }, 'SYSTEM');
 
     // Apply fallback for Mac or Safari browsers
     if (isMac || isSafari || isWebKit) {
-      logger.log('Mac/Safari/WebKit detected, applying blur fallback immediately');
+      logger.debug('Mac/Safari/WebKit detected, applying blur fallback immediately', {}, 'UI');
       this.applyBlurFallback(pageContent);
     } else {
-      logger.log('Non-Mac browser detected, using standard blur');
+      logger.debug('Non-Mac browser detected, using standard blur', {}, 'UI');
     }
   }
 
@@ -1088,7 +1088,7 @@ export class BlockedPageUI {
     // Store reference for cleanup
     this.blurFallbackElement = fallbackOverlay;
     
-    logger.log('Applied enhanced blur fallback overlay for Mac/Safari compatibility');
+    logger.debug('Applied enhanced blur fallback overlay for Mac/Safari compatibility', {}, 'UI');
   }
 
   /**
@@ -1102,7 +1102,7 @@ export class BlockedPageUI {
       }
       this.blurFallbackElement = null;
       
-      logger.log('Removed blur fallback overlay');
+      logger.debug('Removed blur fallback overlay', {}, 'UI');
     }
   }
 
