@@ -428,9 +428,17 @@ export class BackgroundPomodoroManager {
    * Show browser notification
    */
   private showNotification(notification: TimerNotification): void {
+    logger.info('showNotification() called:', {
+      title: notification.title,
+      message: notification.message,
+      type: notification.type
+    }, 'SYSTEM');
+    
     try {
       // Generate unique notification ID to avoid conflicts
       const notificationId = `pomoblock_${Date.now()}`;
+      
+      logger.debug(`Creating browser notification with ID: ${notificationId}`, undefined, 'SYSTEM');
       
       chrome.notifications.create(notificationId, {
         type: 'basic',
@@ -441,13 +449,13 @@ export class BackgroundPomodoroManager {
         requireInteraction: false
       }, (notificationId) => {
         if (chrome.runtime.lastError) {
-          console.error('Error creating notification:', chrome.runtime.lastError);
+          logger.error('Error creating notification:', chrome.runtime.lastError, 'SYSTEM');
         } else {
-          logger.log('Notification created successfully:', notificationId);
+          logger.info('Browser notification created successfully:', notificationId, 'SYSTEM');
         }
       });
     } catch (error) {
-      console.error('Error showing notification:', error);
+      logger.error('Error showing notification:', error, 'SYSTEM');
     }
   }
 
@@ -455,13 +463,14 @@ export class BackgroundPomodoroManager {
    * Play notification sound
    */
   private playNotificationSound(): void {
+    logger.debug('playNotificationSound() called - using browser notification sound', undefined, 'AUDIO');
     try {
       // Since Web Audio API is not available in service workers,
       // we'll use a different approach or skip sound in background
       // The notification itself will make a sound if the user has notifications enabled
-      logger.log('Notification sound requested (handled by browser notification)');
+      logger.info('Notification sound requested (handled by browser notification system)', undefined, 'AUDIO');
     } catch (error) {
-      logger.log('Could not play notification sound:', error);
+      logger.error('Could not play notification sound:', error, 'AUDIO');
     }
   }
 
@@ -589,6 +598,8 @@ export class BackgroundPomodoroManager {
    * Play custom audio for timer events
    */
   private async playCustomAudio(eventType: string): Promise<void> {
+    logger.info(`Audio playback requested for event: ${eventType}`, undefined, 'AUDIO');
+    
     try {
       let soundType: 'work_complete' | 'rest_complete' | 'session_start' = 'work_complete';
       
@@ -603,6 +614,8 @@ export class BackgroundPomodoroManager {
           soundType = 'session_start';
           break;
       }
+      
+      logger.debug(`Mapped event type '${eventType}' to sound type '${soundType}'`, undefined, 'AUDIO');
 
       // Get current settings from storage
       const pomodoroSettings = await getPomodoroSettings();
@@ -624,14 +637,28 @@ export class BackgroundPomodoroManager {
       }
 
       if (!audioSettings.enabled) {
+        logger.info('Audio playback skipped - audio disabled in settings', undefined, 'AUDIO');
         return;
       }
+      
+      logger.debug(`Audio settings configured:`, {
+        enabled: audioSettings.enabled,
+        volume: audioSettings.volume,
+        soundTheme: audioSettings.soundTheme,
+        soundId: audioSettings.sounds[soundType].id
+      }, 'AUDIO');
 
       // Create offscreen document if needed
+      logger.debug('Ensuring offscreen document exists for audio playback', undefined, 'AUDIO');
       await this.ensureOffscreenDocument();
 
       // Send message to offscreen document to play audio
       const soundOption = audioSettings.sounds[soundType];
+      logger.debug(`Sending audio playback message to offscreen document:`, {
+        soundOption: soundOption,
+        volume: audioSettings.volume
+      }, 'AUDIO');
+      
       const response = await chrome.runtime.sendMessage({
         type: 'PLAY_AUDIO_OFFSCREEN',
         data: {
@@ -641,13 +668,13 @@ export class BackgroundPomodoroManager {
       });
 
       if (response && response.success) {
-        logger.log(`Audio played successfully: ${soundType}`);
+        logger.info(`Audio played successfully: ${soundType}`, response, 'AUDIO');
       } else {
-        logger.log(`Failed to play audio: ${soundType}`, response?.error);
+        logger.error(`Failed to play audio: ${soundType}`, response?.error || response, 'AUDIO');
       }
       
     } catch (error) {
-      logger.log('Error playing custom audio:', error);
+      logger.error('Error playing custom audio:', error, 'AUDIO');
     }
   }
 
@@ -674,6 +701,7 @@ export class BackgroundPomodoroManager {
 
       if (existingContexts.length > 0) {
         this.offscreenDocumentCreated = true;
+        logger.log('Offscreen document already exists');
         return;
       }
 

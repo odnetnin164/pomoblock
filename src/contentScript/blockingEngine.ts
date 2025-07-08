@@ -27,7 +27,7 @@ export class BlockingEngine {
     sites.forEach(site => {
       this.restrictedSites.add(site.toLowerCase());
     });
-    logger.log('Updated blocked sites', Array.from(this.restrictedSites));
+    logger.debug('Updated blocked sites', Array.from(this.restrictedSites), 'BLOCKING');
   }
 
   /**
@@ -38,7 +38,7 @@ export class BlockingEngine {
     paths.forEach(path => {
       this.whitelistedPaths.add(path.toLowerCase());
     });
-    logger.log('Updated whitelisted paths', Array.from(this.whitelistedPaths));
+    logger.debug('Updated whitelisted paths', Array.from(this.whitelistedPaths), 'BLOCKING');
   }
 
   /**
@@ -46,7 +46,7 @@ export class BlockingEngine {
    */
   updateBlockedSitesToggleState(toggleState: SiteToggleState): void {
     this.blockedSitesToggleState = { ...toggleState };
-    logger.log('Updated blocked sites toggle state', this.blockedSitesToggleState);
+    logger.debug('Updated blocked sites toggle state', this.blockedSitesToggleState, 'BLOCKING');
   }
 
   /**
@@ -54,7 +54,7 @@ export class BlockingEngine {
    */
   updateWhitelistedPathsToggleState(toggleState: SiteToggleState): void {
     this.whitelistedPathsToggleState = { ...toggleState };
-    logger.log('Updated whitelisted paths toggle state', this.whitelistedPathsToggleState);
+    logger.debug('Updated whitelisted paths toggle state', this.whitelistedPathsToggleState, 'BLOCKING');
   }
 
   /**
@@ -117,10 +117,10 @@ export class BlockingEngine {
       targetPathname = (window.location.pathname + window.location.search).toLowerCase();
     }
     
-    logger.log('Checking whitelisted paths for', { hostname: targetHostname, pathname: targetPathname });
+    logger.debug('Checking whitelisted paths for', { hostname: targetHostname, pathname: targetPathname }, 'BLOCKING');
     
     for (const whitelistedPath of this.whitelistedPaths) {
-      logger.log('Checking against whitelisted path', whitelistedPath);
+      logger.debug('Checking against whitelisted path', whitelistedPath, 'BLOCKING');
       
       if (whitelistedPath.includes('/')) {
         // This is a path-specific whitelist entry
@@ -128,12 +128,12 @@ export class BlockingEngine {
         const pathPath = ('/' + pathParts.join('/')).toLowerCase();
         const normalizedPathDomain = normalizeURL(pathDomain.toLowerCase());
         
-        logger.log('Path-based whitelist check', { 
+        logger.debug('Path-based whitelist check', { 
           pathDomain: normalizedPathDomain, 
           pathPath, 
           hostname: targetHostname, 
           pathname: targetPathname 
-        });
+        }, 'BLOCKING');
         
         // Check if domain matches and current path starts with whitelisted path
         // For IP addresses with ports in the whitelist, check hostname with port
@@ -142,10 +142,10 @@ export class BlockingEngine {
         
         if (domainMatch && targetPathname.startsWith(pathPath)) {
           if (this.isWhitelistedPathEnabled(whitelistedPath)) {
-            logger.log('WHITELIST PATH MATCH FOUND (ENABLED)', { whitelistedPath, targetHostname, targetPathname });
+            logger.info('WHITELIST PATH MATCH FOUND (ENABLED)', { whitelistedPath, targetHostname, targetPathname }, 'BLOCKING');
             return true;
           } else {
-            logger.log('WHITELIST PATH MATCH FOUND BUT DISABLED', { whitelistedPath, targetHostname, targetPathname });
+            logger.info('WHITELIST PATH MATCH FOUND BUT DISABLED', { whitelistedPath, targetHostname, targetPathname }, 'BLOCKING');
           }
         }
       } else {
@@ -158,10 +158,10 @@ export class BlockingEngine {
         
         if (exactMatch) {
           if (this.isWhitelistedPathEnabled(whitelistedPath)) {
-            logger.log('WHITELIST EXACT DOMAIN MATCH FOUND (ENABLED)', { targetHostname, targetHostnameWithPort, whitelistedPath: normalizedDomain });
+            logger.info('WHITELIST EXACT DOMAIN MATCH FOUND (ENABLED)', { targetHostname, targetHostnameWithPort, whitelistedPath: normalizedDomain }, 'BLOCKING');
             return true;
           } else {
-            logger.log('WHITELIST EXACT DOMAIN MATCH FOUND BUT DISABLED', { targetHostname, targetHostnameWithPort, whitelistedPath: normalizedDomain });
+            logger.info('WHITELIST EXACT DOMAIN MATCH FOUND BUT DISABLED', { targetHostname, targetHostnameWithPort, whitelistedPath: normalizedDomain }, 'BLOCKING');
           }
         }
         
@@ -171,7 +171,7 @@ export class BlockingEngine {
       }
     }
     
-    logger.log('No whitelist match found');
+    logger.debug('No whitelist match found', undefined, 'BLOCKING');
     return false;
   }
 
@@ -207,15 +207,15 @@ export class BlockingEngine {
       }
     }
     
-    logger.log('Checking URL', targetUrl);
-    logger.log('Hostname', targetHostname);
-    logger.log('Hostname with port', targetHostnameWithPort);
-    logger.log('Pathname', targetPathname);
-    logger.log('Against restricted sites', Array.from(this.restrictedSites));
+    logger.debug('Checking URL', targetUrl, 'BLOCKING');
+    logger.debug('Hostname', targetHostname, 'BLOCKING');
+    logger.debug('Hostname with port', targetHostnameWithPort, 'BLOCKING');
+    logger.debug('Pathname', targetPathname, 'BLOCKING');
+    logger.debug('Against restricted sites', Array.from(this.restrictedSites), 'BLOCKING');
     
     // First check if this path is whitelisted
     if (this.isUrlWhitelisted(targetUrl, hostname, pathname)) {
-      logger.log('Site is whitelisted, not blocking');
+      logger.info('Site is whitelisted, not blocking', undefined, 'BLOCKING');
       return false;
     }
     
@@ -223,7 +223,7 @@ export class BlockingEngine {
     
     // Check each blocked site
     for (const site of this.restrictedSites) {
-      logger.log('Comparing with', site);
+      logger.debug('Comparing with', site, 'BLOCKING');
       
       // Handle path-based blocking (like Reddit subreddits, YouTube channels)
       if (site.includes('/')) {
@@ -231,7 +231,7 @@ export class BlockingEngine {
         const sitePath = ('/' + pathParts.join('/')).toLowerCase();
         const normalizedSiteDomain = normalizeURL(siteDomain.toLowerCase());
         
-        logger.log('Path-based check', { siteDomain: normalizedSiteDomain, sitePath, hostname: targetHostname, pathname: targetPathname });
+        logger.debug('Path-based check', { siteDomain: normalizedSiteDomain, sitePath, hostname: targetHostname, pathname: targetPathname }, 'BLOCKING');
         
         // Check if domain matches and path starts with the blocked path
         // For IP addresses with ports in the blocked site, check hostname with port
@@ -240,11 +240,11 @@ export class BlockingEngine {
         
         if (domainMatch && targetPathname.startsWith(sitePath)) {
           if (this.isBlockedSiteEnabled(site)) {
-            logger.log('PATH MATCH FOUND (ENABLED)', { site, targetHostname, targetPathname });
+            logger.info('PATH MATCH FOUND (ENABLED)', { site, targetHostname, targetPathname }, 'BLOCKING');
             shouldBlock = true;
             break;
           } else {
-            logger.log('PATH MATCH FOUND BUT DISABLED', { site, targetHostname, targetPathname });
+            logger.info('PATH MATCH FOUND BUT DISABLED', { site, targetHostname, targetPathname }, 'BLOCKING');
           }
         }
       } else {
@@ -257,11 +257,11 @@ export class BlockingEngine {
         
         if (exactMatch) {
           if (this.isBlockedSiteEnabled(site)) {
-            logger.log('EXACT DOMAIN MATCH FOUND (ENABLED)', { targetHostname, targetHostnameWithPort, matchedSite: normalizedSite });
+            logger.info('EXACT DOMAIN MATCH FOUND (ENABLED)', { targetHostname, targetHostnameWithPort, matchedSite: normalizedSite }, 'BLOCKING');
             shouldBlock = true;
             break;
           } else {
-            logger.log('EXACT DOMAIN MATCH FOUND BUT DISABLED', { targetHostname, targetHostnameWithPort, matchedSite: normalizedSite });
+            logger.warn('EXACT DOMAIN MATCH FOUND BUT DISABLED', { targetHostname, targetHostnameWithPort, matchedSite: normalizedSite }, 'BLOCKING');
           }
         }
         
@@ -271,32 +271,32 @@ export class BlockingEngine {
           // Check if this specific subdomain is whitelisted
           if (!this.isSubdomainWhitelisted(targetHostname)) {
             if (this.isBlockedSiteEnabled(site)) {
-              logger.log('SUBDOMAIN MATCH FOUND (ENABLED)', { targetHostname, matchedSite: normalizedSite });
+              logger.info('SUBDOMAIN MATCH FOUND (ENABLED)', { targetHostname, matchedSite: normalizedSite }, 'BLOCKING');
               shouldBlock = true;
               break;
             } else {
-              logger.log('SUBDOMAIN MATCH FOUND BUT DISABLED', { targetHostname, matchedSite: normalizedSite });
+              logger.info('SUBDOMAIN MATCH FOUND BUT DISABLED', { targetHostname, matchedSite: normalizedSite }, 'BLOCKING');
             }
           } else {
-            logger.log('SUBDOMAIN BLOCKED BUT WHITELISTED', { targetHostname, matchedSite: normalizedSite });
+            logger.info('SUBDOMAIN BLOCKED BUT WHITELISTED', { targetHostname, matchedSite: normalizedSite }, 'BLOCKING');
           }
         }
         
         // Partial match for complex domains
         if (targetHostname.includes(normalizedSite)) {
           if (this.isBlockedSiteEnabled(site)) {
-            logger.log('PARTIAL MATCH FOUND (ENABLED)', { targetHostname, matchedSite: normalizedSite });
+            logger.info('PARTIAL MATCH FOUND (ENABLED)', { targetHostname, matchedSite: normalizedSite }, 'BLOCKING');
             shouldBlock = true;
             break;
           } else {
-            logger.log('PARTIAL MATCH FOUND BUT DISABLED', { targetHostname, matchedSite: normalizedSite });
+            logger.info('PARTIAL MATCH FOUND BUT DISABLED', { targetHostname, matchedSite: normalizedSite }, 'BLOCKING');
           }
         }
       }
     }
     
     if (!shouldBlock) {
-      logger.log('No match found');
+      logger.debug('No match found', undefined, 'BLOCKING');
     }
     
     return shouldBlock;
@@ -347,7 +347,7 @@ export class BlockingEngine {
         };
       }
     } catch (error) {
-      logger.log('Error parsing URL and error:', { url, error });
+      logger.error('Error parsing URL and error:', { url, error }, 'SYSTEM');
       return null;
     }
   }

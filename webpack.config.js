@@ -12,7 +12,8 @@ module.exports = (env, argv) => {
       popup: './src/popup/index.ts',
       options: './src/options/index.ts',
       background: './src/background/index.ts',
-      history: './src/history/index.ts'
+      history: './src/history/index.ts',
+      'offscreen/audio': './src/offscreen/audio.ts'
     },
     output: {
       path: path.resolve(__dirname, 'dist'),
@@ -65,6 +66,11 @@ module.exports = (env, argv) => {
         filename: 'history.html',
         chunks: ['history']
       }),
+      new HtmlWebpackPlugin({
+        template: './src/offscreen/audio.html',
+        filename: 'offscreen/audio.html',
+        chunks: ['offscreen/audio']
+      }),
       new CopyWebpackPlugin({
         patterns: [
           { from: 'manifest.json', to: 'manifest.json' },
@@ -79,11 +85,6 @@ module.exports = (env, argv) => {
           { 
             from: 'sounds', 
             to: 'sounds', 
-            noErrorOnMissing: true
-          },
-          { 
-            from: 'src/offscreen', 
-            to: 'offscreen', 
             noErrorOnMissing: true
           },
           { from: 'readme.md', to: 'readme.md' },

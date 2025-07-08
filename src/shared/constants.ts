@@ -102,6 +102,7 @@ export const STORAGE_KEYS = {
   REDIRECT_DELAY: 'redirectDelay',
   EXTENSION_ENABLED: 'extensionEnabled',
   DEBUG_ENABLED: 'debugEnabled',
+  DEBUG_LOGS: 'debugLogs',
   WORK_HOURS_ENABLED: 'workHoursEnabled',
   WORK_HOURS_START_TIME: 'workHoursStartTime',
   WORK_HOURS_END_TIME: 'workHoursEndTime',
@@ -139,7 +140,6 @@ export const DEFAULT_FLOATING_TIMER_SETTINGS = {
 
 // Debug Configuration
 export const DEBUG_CONFIG = {
-  MAX_LOG_ENTRIES: 10,
   DEBUG_DIV_ID: 'pomoblock-debug'
 };
 

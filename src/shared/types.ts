@@ -114,10 +114,25 @@ export interface WhitelistTarget {
   label: string;
 }
 
+// Debug Log Types
+export type LogLevel = 'DEBUG' | 'INFO' | 'WARN' | 'ERROR';
+export type LogCategory = 
+  | 'BLOCKING' 
+  | 'AUDIO' 
+  | 'TIMER' 
+  | 'NAVIGATION' 
+  | 'STORAGE' 
+  | 'NETWORK' 
+  | 'UI' 
+  | 'SYSTEM' 
+  | 'GENERAL';
+
 // Debug Log Entry
 export interface DebugLogEntry {
   timestamp: Date;
   message: string;
+  level: LogLevel;
+  category: LogCategory;
   data?: any;
 }
 

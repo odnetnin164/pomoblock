@@ -36,7 +36,7 @@ export class FloatingTimer {
       const response = await fetch(cssUrl);
       return await response.text();
     } catch (error) {
-      logger.log('Error loading floating timer CSS:', error);
+      logger.error('Error loading floating timer CSS:', error, 'UI');
       return '';
     }
   }
@@ -59,7 +59,7 @@ export class FloatingTimer {
         this.settings = { ...this.settings, ...data[POMODORO_STORAGE_KEYS.FLOATING_TIMER_SETTINGS] };
       }
     } catch (error) {
-      logger.log('Error loading floating timer settings:', error);
+      logger.error('Error loading floating timer settings:', error, 'STORAGE');
     }
   }
 
@@ -70,7 +70,7 @@ export class FloatingTimer {
     try {
       await chrome.storage.local.set({ [POMODORO_STORAGE_KEYS.FLOATING_TIMER_SETTINGS]: this.settings });
     } catch (error) {
-      logger.log('Error saving floating timer settings:', error);
+      logger.error('Error saving floating timer settings:', error, 'STORAGE');
     }
   }
 
@@ -475,11 +475,11 @@ export class FloatingTimer {
   private setupRuntimeListeners(): void {
     // Listen for timer updates from background
     chrome.runtime.onMessage.addListener((message) => {
-      logger.log('FloatingTimer received message:', message.type);
+      logger.debug('FloatingTimer received message:', message.type, 'TIMER');
       if (message.type === 'TIMER_UPDATE' && message.data.timerStatus) {
         this.updateStatus(message.data.timerStatus);
       } else if (message.type === 'TIMER_COMPLETE') {
-        logger.log('FloatingTimer: TIMER_COMPLETE message received, triggering vibration');
+        logger.info('FloatingTimer: TIMER_COMPLETE message received, triggering vibration', undefined, 'TIMER');
         // Add vibration when session completes
         this.triggerVibration();
         // Refresh status after timer completion
@@ -498,7 +498,7 @@ export class FloatingTimer {
     // Listen for visibility changes to update when tab becomes active
     document.addEventListener('visibilitychange', () => {
       if (!document.hidden && this.isVisible) {
-        logger.log('Floating timer: Tab became visible, refreshing status');
+        logger.debug('Floating timer: Tab became visible, refreshing status', undefined, 'NAVIGATION');
         // Refresh timer status when tab becomes visible
         this.requestTimerStatus();
         
@@ -512,7 +512,7 @@ export class FloatingTimer {
     // Listen for window focus events
     window.addEventListener('focus', () => {
       if (this.isVisible) {
-        logger.log('Floating timer: Window focused, refreshing status');
+        logger.debug('Floating timer: Window focused, refreshing status', undefined, 'NAVIGATION');
         this.requestTimerStatus();
         // Reload position to sync with other tabs
         this.loadSettings().then(() => {
@@ -533,7 +533,7 @@ export class FloatingTimer {
       if (areaName === 'local' && changes[POMODORO_STORAGE_KEYS.FLOATING_TIMER_SETTINGS]) {
         const newSettings = changes[POMODORO_STORAGE_KEYS.FLOATING_TIMER_SETTINGS].newValue;
         if (newSettings && this.widget) {
-          logger.log('Floating timer position synced from another tab');
+          logger.debug('Floating timer position synced from another tab', undefined, 'STORAGE');
           this.settings = { ...this.settings, ...newSettings };
           this.updateWidgetPosition();
         }
@@ -566,7 +566,7 @@ export class FloatingTimer {
         await this.sendMessage('START_REST');
       }
     } catch (error) {
-      logger.log('Error starting timer:', error);
+      logger.error('Error starting timer:', error, 'TIMER');
     }
   }
 
@@ -576,9 +576,9 @@ export class FloatingTimer {
   private async handleTaskChange(newTask: string): Promise<void> {
     try {
       await this.sendMessage('UPDATE_TASK', { task: newTask });
-      logger.log('Task updated:', newTask);
+      logger.info('Task updated:', newTask, 'TIMER');
     } catch (error) {
-      logger.log('Error updating task:', error);
+      logger.error('Error updating task:', error, 'TIMER');
     }
   }
 
@@ -589,7 +589,7 @@ export class FloatingTimer {
     try {
       await chrome.runtime.sendMessage({ type, ...data });
     } catch (error) {
-      logger.log('Error sending message:', error);
+      logger.error('Error sending message:', error, 'SYSTEM');
     }
   }
 
@@ -597,7 +597,7 @@ export class FloatingTimer {
    * Trigger vibration animation when session completes
    */
   private triggerVibration(): void {
-    logger.log('FloatingTimer: triggerVibration() called - applying shake animation');
+    logger.info('FloatingTimer: triggerVibration() called - applying shake animation', undefined, 'UI');
     this.triggerVisualVibration();
   }
 
@@ -605,10 +605,10 @@ export class FloatingTimer {
    * Trigger visual vibration effect on the widget
    */
   private triggerVisualVibration(): void {
-    logger.log('triggerVisualVibration called, widget and shadowRoot available');
+    logger.debug('triggerVisualVibration called, widget and shadowRoot available', undefined, 'UI');
     
     if (!this.widget || !this.shadowRoot) {
-      logger.log('No widget or shadow root available for visual vibration');
+      logger.warn('No widget or shadow root available for visual vibration', undefined, 'UI');
       return;
     }
 
@@ -616,16 +616,16 @@ export class FloatingTimer {
       // Find the actual floating timer element inside the Shadow DOM
       const floatingTimerElement = this.shadowRoot.querySelector('.floating-timer') as HTMLElement;
       if (!floatingTimerElement) {
-        logger.log('Could not find .floating-timer element in Shadow DOM');
+        logger.warn('Could not find .floating-timer element in Shadow DOM', undefined, 'UI');
         return;
       }
 
-      logger.log('Applying shake animation to floating timer element');
+      logger.debug('Applying shake animation to floating timer element', undefined, 'UI');
       
       // Add shake keyframes to the Shadow DOM if not already present
       const existingShakeStyle = this.shadowRoot.querySelector('#pomoblock-shake-animation');
       if (!existingShakeStyle) {
-        logger.log('Adding shake keyframes to Shadow DOM');
+        logger.debug('Adding shake keyframes to Shadow DOM', undefined, 'UI');
         const shakeStyle = document.createElement('style');
         shakeStyle.id = 'pomoblock-shake-animation';
         shakeStyle.textContent = `
@@ -645,7 +645,7 @@ export class FloatingTimer {
         `;
         this.shadowRoot.appendChild(shakeStyle);
       } else {
-        logger.log('Shake keyframes already exist in Shadow DOM');
+        logger.debug('Shake keyframes already exist in Shadow DOM', undefined, 'UI');
       }
 
       // Apply shake animation to the floating timer element inside Shadow DOM
@@ -654,14 +654,14 @@ export class FloatingTimer {
       // Remove animation after it completes
       setTimeout(() => {
         if (floatingTimerElement) {
-          logger.log('Clearing shake animation');
+          logger.debug('Clearing shake animation', undefined, 'UI');
           floatingTimerElement.style.animation = '';
         }
       }, 600);
 
-      logger.log('Session completion visual vibration triggered successfully');
+      logger.info('Session completion visual vibration triggered successfully', undefined, 'UI');
     } catch (error) {
-      logger.log('Error triggering visual vibration:', error);
+      logger.error('Error triggering visual vibration:', error, 'UI');
     }
   }
 
@@ -675,10 +675,10 @@ export class FloatingTimer {
         this.updateStatus(response.status);
       }
     } catch (error) {
-      logger.log('Error requesting timer status:', error);
+      logger.error('Error requesting timer status:', error, 'TIMER');
       // If extension context is invalid (after reload), try to reinitialize
       if ((error as Error).toString().includes('Extension context invalidated')) {
-        logger.log('Extension context invalidated, attempting to reinitialize');
+        logger.warn('Extension context invalidated, attempting to reinitialize', undefined, 'SYSTEM');
         this.handleExtensionReload();
       }
     }
@@ -849,7 +849,7 @@ export class FloatingTimer {
       this.widget.style.top = newY + 'px';
       this.settings.position = { x: newX, y: newY };
       this.saveSettings();
-      logger.log('Floating timer position adjusted to stay in viewport');
+      logger.debug('Floating timer position adjusted to stay in viewport', undefined, 'UI');
     }
   }
 
@@ -857,12 +857,12 @@ export class FloatingTimer {
    * Handle extension reload (context invalidated)
    */
   private handleExtensionReload(): void {
-    logger.log('Handling extension reload for floating timer');
+    logger.warn('Handling extension reload for floating timer', undefined, 'SYSTEM');
     
     // Try to reconnect after a short delay
     setTimeout(() => {
       this.requestTimerStatus().catch(() => {
-        logger.log('Still unable to connect after extension reload');
+        logger.error('Still unable to connect after extension reload', undefined, 'SYSTEM');
         // Hide the widget if we can't reconnect
         this.hide();
       });
@@ -875,12 +875,12 @@ export class FloatingTimer {
   private setupBlockedPageEventListeners(): void {
     // Listen for blocked page events
     window.addEventListener('pomoblock-page-blocked', (event) => {
-      logger.log('Blocked page displayed event received');
+      logger.debug('Blocked page displayed event received', undefined, 'UI');
       this.ensureVisibilityOnBlockedPage();
     });
 
     window.addEventListener('pomoblock-page-unblocked', (event) => {
-      logger.log('Blocked page removed event received');
+      logger.debug('Blocked page removed event received', undefined, 'UI');
       // Timer visibility will be managed by normal status updates
     });
   }
@@ -889,16 +889,16 @@ export class FloatingTimer {
    * Ensure timer remains visible when blocked page is shown
    */
   private async ensureVisibilityOnBlockedPage(): Promise<void> {
-    logger.log('Ensuring floating timer visibility on blocked page');
+    logger.debug('Ensuring floating timer visibility on blocked page', undefined, 'UI');
     
     if (!this.widget) {
-      logger.log('Widget does not exist, creating it');
+      logger.debug('Widget does not exist, creating it', undefined, 'UI');
       await this.createWidget();
     }
 
     // Force the widget to be visible if timer is active
     if (this.currentStatus && this.currentStatus.state !== 'STOPPED') {
-      logger.log('Timer is active, forcing visibility');
+      logger.debug('Timer is active, forcing visibility', undefined, 'UI');
       this.show();
       
       // Ensure z-index is still highest
@@ -913,10 +913,10 @@ export class FloatingTimer {
         }
         document.documentElement.appendChild(this.widget);
         
-        logger.log('Floating timer repositioned and made visible');
+        logger.debug('Floating timer repositioned and made visible', undefined, 'UI');
       }
     } else if (this.settings.alwaysShow) {
-      logger.log('Always show is enabled, forcing visibility');
+      logger.debug('Always show is enabled, forcing visibility', undefined, 'UI');
       this.show();
       
       // Ensure positioning for always show

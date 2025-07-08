@@ -46,27 +46,42 @@ export class AudioManager {
    * Play a sound for the specified type
    */
   async playSound(soundType: SoundType): Promise<void> {
+    logger.info(`Audio playSound() called for type: ${soundType}`, {
+      enabled: this.settings.enabled,
+      volume: this.settings.volume,
+      soundTheme: this.settings.soundTheme
+    }, 'AUDIO');
+    
     if (!this.settings.enabled) {
+      logger.info(`Audio playback skipped - audio disabled (soundType: ${soundType})`, undefined, 'AUDIO');
       return;
     }
 
     // Ensure AudioContext is ready before playing
     const isReady = await this.ensureAudioContextReady();
     if (!isReady) {
-      logger.log(`AudioContext not ready, cannot play sound for ${soundType}`);
+      logger.warn(`AudioContext not ready, cannot play sound for ${soundType}`, undefined, 'AUDIO');
       return;
     }
 
     try {
       const soundOption = this.settings.sounds[soundType];
+      logger.debug(`Playing sound for ${soundType}:`, {
+        soundId: soundOption.id,
+        soundName: soundOption.name,
+        soundType: soundOption.type
+      }, 'AUDIO');
+      
       const soundBuffer = await this.getSoundBuffer(soundOption);
       
       if (soundBuffer) {
         await this.playAudioBuffer(soundBuffer);
-        logger.log(`Audio played for ${soundType}`);
+        logger.info(`Audio played successfully for ${soundType} (${soundOption.name})`, undefined, 'AUDIO');
+      } else {
+        logger.warn(`No sound buffer available for ${soundType} (${soundOption.name})`, undefined, 'AUDIO');
       }
     } catch (error) {
-      logger.log(`Failed to play sound for ${soundType}:`, error);
+      logger.error(`Failed to play sound for ${soundType}:`, error, 'AUDIO');
     }
   }
 
@@ -85,10 +100,12 @@ export class AudioManager {
     
     // Check if already loaded
     if (this.loadedSounds.has(soundId)) {
+      logger.log(`Using cached sound buffer for ${soundId}`);
       return this.loadedSounds.get(soundId) || null;
     }
 
     // Load the sound
+    logger.log(`Loading sound buffer for ${soundId} (${soundOption.name})`);
     try {
       let audioData: ArrayBuffer;
 
@@ -145,12 +162,25 @@ export class AudioManager {
    * Play an audio buffer
    */
   private async playAudioBuffer(buffer: AudioBuffer): Promise<void> {
-    if (!this.audioContext) return;
+    if (!this.audioContext) {
+      logger.log('No AudioContext available for playback');
+      return;
+    }
+
+    logger.log(`Playing audio buffer:`, {
+      duration: buffer.duration,
+      sampleRate: buffer.sampleRate,
+      numberOfChannels: buffer.numberOfChannels,
+      contextState: this.audioContext.state,
+      volume: this.settings.volume
+    });
 
     // Ensure AudioContext is running
     if (this.audioContext.state === 'suspended') {
       try {
+        logger.log('Resuming suspended AudioContext');
         await this.audioContext.resume();
+        logger.log('AudioContext resumed successfully');
       } catch (error) {
         logger.log('Failed to resume AudioContext:', error);
         return;
@@ -174,6 +204,7 @@ export class AudioManager {
     
     // Clean up nodes after playback finishes
     source.addEventListener('ended', () => {
+      logger.log('Audio playback finished successfully');
       try {
         source.disconnect();
         gainNode.disconnect();
@@ -194,7 +225,9 @@ export class AudioManager {
     });
     
     try {
+      logger.log('Starting audio playback');
       source.start();
+      logger.log('Audio playback started successfully');
     } catch (error) {
       logger.log('Failed to start audio source:', error);
       // Clean up on start failure

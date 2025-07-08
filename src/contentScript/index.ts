@@ -42,13 +42,13 @@ class ContentScriptManager {
    */
   private async init(): Promise<void> {
     if (this.isInitialized) {
-      logger.log('Content script already initialized, skipping');
+      logger.debug('Content script already initialized, skipping', undefined, 'SYSTEM');
       return;
     }
 
-    logger.log('ContentScript initializing');
-    logger.log('Current URL', window.location.href);
-    logger.log('Document ready state', document.readyState);
+    logger.info('ContentScript initializing', undefined, 'SYSTEM');
+    logger.debug('Current URL', window.location.href, 'NAVIGATION');
+    logger.debug('Document ready state', document.readyState, 'SYSTEM');
 
     // Load settings and site lists
     await this.loadConfiguration();
@@ -72,7 +72,7 @@ class ContentScriptManager {
     this.checkAndBlock();
 
     this.isInitialized = true;
-    logger.log('ContentScript fully initialized');
+    logger.info('ContentScript fully initialized', undefined, 'SYSTEM');
   }
 
   /**
@@ -80,11 +80,11 @@ class ContentScriptManager {
    */
   private async loadConfiguration(): Promise<void> {
     try {
-      logger.log('Loading configuration from storage');
+      logger.debug('Loading configuration from storage', undefined, 'STORAGE');
 
       // Load settings
       this.settings = await getSettings();
-      logger.log('Loaded settings', this.settings);
+      logger.debug('Loaded settings', this.settings, 'STORAGE');
 
       // Update logger debug state
       logger.setDebugEnabled(this.settings.debugEnabled);
@@ -94,7 +94,7 @@ class ContentScriptManager {
 
       // If extension is disabled, don't continue
       if (!this.settings.extensionEnabled) {
-        logger.log('Extension is disabled, cleaning up and exiting');
+        logger.info('Extension is disabled, cleaning up and exiting', undefined, 'SYSTEM');
         this.blockedPageUI.removeBlockedPage();
         return;
       }
@@ -104,8 +104,8 @@ class ContentScriptManager {
         getBlockedWebsites(),
         getBlockedSitesToggleState()
       ]);
-      logger.log('Loaded blocked websites', blockedWebsites);
-      logger.log('Loaded blocked sites toggle state', blockedToggleState);
+      logger.debug('Loaded blocked websites', blockedWebsites, 'STORAGE');
+      logger.debug('Loaded blocked sites toggle state', blockedToggleState, 'STORAGE');
       this.blockingEngine.updateBlockedSites(blockedWebsites);
       this.blockingEngine.updateBlockedSitesToggleState(blockedToggleState);
 
@@ -114,13 +114,13 @@ class ContentScriptManager {
         getWhitelistedPaths(),
         getWhitelistedPathsToggleState()
       ]);
-      logger.log('Loaded whitelisted paths', whitelistedPaths);
-      logger.log('Loaded whitelisted paths toggle state', whitelistToggleState);
+      logger.debug('Loaded whitelisted paths', whitelistedPaths, 'STORAGE');
+      logger.debug('Loaded whitelisted paths toggle state', whitelistToggleState, 'STORAGE');
       this.blockingEngine.updateWhitelistedPaths(whitelistedPaths);
       this.blockingEngine.updateWhitelistedPathsToggleState(whitelistToggleState);
 
     } catch (error) {
-      logger.log('Error loading configuration', (error as Error).message);
+      logger.error('Error loading configuration', (error as Error).message, 'STORAGE');
     }
   }
 
@@ -132,12 +132,12 @@ class ContentScriptManager {
       const response = await chrome.runtime.sendMessage({ type: 'GET_TIMER_STATUS' });
       if (response.status && response.status.state) {
         this.currentTimerState = response.status.state;
-        logger.log('Timer state:', this.currentTimerState);
+        logger.debug('Timer state:', this.currentTimerState, 'TIMER');
       } else {
         this.currentTimerState = 'STOPPED';
       }
     } catch (error) {
-      logger.log('Error checking timer state', (error as Error).message);
+      logger.error('Error checking timer state', (error as Error).message, 'TIMER');
       this.currentTimerState = 'STOPPED';
     }
   }
@@ -148,14 +148,14 @@ class ContentScriptManager {
   private setupStorageListener(): void {
     onStorageChanged((changes, areaName) => {
       if (areaName === 'sync') {
-        logger.log('Storage changed', changes);
+        logger.debug('Storage changed', changes, 'STORAGE');
 
         // Handle blocked websites, whitelisted paths, or toggle states changes
         if (changes.blockedWebsitesArray || 
             changes.whitelistedPathsArray || 
             changes.blockedSitesToggleState || 
             changes.whitelistedPathsToggleState) {
-          logger.log('Blocked websites, whitelisted paths, or toggle states changed, reloading configuration');
+          logger.info('Blocked websites, whitelisted paths, or toggle states changed, reloading configuration', undefined, 'STORAGE');
           this.loadConfiguration().then(() => {
             // Force re-check current page after configuration update
             this.forceRecheck();
@@ -168,7 +168,7 @@ class ContentScriptManager {
             changes.workHoursStartTime !== undefined || 
             changes.workHoursEndTime !== undefined || 
             changes.workHoursDays !== undefined) {
-          logger.log('Work hours settings changed, reloading configuration');
+          logger.info('Work hours settings changed, reloading configuration', undefined, 'STORAGE');
           this.loadConfiguration().then(() => {
             // Force re-check current page after work hours update
             this.forceRecheck();
@@ -198,7 +198,7 @@ class ContentScriptManager {
         if (changes.extensionEnabled !== undefined) {
           this.settings.extensionEnabled = changes.extensionEnabled.newValue;
           if (!this.settings.extensionEnabled) {
-            logger.log('Extension disabled, cleaning up');
+            logger.info('Extension disabled, cleaning up', undefined, 'SYSTEM');
             this.cleanup();
             return;
           }
@@ -217,18 +217,18 @@ class ContentScriptManager {
               changes.workHoursStartTime !== undefined ||
               changes.workHoursEndTime !== undefined ||
               changes.workHoursDays !== undefined) {
-            logger.log('Work hours storage change detected:', {
+            logger.debug('Work hours storage change detected:', {
               workHoursEnabled: changes.workHoursEnabled,
               workHoursStartTime: changes.workHoursStartTime,
               workHoursEndTime: changes.workHoursEndTime,
               workHoursDays: changes.workHoursDays
-            });
+            }, 'STORAGE');
           }
         }
 
         if (settingsChanged) {
           this.blockedPageUI.updateSettings(this.settings);
-          logger.log('Settings updated', this.settings);
+          logger.debug('Settings updated', this.settings, 'STORAGE');
           
           // Force re-check blocking status with new settings
           this.forceRecheck();
@@ -241,11 +241,11 @@ class ContentScriptManager {
    * Set up navigation detection to catch URL changes
    */
   private setupNavigationDetection(): void {
-    logger.log('Setting up navigation detection');
+    logger.debug('Setting up navigation detection', undefined, 'NAVIGATION');
 
     // Method 1: Listen for popstate events (back/forward navigation)
     window.addEventListener('popstate', (event) => {
-      logger.log('Navigation detected: popstate', event.state);
+      logger.debug('Navigation detected: popstate', event.state, 'NAVIGATION');
       this.handleNavigationChange();
     });
 
@@ -255,7 +255,7 @@ class ContentScriptManager {
 
     history.pushState = function(...args) {
       originalPushState.apply(history, args);
-      logger.log('Navigation detected: pushState');
+      logger.debug('Navigation detected: pushState', undefined, 'NAVIGATION');
       setTimeout(() => {
         (window as any).contentScriptManager?.handleNavigationChange();
       }, 100);
@@ -263,7 +263,7 @@ class ContentScriptManager {
 
     history.replaceState = function(...args) {
       originalReplaceState.apply(history, args);
-      logger.log('Navigation detected: replaceState');
+      logger.debug('Navigation detected: replaceState', undefined, 'NAVIGATION');
       setTimeout(() => {
         (window as any).contentScriptManager?.handleNavigationChange();
       }, 100);
@@ -271,20 +271,20 @@ class ContentScriptManager {
 
     // Method 3: Listen for hashchange events
     window.addEventListener('hashchange', () => {
-      logger.log('Navigation detected: hashchange');
+      logger.debug('Navigation detected: hashchange', undefined, 'NAVIGATION');
       this.handleNavigationChange();
     });
 
     // Method 4: Listen for focus events (tab switching back)
     window.addEventListener('focus', () => {
-      logger.log('Window focus detected, checking URL');
+      logger.debug('Window focus detected, checking URL', undefined, 'NAVIGATION');
       this.handleNavigationChange();
     });
 
     // Method 5: Listen for visibility changes (tab switching)
     document.addEventListener('visibilitychange', () => {
       if (!document.hidden) {
-        logger.log('Tab became visible, updating floating timer');
+        logger.debug('Tab became visible, updating floating timer', undefined, 'NAVIGATION');
         this.handleTabBecameVisible();
       }
     });
@@ -292,7 +292,7 @@ class ContentScriptManager {
     // Method 6: Periodic URL checking as fallback (every 2 seconds)
     this.urlCheckInterval = window.setInterval(() => {
       if (window.location.href !== this.currentUrl) {
-        logger.log('Navigation detected: periodic check');
+        logger.debug('Navigation detected: periodic check', undefined, 'NAVIGATION');
         this.handleNavigationChange();
       }
     }, 2000);
@@ -322,34 +322,34 @@ class ContentScriptManager {
   private setupTimerMessageListener(): void {
     chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       if (message.type === 'TIMER_UPDATE') {
-        logger.log('Timer message received:', message.type);
+        logger.debug('Timer message received:', message.type, 'TIMER');
         // Update timer state immediately from the message
         if (message.data && message.data.timerStatus) {
           const previousState = this.currentTimerState;
           this.currentTimerState = message.data.timerStatus.state;
-          logger.log('Timer state updated', { from: previousState, to: this.currentTimerState });
+          logger.info('Timer state updated', { from: previousState, to: this.currentTimerState }, 'TIMER');
           
           // Update blocked page UI with new timer state
           this.blockedPageUI.setTimerState(this.currentTimerState);
           
           // Only re-check blocking if the timer state actually changed (not just time remaining)
           if (previousState !== this.currentTimerState) {
-            logger.log('Timer state changed, using graceful transition handling');
+            logger.info('Timer state changed, using graceful transition handling', undefined, 'TIMER');
             
             // If timer just started work session, media will be paused when/if a page gets blocked
             if (previousState !== 'WORK' && this.currentTimerState === 'WORK') {
-              logger.log('Work session started - media will be paused if any blocked sites are accessed');
+              logger.debug('Work session started - media will be paused if any blocked sites are accessed', undefined, 'TIMER');
             }
             
             // Use graceful timer state transition instead of checkAndBlock
             const shouldBeBlocked = this.shouldCurrentPageBeBlocked();
             this.blockedPageUI.handleTimerStateTransition(this.currentTimerState, shouldBeBlocked);
           } else {
-            logger.log('Timer time remaining updated, but state unchanged - no blocking check needed');
+            logger.debug('Timer time remaining updated, but state unchanged - no blocking check needed', undefined, 'TIMER');
           }
         }
       } else if (message.type === 'TIMER_COMPLETE') {
-        logger.log('Timer completion message received:', message.type);
+        logger.info('Timer completion message received:', message.type, 'TIMER');
         // Timer completed, check new state
         this.checkTimerState().then(() => {
           this.checkAndBlock();
@@ -358,16 +358,16 @@ class ContentScriptManager {
         // Handle floating timer settings updates
         this.floatingTimer.setAlwaysShow(message.alwaysShow);
       } else if (message.type === 'BLOCKING_CONFIG_CHANGED') {
-        logger.log('Received immediate blocking config change notification');
+        logger.debug('Received immediate blocking config change notification', undefined, 'BLOCKING');
         // Immediately reload configuration and re-check blocking
         this.loadConfiguration().then(() => {
           this.forceRecheck();
         });
       } else if (message.type === 'TEST_BUILT_IN_SOUND') {
-        logger.log('Test built-in sound message received:', message.data);
+        logger.debug('Test built-in sound message received:', message.data, 'AUDIO');
         this.testBuiltInSound(message.data.soundId, message.data.volume);
       } else if (message.type === 'TEST_CUSTOM_SOUND_PLAYBACK') {
-        logger.log('Test custom sound message received:', message.data);
+        logger.debug('Test custom sound message received:', message.data, 'AUDIO');
         this.testCustomSound(message.data.dataUrl, message.data.volume);
       }
     });
@@ -388,7 +388,7 @@ class ContentScriptManager {
       mutationTimeout = window.setTimeout(() => {
         // Check if URL changed during these mutations
         if (window.location.href !== this.currentUrl) {
-          logger.log('Navigation detected: DOM mutation');
+          logger.debug('Navigation detected: DOM mutation', undefined, 'NAVIGATION');
           this.handleNavigationChange();
         }
       }, 500);
@@ -407,14 +407,14 @@ class ContentScriptManager {
     const newUrl = window.location.href;
     
     if (newUrl !== this.currentUrl) {
-      logger.log('URL changed', { from: this.currentUrl, to: newUrl });
+      logger.debug('URL changed', { from: this.currentUrl, to: newUrl }, 'NAVIGATION');
       
       const wasBlocked = this.blockedPageUI.isPageBlocked();
       this.currentUrl = newUrl;
       
       // If we were showing a blocked page and now navigated away, remove it and clear any timers
       if (wasBlocked) {
-        logger.log('Navigation detected: removing blocked page overlay and clearing timers');
+        logger.debug('Navigation detected: removing blocked page overlay and clearing timers', undefined, 'NAVIGATION');
         this.blockedPageUI.removeBlockedPage();
       }
       
@@ -434,7 +434,7 @@ class ContentScriptManager {
    * Handle tab becoming visible (tab switching)
    */
   private handleTabBecameVisible(): void {
-    logger.log('Tab became visible, refreshing state');
+    logger.debug('Tab became visible, refreshing state', undefined, 'NAVIGATION');
     
     // Check for URL changes that might have happened while tab was hidden
     this.handleNavigationChange();
@@ -454,7 +454,7 @@ class ContentScriptManager {
    * Force a re-check of blocking rules regardless of current state
    */
   private forceRecheck(): void {
-    logger.log('Force re-check triggered for URL:', window.location.href);
+    logger.debug('Force re-check triggered for URL:', window.location.href, 'BLOCKING');
     
     // Update current URL to ensure navigation detection works properly
     this.currentUrl = window.location.href;
@@ -467,12 +467,12 @@ class ContentScriptManager {
    * Check if current site should be blocked and take action
    */
   private checkAndBlock(): void {
-    logger.log('checkAndBlock called for URL:', window.location.href);
-    logger.log('Current timer state:', this.currentTimerState);
+    logger.debug('checkAndBlock called for URL:', window.location.href, 'BLOCKING');
+    logger.debug('Current timer state:', this.currentTimerState, 'TIMER');
 
     // Don't block if extension is disabled
     if (!this.settings.extensionEnabled) {
-      logger.log('Extension disabled, removing any existing block');
+      logger.debug('Extension disabled, removing any existing block', undefined, 'BLOCKING');
       this.blockedPageUI.removeBlockedPage();
       return;
     }
@@ -485,32 +485,32 @@ class ContentScriptManager {
     
     // If page is blocked but shouldn't be, unblock it immediately
     if (isCurrentlyBlocked && !shouldBlock) {
-      logger.log('Page currently blocked but should no longer be blocked, removing block');
+      logger.debug('Page currently blocked but should no longer be blocked, removing block', undefined, 'BLOCKING');
       this.blockedPageUI.removeBlockedPage();
       return;
     }
     
     // If page is already blocked and should remain blocked, just update the content instead of recreating
     if (isCurrentlyBlocked && shouldBlock) {
-      logger.log('Page already blocked and should remain blocked, updating blocked page content in place');
+      logger.info('Page already blocked and should remain blocked, updating blocked page content in place', undefined, 'UI');
       this.blockedPageUI.updateBlockedPageContent();
       return;
     }
 
     // If page should be blocked and isn't currently blocked, block it
     if (shouldBlock) {
-      logger.log('Site should be blocked by current rules!');
-      logger.log('Block mode is', this.settings.blockMode);
+      logger.info('Site should be blocked by current rules!', undefined, 'BLOCKING');
+      logger.debug('Block mode is', this.settings.blockMode, 'BLOCKING');
 
       if (this.settings.blockMode === 'redirect') {
-        logger.log('Redirect mode - showing blocked page with countdown');
+        logger.debug('Redirect mode - showing blocked page with countdown', undefined, 'BLOCKING');
         this.blockedPageUI.createBlockedPage(true);
       } else {
-        logger.log('Block mode - showing blocked page');
+        logger.debug('Block mode - showing blocked page', undefined, 'BLOCKING');
         this.blockedPageUI.createBlockedPage(false);
       }
     } else {
-      logger.log('Site should NOT be blocked by current rules');
+      logger.debug('Site should NOT be blocked by current rules', undefined, 'BLOCKING');
       // Make sure any existing block overlay is removed
       this.blockedPageUI.removeBlockedPage();
     }
@@ -528,7 +528,7 @@ class ContentScriptManager {
     // INTEGRATED POMODORO BLOCKING LOGIC:
     // 1. If timer is in REST period, never block any websites
     if (this.currentTimerState === 'REST') {
-      logger.log('Timer is in REST period, not blocking any websites');
+      logger.debug('Timer is in REST period, not blocking any websites', undefined, 'BLOCKING');
       return false;
     }
 
@@ -539,7 +539,7 @@ class ContentScriptManager {
     // Check work hours - if work hours are enabled and we're outside work hours, don't block
     // (unless timer is in WORK period, which overrides work hours)
     if (this.currentTimerState !== 'WORK' && !shouldBlockBasedOnWorkHours(this.settings.workHours)) {
-      logger.log('Outside work hours and timer not in work period, not blocking');
+      logger.debug('Outside work hours and timer not in work period, not blocking', undefined, 'BLOCKING');
       return false;
     }
 
@@ -551,7 +551,7 @@ class ContentScriptManager {
    * Clean up event listeners and intervals
    */
   private cleanup(): void {
-    logger.log('Cleaning up content script');
+    logger.debug('Cleaning up content script', undefined, 'SYSTEM');
 
     // Clean up blocked page UI
     this.blockedPageUI.cleanup();
@@ -583,7 +583,7 @@ class ContentScriptManager {
     }
     
     this.isInitialized = false;
-    logger.log('Content script cleaned up');
+    logger.debug('Content script cleaned up', undefined, 'SYSTEM');
   }
 
   /**
@@ -614,7 +614,7 @@ class ContentScriptManager {
         await this.audioManager.playSound('work_complete');
       }
     } catch (error) {
-      logger.log('Error testing built-in sound:', error);
+      logger.error('Error testing built-in sound:', error, 'AUDIO');
     }
   }
 
@@ -629,10 +629,10 @@ class ContentScriptManager {
       const audio = new Audio(dataUrl);
       audio.volume = volume / 100;
       audio.play().catch(error => {
-        logger.log('Error playing custom sound:', error);
+        logger.error('Error playing custom sound:', error, 'AUDIO');
       });
     } catch (error) {
-      logger.log('Error testing custom sound:', error);
+      logger.error('Error testing custom sound:', error, 'AUDIO');
     }
   }
 }
